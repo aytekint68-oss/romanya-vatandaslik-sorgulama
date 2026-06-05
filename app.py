@@ -68,4 +68,4 @@ else:
     st.info("Arama yapmak için yukarıdaki kutuya dosya numaranızı tam olarak yazın.")
 
 # Syntax hatasını önlemek için tek satırda yazıldı
-st.caption("Not: Bu sistem resmi olmayan, verileri kolaylaştırmak amacıyla oluşturulmuş bir arama motorudur. İlgili belgeyi 'Resmi Sayfaya Git' linkine tıkladıktan sonra Romanya devlet sitesindeki listeden bulabilirsiniz.")
+st.caption("Önemli Not: Bu sistem resmi bir kamu hizmeti değildir ve sonuçlar resmi kayıt yerine geçmez. Belgelerin geçerliliği ve içeriği yalnızca Romanya devlet sitesindeki resmi kayıtlar üzerinden doğrulanmalıdır. Bunun için “Resmi Sayfaya Git” bağlantısını kullanarak ilgili belgeyi resmi listede kontrol edin.")
