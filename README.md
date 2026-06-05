@@ -1,4 +1,4 @@
-# Romanya Vatandaşlık Karar Sorgulama - Madde 10
+# Romanya Vatandaşlık Karar Sorgulama - Madde 10/11
 
 Bu proje, Romanya Adalet Bakanlığı (ANC) tarafından yayımlanan vatandaşlık onay kararlarını (Ordin - Articolul 10) onlarca PDF dosyası arasında tek tek aramak yerine, saniyeler içinde kolayca sorgulayabilmeniz için geliştirilmiş açık kaynaklı bir web uygulamasıdır.
 
