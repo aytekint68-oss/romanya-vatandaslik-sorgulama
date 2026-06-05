@@ -1,6 +1,6 @@
 # Romanya Vatandaşlık Karar Sorgulama - Madde 10/11
 
-Bu proje, Romanya Adalet Bakanlığı (ANC) tarafından yayımlanan vatandaşlık onay kararlarını (Ordin - Articolul 10) onlarca PDF dosyası arasında tek tek aramak yerine, saniyeler içinde kolayca sorgulayabilmeniz için geliştirilmiş açık kaynaklı bir web uygulamasıdır.
+Bu proje, Romanya Adalet Bakanlığı (ANC) tarafından yayımlanan vatandaşlık onay kararlarını onlarca PDF dosyası arasında tek tek aramak yerine, saniyeler içinde kolayca sorgulayabilmeniz için geliştirilmiş açık kaynaklı bir web uygulamasıdır.
 
 ## 🌟 Özellikler
 
@@ -19,4 +19,4 @@ Sistem, Python kullanılarak geliştirilmiş iki aşamalı bir mimariye sahiptir
 
 ## ⚠️ Yasal Uyarı
 
-Bu proje tamamen açık kaynaklı ve sivil bir girişim olup, verileri kolayca taramak amacıyla oluşturulmuş gayriresmi bir arama motorudur. Sonuçlar hiçbir hukuki bağlayıcılık taşımaz. Resmi ve kesin kararlar her zaman sadece [cetatenie.just.ro](https://cetatenie.just.ro/ordine-articolul-10/) adresinden teyit edilmelidir.
+Bu proje tamamen açık kaynaklı ve sivil bir girişim olup, verileri kolayca taramak amacıyla oluşturulmuş gayriresmi bir arama motorudur. Sonuçlar hiçbir hukuki bağlayıcılık taşımaz. Resmi ve kesin kararlar her zaman sadece [cetatenie.just.ro](https://cetatenie.just.ro/) adresinden teyit edilmelidir.
