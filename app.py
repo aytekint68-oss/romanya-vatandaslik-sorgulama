@@ -39,7 +39,6 @@ st.title("Romanya Vatandaşlık Karar Sorgulama - Madde 10/11")
 st.write("2019 - 2026 yılları arasında yayımlanan kararnamelerde (Madde 10 ve Madde 11) dosya numaranızı anında bulun.")
 
 st.divider()
-
 # --- İKİLİ SON KARAR PANOSU (MADDE 10 VE MADDE 11) ---
 st.markdown("📢 **Sisteme Eklenen Son Kararlar:**")
 col1, col2 = st.columns(2)
@@ -50,6 +49,8 @@ with col1:
         son10_tarih = df10.iloc[0]['Tarih']
         son10_pdf = df10.iloc[0]['Kaynak Belge']
         st.info(f"**Madde 10 (Art. 10)**\n\n📅 **Tarih:** {son10_tarih}\n\n📄 **Belge:** {son10_pdf}\n\n🔗 **[Resmi Sayfaya Git](https://cetatenie.just.ro/ordine-articolul-10/)**")
+    else:
+        st.warning("Madde 10 Excel dosyası okunamadı.")
 
 # Madde 11 için son karar kutusu
 with col2:
@@ -57,6 +58,8 @@ with col2:
         son11_tarih = df11.iloc[0]['Tarih']
         son11_pdf = df11.iloc[0]['Kaynak Belge']
         st.info(f"**Madde 11 (Art. 11)**\n\n📅 **Tarih:** {son11_tarih}\n\n📄 **Belge:** {son11_pdf}\n\n🔗 **[Resmi Sayfaya Git](https://cetatenie.just.ro/ordine-articolul-1-1/)**")
+    else:
+        st.error("Madde 11 dosyası bulunamadı! Lütfen dosya adının tam olarak 'Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx' olduğundan ve GitHub'a yüklendiğinden emin olun.")
 
 st.divider()
 
