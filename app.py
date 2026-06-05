@@ -35,26 +35,28 @@ def veri_yukle():
 df, df10, df11 = veri_yukle()
 
 # Arayüz Tasarımı
-st.title("Romanya Vatandaşlık Karar Sorgulama")
+st.title("Romanya Vatandaşlık Karar Sorgulama - Madde 10/11")
 st.write("2019 - 2026 yılları arasında yayımlanan kararnamelerde (Madde 10 ve Madde 11) dosya numaranızı anında bulun.")
 
 st.divider()
 
-# --- YENİLENEN BÖLÜM: İKİLİ SON KARAR PANOSU ---
+# --- İKİLİ SON KARAR PANOSU (MADDE 10 VE MADDE 11) ---
 st.markdown("📢 **Sisteme Eklenen Son Kararlar:**")
 col1, col2 = st.columns(2)
 
+# Madde 10 için son karar kutusu
 with col1:
     if not df10.empty:
         son10_tarih = df10.iloc[0]['Tarih']
         son10_pdf = df10.iloc[0]['Kaynak Belge']
-        st.info(f"**Madde 10 (Art. 10)**\n\n📅 {son10_tarih}\n\n📄 {son10_pdf}\n\n🔗 **[Resmi Sayfa](https://cetatenie.just.ro/ordine-articolul-10/)**")
+        st.info(f"**Madde 10 (Art. 10)**\n\n📅 **Tarih:** {son10_tarih}\n\n📄 **Belge:** {son10_pdf}\n\n🔗 **[Resmi Sayfaya Git](https://cetatenie.just.ro/ordine-articolul-10/)**")
 
+# Madde 11 için son karar kutusu
 with col2:
     if not df11.empty:
         son11_tarih = df11.iloc[0]['Tarih']
         son11_pdf = df11.iloc[0]['Kaynak Belge']
-        st.info(f"**Madde 11 (Art. 11)**\n\n📅 {son11_tarih}\n\n📄 {son11_pdf}\n\n🔗 **[Resmi Sayfa](https://cetatenie.just.ro/ordine-articolul-1-1/)**")
+        st.info(f"**Madde 11 (Art. 11)**\n\n📅 **Tarih:** {son11_tarih}\n\n📄 **Belge:** {son11_pdf}\n\n🔗 **[Resmi Sayfaya Git](https://cetatenie.just.ro/ordine-articolul-1-1/)**")
 
 st.divider()
 
@@ -95,6 +97,6 @@ st.write("")
 with st.expander("💡 Görüş, Öneri ve İletişim"):
     st.write("Bu sistem, vatandaşlık sürecinde bekleyenlere kolaylık sağlamak amacıyla tamamen gönüllü olarak geliştirilmiştir.")
     st.write("Sistemle ilgili karşılaştığınız hataları, eklenmesini istediğiniz özellikleri veya genel görüşlerinizi iletmekten lütfen çekinmeyin.")
-    st.markdown("**Bize Ulaşın:** [aytekint68@gmail.com](mailto:aytekint68@gmail.com)")
+    st.markdown("**Bize Ulaşın:** [sizin.epostaniz@gmail.com](mailto:sizin.epostaniz@gmail.com)")
 
-st.caption("Not: Bu sistem resmi olmayan, verileri kolayca araştırabilmek amacıyla oluşturulmuş bir arama motorudur. İlgili belgeyi 'Resmi Sayfaya Git' linkine tıkladıktan sonra Romanya devlet sitesindeki listeden bulabilirsiniz.")
+st.caption("Not: Bu sistem resmi olmayan, verileri kolaylaştırmak amacıyla oluşturulmuş bir arama motorudur. İlgili belgeyi 'Resmi Sayfaya Git' linkine tıkladıktan sonra Romanya devlet sitesindeki listeden bulabilirsiniz.")
