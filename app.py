@@ -38,7 +38,7 @@ df, df10, df11 = veri_yukle()
 
 # --- BURADAN AŞAĞISI ARAYÜZ TASARIMI (AYNI KALACAK) ---
 st.title("Romanya Vatandaşlık Karar Sorgulama - Madde 10/11")
-st.write("2019 - 2026 yılları arasında yayımlanan kararnamelerde (Madde 10 ve Madde 11) dosya numaranızı anında bulun.")
+st.write("Madde 10 : 2019 - 2026, Madde 11 : 2018 - 2026 yılları arasında yayımlanan kararnamelerde dosya numaranızı anında bulun.")
 
 st.divider()
 
@@ -88,6 +88,6 @@ st.write("")
 
 with st.expander("💡 Görüş, Öneri ve İletişim"):
     st.write("Bu sistem, vatandaşlık sürecinde bekleyenlere kolaylık sağlamak amacıyla tamamen gönüllü olarak geliştirilmiştir.")
-    st.markdown("**Bize Ulaşın:** [aytekint68@gmail](mailto:aytekint68@gmail.com)")
+    st.markdown("**Bize Ulaşın:** [aytekint68@gmail.com](mailto:aytekint68@gmail.com)")
 
 st.caption("Not: Bu sistem resmi olmayan, verileri kolaylaştırmak amacıyla oluşturulmuş bir arama motorudur. İlgili belgeyi 'Resmi Sayfaya Git' linkine tıkladıktan sonra Romanya devlet sitesindeki listeden bulabilirsiniz.")
