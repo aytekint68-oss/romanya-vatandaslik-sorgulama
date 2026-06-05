@@ -7,32 +7,54 @@ st.set_page_config(page_title="Romanya Vatandaşlık Sorgulama", page_icon="🛂
 # Veriyi hızlı yüklemek için önbelleğe (cache) alıyoruz
 @st.cache_data
 def veri_yukle():
-    df = pd.read_excel("Romanya_Vatandaslik_Tum_Veriler.xlsx")
-    df = df.fillna("") # Boş alanları temizle
-    df['Dosya Numarası'] = df['Dosya Numarası'].astype(str).str.strip()
-    return df
+    # 1. Madde 10 Verilerini Oku
+    try:
+        df10 = pd.read_excel("Romanya_Vatandaslik_Tum_Veriler.xlsx")
+        df10['Kategori'] = "Madde 10"
+        df10['Link'] = "https://cetatenie.just.ro/ordine-articolul-10/"
+    except:
+        df10 = pd.DataFrame()
+        
+    # 2. Madde 11 Verilerini Oku
+    try:
+        df11 = pd.read_excel("Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx")
+        df11['Kategori'] = "Madde 11"
+        df11['Link'] = "https://cetatenie.just.ro/ordine-articolul-1-1/"
+    except:
+        df11 = pd.DataFrame()
 
-df = veri_yukle()
+    # İki tabloyu alt alta birleştir
+    df_tum = pd.concat([df10, df11], ignore_index=True)
+    
+    if not df_tum.empty:
+        df_tum = df_tum.fillna("") # Boş alanları temizle
+        df_tum['Dosya Numarası'] = df_tum['Dosya Numarası'].astype(str).str.strip()
+        
+    return df_tum, df10, df11
+
+df, df10, df11 = veri_yukle()
 
 # Arayüz Tasarımı
-st.title("Romanya Vatandaşlık Karar Sorgulama - Madde 10")
-st.write("2019 - 2026 yılları arasında yayımlanan kararnamelerde (Ordin) dosya numaranızı anında bulun.")
+st.title("Romanya Vatandaşlık Karar Sorgulama")
+st.write("2019 - 2026 yılları arasında yayımlanan kararnamelerde (Madde 10 ve Madde 11) dosya numaranızı anında bulun.")
 
 st.divider()
 
-# --- YENİ EKLENEN BÖLÜM: SON YÜKLENEN KARAR PANOSU ---
-# Tablomuz en güncelden eskiye sıralı olduğu için ilk satırı (index 0) alıyoruz
-if not df.empty:
-    son_tarih = df.iloc[0]['Tarih']
-    son_pdf = df.iloc[0]['Kaynak Belge']
-    
-    # Şık bir bilgi kutusu içinde gösteriyoruz
-    st.info(f"""
-    📢 **Sisteme Eklenen Son Karar:**
-    * **Tarih:** {son_tarih}
-    * **Belge Adı:** {son_pdf}
-    * 🔗 **[Resmi Sayfada Görüntüle](https://cetatenie.just.ro/ordine-articolul-10/)**
-    """)
+# --- YENİLENEN BÖLÜM: İKİLİ SON KARAR PANOSU ---
+st.markdown("📢 **Sisteme Eklenen Son Kararlar:**")
+col1, col2 = st.columns(2)
+
+with col1:
+    if not df10.empty:
+        son10_tarih = df10.iloc[0]['Tarih']
+        son10_pdf = df10.iloc[0]['Kaynak Belge']
+        st.info(f"**Madde 10 (Art. 10)**\n\n📅 {son10_tarih}\n\n📄 {son10_pdf}\n\n🔗 **[Resmi Sayfa](https://cetatenie.just.ro/ordine-articolul-10/)**")
+
+with col2:
+    if not df11.empty:
+        son11_tarih = df11.iloc[0]['Tarih']
+        son11_pdf = df11.iloc[0]['Kaynak Belge']
+        st.info(f"**Madde 11 (Art. 11)**\n\n📅 {son11_tarih}\n\n📄 {son11_pdf}\n\n🔗 **[Resmi Sayfa](https://cetatenie.just.ro/ordine-articolul-1-1/)**")
 
 st.divider()
 
@@ -41,18 +63,18 @@ aranan_dosya = st.text_input("🔍 Dosya Numaranızı Girin (Örn: 7026/2023):")
 
 if aranan_dosya:
     aranan_temiz = aranan_dosya.strip()
-    # Sadece birebir eşleşen kayıtları getirir
     sonuclar = df[df['Dosya Numarası'] == aranan_temiz].copy()
     
     if not sonuclar.empty:
         st.success(f"🎉 Tebrikler! {aranan_temiz} numaralı dosyanız için {len(sonuclar)} kayıt bulundu.")
         
-        # Kırık link hatasını sıfırlamak için doğrudan resmi ana sayfaya yönlendiriyoruz
-        sonuclar['Direkt Link'] = "https://cetatenie.just.ro/ordine-articolul-10/"
+        # Linkleri tablo için düzenle
+        sonuclar['Direkt Link'] = sonuclar['Link']
+        gosterilecek_tablo = sonuclar.drop(columns=['Link']) # Arka plan linkini gizle
         
         # Tabloyu ekrana bas
         st.dataframe(
-            sonuclar, 
+            gosterilecek_tablo, 
             use_container_width=True, 
             hide_index=True,
             column_config={
@@ -67,5 +89,12 @@ if aranan_dosya:
 else:
     st.info("Arama yapmak için yukarıdaki kutuya dosya numaranızı tam olarak yazın.")
 
-# Syntax hatasını önlemek için tek satırda yazıldı
-st.caption("Önemli Not: Bu sistem resmi bir kamu hizmeti değildir ve sonuçlar resmi kayıt yerine geçmez. Belgelerin geçerliliği ve içeriği yalnızca Romanya devlet sitesindeki resmi kayıtlar üzerinden doğrulanmalıdır. Bunun için “Resmi Sayfaya Git” bağlantısını kullanarak ilgili belgeyi resmi listede kontrol edin.")
+st.write("") 
+
+# İletişim Kutusu
+with st.expander("💡 Görüş, Öneri ve İletişim"):
+    st.write("Bu sistem, vatandaşlık sürecinde bekleyenlere kolaylık sağlamak amacıyla tamamen gönüllü olarak geliştirilmiştir.")
+    st.write("Sistemle ilgili karşılaştığınız hataları, eklenmesini istediğiniz özellikleri veya genel görüşlerinizi iletmekten lütfen çekinmeyin.")
+    st.markdown("**Bize Ulaşın:** [aytekint68@gmail.com](mailto:aytekint68@gmail.com)")
+
+st.caption("Not: Bu sistem resmi olmayan, verileri kolayca araştırabilmek amacıyla oluşturulmuş bir arama motorudur. İlgili belgeyi 'Resmi Sayfaya Git' linkine tıkladıktan sonra Romanya devlet sitesindeki listeden bulabilirsiniz.")
