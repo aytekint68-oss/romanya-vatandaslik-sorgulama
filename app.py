@@ -90,4 +90,5 @@ with st.expander("💡 Görüş, Öneri ve İletişim"):
     st.write("Bu sistem, vatandaşlık sürecinde bekleyenlere kolaylık sağlamak amacıyla tamamen gönüllü olarak geliştirilmiştir.")
     st.markdown("**Bize Ulaşın:** [aytekint68@gmail.com](mailto:aytekint68@gmail.com)")
 
-st.caption("Not: Bu sistem resmi olmayan, verileri kolaylaştırmak amacıyla oluşturulmuş bir arama motorudur. İlgili belgeyi 'Resmi Sayfaya Git' linkine tıkladıktan sonra Romanya devlet sitesindeki listeden bulabilirsiniz.")
+st.caption("Bu proje tamamen açık kaynaklı ve sivil bir girişim olup, verileri kolayca taramak amacıyla oluşturulmuş gayriresmi bir arama motorudur. Sonuçlar hiçbir hukuki bağlayıcılık taşımaz. Resmi ve kesin kararlar her zaman sadece [cetatenie.just.ro](https://cetatenie.just.ro/) adresinden teyit edilmelidir.
+")
