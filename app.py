@@ -85,7 +85,7 @@ if aranan_dosya:
             }
         )
     else:
-        st.error(f"Maalesef '{aranan_temiz}' numaralı dosya bulunamadı. Lütfen numarayı (Yıl/Dosya No şeklinde) eksiksiz yazdığınızdan emin olun veya henüz onaylanmadığını dikkate alın.")
+        st.error(f"Maalesef '{aranan_temiz}' numaralı dosya bulunamadı. Lütfen numarayı (Dosya No/Yıl şeklinde) eksiksiz yazdığınızdan emin olun veya henüz onaylanmadığını dikkate alın.")
 else:
     st.info("Arama yapmak için yukarıdaki kutuya dosya numaranızı tam olarak yazın.")
 
