@@ -14,10 +14,25 @@ def veri_yukle():
 
 df = veri_yukle()
 
-# Arayüz Tasarımı - Bayrak kaldırıldı, sade başlık eklendi
-st.title("Romanya Vatandaşlık Karar Sorgulama")
-
+# Arayüz Tasarımı
+st.title("Romanya Vatandaşlık Karar Sorgulama - Madde 10")
 st.write("2019 - 2026 yılları arasında yayımlanan kararnamelerde (Ordin) dosya numaranızı anında bulun.")
+
+st.divider()
+
+# --- YENİ EKLENEN BÖLÜM: SON YÜKLENEN KARAR PANOSU ---
+# Tablomuz en güncelden eskiye sıralı olduğu için ilk satırı (index 0) alıyoruz
+if not df.empty:
+    son_tarih = df.iloc[0]['Tarih']
+    son_pdf = df.iloc[0]['Kaynak Belge']
+    
+    # Şık bir bilgi kutusu içinde gösteriyoruz
+    st.info(f"""
+    📢 **Sisteme Eklenen Son Karar:**
+    * **Tarih:** {son_tarih}
+    * **Belge Adı:** {son_pdf}
+    * 🔗 **[Resmi Sayfada Görüntüle](https://cetatenie.just.ro/ordine-articolul-10/)**
+    """)
 
 st.divider()
 
@@ -32,8 +47,7 @@ if aranan_dosya:
     if not sonuclar.empty:
         st.success(f"🎉 Tebrikler! {aranan_temiz} numaralı dosyanız için {len(sonuclar)} kayıt bulundu.")
         
-        # --- GARANTİLİ LİNK YÖNTEMİ ---
-        # Kırık link hatasını sıfırlamak için doğrudan resmi ana sayfaya yönlendiriyoruz.
+        # Kırık link hatasını sıfırlamak için doğrudan resmi ana sayfaya yönlendiriyoruz
         sonuclar['Direkt Link'] = "https://cetatenie.just.ro/ordine-articolul-10/"
         
         # Tabloyu ekrana bas
