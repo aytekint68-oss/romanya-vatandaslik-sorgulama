@@ -5,6 +5,19 @@ import fitz  # PyMuPDF
 import io
 import re
 import os
+import socket # YENİ EKLENDİ
+
+# --- GITHUB SUNUCU (IPv6) HATASINI ÖNLEMEK İÇİN IPv4'E ZORLAMA ---
+eski_getaddrinfo = socket.getaddrinfo
+def yeni_getaddrinfo(*args, **kwargs):
+    cevaplar = eski_getaddrinfo(*args, **kwargs)
+    return [cevap for cevap in cevaplar if cevap[0] == socket.AF_INET]
+socket.getaddrinfo = yeni_getaddrinfo
+# ----------------------------------------------------------------
+
+# Ayarlar: Siteler ve Excel dosyalarınız
+KAYNAKLAR = [
+# ... (KODUN GERİ KALANI AYNI ŞEKİLDE DEVAM EDECEK) ...
 
 # Ayarlar: Siteler ve Excel dosyalarınız
 KAYNAKLAR = [
