@@ -1,7 +1,7 @@
 name: 2026 PDF Manuel Test Botu
 
 on:
-  workflow_dispatch: # Sadece butona manuel basınca çalışır (Otomatik değil)
+  workflow_dispatch: 
 
 permissions:
   contents: write
@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Depoyu Klonla
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Python Kurulumu
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
