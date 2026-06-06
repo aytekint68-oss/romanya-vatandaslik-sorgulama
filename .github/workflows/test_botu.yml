@@ -1,0 +1,33 @@
+name: 2026 PDF Manuel Test Botu
+
+on:
+  workflow_dispatch: # Sadece butona manuel basınca çalışır (Otomatik değil)
+
+permissions:
+  contents: write
+
+jobs:
+  botu_calistir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu Klonla
+        uses: actions/checkout@v3
+
+      - name: Python Kurulumu
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Kütüphaneleri Yükle
+        run: pip install requests beautifulsoup4 PyMuPDF pandas openpyxl
+
+      - name: 2026 PDF Botunu Çalıştır
+        run: python otomatik_bot.py
+
+      - name: Yeni Verileri Github'a Kaydet
+        run: |
+          git config --global user.name "Sistem Botu"
+          git config --global user.email "bot@otomasyon.com"
+          git add .
+          git commit -m "🤖 2026 Testi: Excel dosyaları güncellendi" || echo "Değişiklik yok."
+          git push
