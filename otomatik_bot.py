@@ -5,7 +5,7 @@ import fitz  # PyMuPDF
 import io
 import re
 import os
-import socket # YENİ EKLENDİ
+import socket
 
 # --- GITHUB SUNUCU (IPv6) HATASINI ÖNLEMEK İÇİN IPv4'E ZORLAMA ---
 eski_getaddrinfo = socket.getaddrinfo
@@ -14,10 +14,6 @@ def yeni_getaddrinfo(*args, **kwargs):
     return [cevap for cevap in cevaplar if cevap[0] == socket.AF_INET]
 socket.getaddrinfo = yeni_getaddrinfo
 # ----------------------------------------------------------------
-
-# Ayarlar: Siteler ve Excel dosyalarınız
-KAYNAKLAR = [
-# ... (KODUN GERİ KALANI AYNI ŞEKİLDE DEVAM EDECEK) ...
 
 # Ayarlar: Siteler ve Excel dosyalarınız
 KAYNAKLAR = [
@@ -37,8 +33,9 @@ YIL_FILTRESI = "2026"
 
 def pdf_isle(pdf_url, pdf_adi):
     print(f"İndiriliyor ve okunuyor: {pdf_adi}")
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    response = requests.get(pdf_url, headers=headers)
+    # Gerçek bir tarayıcı gibi görünmek için User-Agent eklendi
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+    response = requests.get(pdf_url, headers=headers, timeout=30)
     pdf_verisi = io.BytesIO(response.content)
     
     doc = fitz.open(stream=pdf_verisi, filetype="pdf")
@@ -72,43 +69,54 @@ for kaynak in KAYNAKLAR:
     
     # Mevcut Excel'i oku (varsa)
     if os.path.exists(kaynak['excel_dosyasi']):
-        df_mevcut = pd.read_excel(kaynak['excel_dosyasi'])
-        df_mevcut = df_mevcut.dropna(subset=['Kaynak Belge'])
-        mevcut_pdfler = df_mevcut['Kaynak Belge'].unique().tolist()
+        try:
+            df_mevcut = pd.read_excel(kaynak['excel_dosyasi'])
+            df_mevcut = df_mevcut.dropna(subset=['Kaynak Belge'])
+            mevcut_pdfler = df_mevcut['Kaynak Belge'].unique().tolist()
+        except:
+            df_mevcut = pd.DataFrame(columns=["Dosya Numarası", "Tarih", "Kaynak Belge"])
+            mevcut_pdfler = []
     else:
         df_mevcut = pd.DataFrame(columns=["Dosya Numarası", "Tarih", "Kaynak Belge"])
         mevcut_pdfler = []
         
     # Web sayfasını çek
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    r = requests.get(kaynak['url'], headers=headers)
-    soup = BeautifulSoup(r.text, 'html.parser')
-    
-    yeni_kayitlar = []
-    
-    # Sayfadaki tüm linkleri tara
-    for link in soup.find_all('a', href=True):
-        href = link['href']
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+    try:
+        r = requests.get(kaynak['url'], headers=headers, timeout=30)
+        soup = BeautifulSoup(r.text, 'html.parser')
         
-        # Eğer link bir PDF ise ve içinde 2026 geçiyorsa
-        if href.endswith('.pdf') and YIL_FILTRESI in href:
-            pdf_adi = href.split('/')[-1]
-            tam_url = href if href.startswith('http') else "https://cetatenie.just.ro" + href
+        yeni_kayitlar = []
+        
+        # Sayfadaki tüm linkleri tara
+        for link in soup.find_all('a', href=True):
+            href = link['href']
             
-            # Sadece Excel'de OLMAYAN yeni bir PDF ise işlem yap
-            if pdf_adi not in mevcut_pdfler:
-                print(f"Yeni eklenecek PDF bulundu: {pdf_adi}")
-                cekilen_veri = pdf_isle(tam_url, pdf_adi)
-                yeni_kayitlar.extend(cekilen_veri)
+            # Eğer link bir PDF ise ve içinde 2026 geçiyorsa
+            if href.endswith('.pdf') and YIL_FILTRESI in href:
+                pdf_adi = href.split('/')[-1]
+                tam_url = href if href.startswith('http') else "https://cetatenie.just.ro" + href
+                
+                # Sadece Excel'de OLMAYAN yeni bir PDF ise işlem yap
+                if pdf_adi not in mevcut_pdfler:
+                    print(f"Yeni eklenecek PDF bulundu: {pdf_adi}")
+                    try:
+                        cekilen_veri = pdf_isle(tam_url, pdf_adi)
+                        yeni_kayitlar.extend(cekilen_veri)
+                    except Exception as e:
+                        print(f"PDF okunurken hata oluştu ({pdf_adi}): {e}")
+                
+        # Yeni verileri Excel'e kaydet
+        if yeni_kayitlar:
+            df_yeni = pd.DataFrame(yeni_kayitlar)
+            # Yeni veriler en üste gelsin diye df_yeni öne yazılır
+            df_son = pd.concat([df_yeni, df_mevcut], ignore_index=True)
+            df_son.to_excel(kaynak['excel_dosyasi'], index=False)
+            print(f"✅ {len(yeni_kayitlar)} yeni onay {kaynak['excel_dosyasi']} dosyasına eklendi.")
+        else:
+            print("Sitede 2026 yılına ait Excel'inizde olmayan yeni bir PDF bulunamadı.")
             
-    # Yeni verileri Excel'e kaydet
-    if yeni_kayitlar:
-        df_yeni = pd.DataFrame(yeni_kayitlar)
-        # Yeni veriler en üste gelsin diye df_yeni öne yazılır
-        df_son = pd.concat([df_yeni, df_mevcut], ignore_index=True)
-        df_son.to_excel(kaynak['excel_dosyasi'], index=False)
-        print(f"✅ {len(yeni_kayitlar)} yeni onay {kaynak['excel_dosyasi']} dosyasına eklendi.")
-    else:
-        print("Sitede 2026 yılına ait Excel'inizde olmayan yeni bir PDF bulunamadı.")
+    except Exception as e:
+        print(f"Siteye bağlanırken bir sorun oluştu: {e}")
 
 print("\n🎉 Tüm işlemler başarıyla tamamlandı!")
