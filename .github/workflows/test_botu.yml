@@ -3,6 +3,10 @@ name: 2026 PDF Manuel Test Botu
 on:
   workflow_dispatch: 
 
+# Bu kod GitHub'ın Node.js uyarısını tamamen susturur
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
 
