@@ -1,19 +1,29 @@
 import streamlit as st
 import pandas as pd
+import os # Dosya tarihlerini kontrol etmek için eklendi
 
 # Sayfa ayarları
 st.set_page_config(page_title="Romanya Vatandaşlık Sorgulama", page_icon="🛂", layout="centered")
 
-# Veriyi hızlı yüklemek için önbelleğe (cache) alıyoruz
+# Excel dosyalarının son değiştirilme tarihlerini alıyoruz
+def dosya_tarihi_getir(dosya_adi):
+    if os.path.exists(dosya_adi):
+        return os.path.getmtime(dosya_adi)
+    return 0
+
+tarih10 = dosya_tarihi_getir("Romanya_Vatandaslik_Tum_Veriler.xlsx")
+tarih11 = dosya_tarihi_getir("Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx")
+
+# Fonksiyona bu tarihleri parametre olarak veriyoruz. 
+# Tarih değiştiği an Streamlit önbelleği (cache) otomatik olarak kırılır!
 @st.cache_data
-def veri_yukle():
+def veri_yukle(t10, t11):
     # 1. Madde 10 Verilerini Oku
     try:
         df10 = pd.read_excel("Romanya_Vatandaslik_Tum_Veriler.xlsx")
         df10['Kategori'] = "Madde 10"
         df10['Link'] = "https://cetatenie.just.ro/ordine-articolul-10/"
     except Exception as e:
-        st.error(f"Madde 10 Okuma Hatası: {e}")
         df10 = pd.DataFrame()
         
     # 2. Madde 11 Verilerini Oku
@@ -22,7 +32,6 @@ def veri_yukle():
         df11['Kategori'] = "Madde 11"
         df11['Link'] = "https://cetatenie.just.ro/ordine-articolul-1-1/"
     except Exception as e:
-        st.error(f"🔍 Madde 11 Hata Sebebi: {e}") 
         df11 = pd.DataFrame()
 
     # İki tabloyu alt alta birleştir
@@ -34,7 +43,12 @@ def veri_yukle():
         
     return df_tum, df10, df11
 
-df, df10, df11 = veri_yukle()
+# Tarih parametrelerini içeri gönderiyoruz
+df, df10, df11 = veri_yukle(tarih10, tarih11)
+
+# --- BUNDAN SONRASI ARAYÜZ KODLARINIZLA BİREBİR AYNI KALACAK ---
+st.title("Romanya Vatandaşlık Karar Sorgulama")
+# ... (Mevcut tasarım kodlarınız aşağıya aynen devam edecek)
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Karar Sorgulama")
