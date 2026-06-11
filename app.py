@@ -47,8 +47,6 @@ def veri_yukle(t10, t11):
 df, df10, df11 = veri_yukle(tarih10, tarih11)
 
 # --- BUNDAN SONRASI ARAYÜZ KODLARINIZLA BİREBİR AYNI KALACAK ---
-st.title("Romanya Vatandaşlık Karar Sorgulama")
-# ... (Mevcut tasarım kodlarınız aşağıya aynen devam edecek)
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Karar Sorgulama")
