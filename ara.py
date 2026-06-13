@@ -129,7 +129,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     
                     st.markdown("---")
                     
-                    st.markdown("## ⚖️ KARAR (ORDİN) DURUMU")
+                    st.markdown("## ⚖️ KARAR (ORDINE) DURUMU")
                     
                     if p_numarasi:
                         st.markdown(f"Sistem, dosyanızın SOLUTIE bölümünde **{p_numarasi}** numaralı bir onay kodu tespit etti. Karar listeleri taranıyor...")
