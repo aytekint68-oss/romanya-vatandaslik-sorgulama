@@ -67,7 +67,7 @@ m11_belge, m11_tarih = en_guncel_belge_bilgisi(df_karar_m11)
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
-st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu ve karar (Ordine) sonucunuzu tek ekranda görüntüleyin.")
+st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordine) sonucunuzu tek ekranda görüntüleyin.")
 
 st.info(f"""
 🔄 **Dosya Durumu Son Güncelleme:** {dosya_guncelleme_tarihi}
