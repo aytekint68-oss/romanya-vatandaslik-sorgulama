@@ -1,22 +1,36 @@
-# Romanya Vatandaşlık Karar Sorgulama - Madde 10/11
+# Romanya Vatandaşlık Dosya ve Karar (Ordine) Sorgulama Sistemi
 
-Bu proje, Romanya Adalet Bakanlığı (ANC) tarafından yayımlanan vatandaşlık onay kararlarını yüzlerce PDF dosyası arasında tek tek aramak yerine, saniyeler içinde kolayca sorgulayabilmeniz için geliştirilmiş açık kaynaklı bir web uygulamasıdır.
+Bu proje, Romanya Adalet Bakanlığı - Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan **Madde 10 ve Madde 11** kapsamındaki vatandaşlık başvuru dosyalarının durumunu ve Karar (Ordine) sonuçlarını **tek bir ekranda birleştirerek** sunan akıllı bir sorgulama motorudur. 
 
-## 🌟 Özellikler
+Yüzlerce sayfalık karmaşık PDF listeleri arasında kaybolmayı önler ve kullanıcılara saniyeler içinde net bilgiler sunar.
 
-* **Hızlı Sorgulama:** Dosya numaranızı (Örn: 7026/2023) yazarak kararın çıkıp çıkmadığını anında öğrenebilirsiniz.
-* **Tam Eşleşme Mantığı:** Sadece birebir eşleşen dosya numaralarını getirerek hatalı sonuçların önüne geçer.
-* **Son Karar Panosu:** Sisteme eklenen en güncel kararnamenin tarihini ve adını ana sayfada gösterir.
-* **Resmi Kaynağa Yönlendirme:** Bulunan kararı teyit edebilmeniz için tek tıkla doğrudan orijinal devlet sitesine yönlendirir.
-* **Mobil Uyumlu:** Streamlit altyapısı sayesinde telefondan veya bilgisayardan kusursuz görünür.
+---
 
-## 🛠️ Nasıl Çalışıyor?
+## ✨ Öne Çıkan Özellikler
 
-Sistem, Python kullanılarak geliştirilmiş iki aşamalı bir mimariye sahiptir:
+* **Entegre Çift Yönlü Sorgulama:** Kullanıcı dosya numarasını girdiğinde, sistem önce "Dosya Durumu" (Stadiu Dosar) listesini tarar. Eğer dosyada bir karar/onay kodu (Örn: `2040/P/2023`) tespit ederse, otomatik olarak "Karar (Ordine)" listelerine bağlanır ve dosyanın resmi olarak yayımlanıp yayımlanmadığını kontrol eder.
+* **Akıllı Hata Ayıklama (Gelişmiş İstisna Yönetimi):** Eğer dosya "P (Onay)" numarası almış ancak henüz resmi karar listesinde yayımlanmamışsa, sistem kullanıcıya *"Dosyanız olumlu çözümlenmiş ancak henüz resmi listeye eklenmemiş"* şeklinde özel bir uyarı verir.
+* **Esnek ve Tam Eşleşme (Exact Match):** `1234/2017` yazıldığında aradaki harfleri (Örn: `1234/RD/2017`) otomatik tolere eder. Ayrıca `1234` arandığında `12340` gibi sahte eşleşmeleri filtreleyerek tam on ikiden vurur.
+* **Dinamik Güncelleme Takibi:** Sistem, veritabanını oluşturan PDF dosyalarının isimlerindeki tarihleri (Örn: `Update-10.06.2026`) okuyarak ziyaretçilere verilerin ne kadar güncel olduğunu şeffaf bir şekilde sunar.
 
-1. **Veri Çıkarma (Backend):** Resmi siteden indirilen PDF dosyaları `PyMuPDF (fitz)` ve `Regex` kullanılarak taranır. İçlerindeki dosya numaraları, tarih ve karar (Ordin) bilgileri ayıklanarak Pandas aracılığıyla tek bir merkezi Excel veritabanına (`Romanya_Vatandaslik_Tum_Veriler.xlsx`) dönüştürülür.
-2. **Web Arayüzü (Frontend):** Oluşturulan bu veritabanı, `Streamlit` kütüphanesi kullanılarak kullanıcı dostu ve interaktif bir web sitesi üzerinden genel erişime açılır.
+---
 
-## ⚠️ Yasal Uyarı
+## 📂 Sistem Mimarisi ve Veritabanı Yapısı
 
-Bu proje tamamen açık kaynaklı ve sivil bir girişim olup, verileri kolayca taramak amacıyla oluşturulmuş gayriresmi bir arama motorudur. Sonuçlar hiçbir hukuki bağlayıcılık taşımaz. Resmi ve kesin kararlar her zaman sadece [cetatenie.just.ro](https://cetatenie.just.ro/) adresinden teyit edilmelidir.
+Sistemin arka planda kusursuz çalışması için aşağıdaki 3 ana Excel dosyası ile beslenmesi gerekir:
+
+1. `dosyadurumu.xlsx` -> Tüm başvuruların genel durumunu (TERMEN ve SOLUTIE) barındırır.
+2. `Romanya_Vatandaslik_Tum_Veriler.xlsx` -> Madde 10 kapsamındaki onaylanmış karar (Ordine) listesi.
+3. `Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx` -> Madde 11 kapsamındaki onaylanmış karar (Ordine) listesi.
+
+*(Bu Excel dosyaları, sisteme entegre edilen özel bir PyMuPDF botu ile resmi PDF'lerden çekilerek oluşturulmaktadır.)*
+
+---
+
+## 🛠️ Kullanılan Teknolojiler
+
+* **Python 3.12+**
+* **Streamlit:** Web arayüzü ve sunucu altyapısı.
+* **Pandas:** Çoklu Excel veritabanlarının birleştirilmesi ve hızlı manipülasyonu.
+* **Regex (Re):** Akıllı arama ve metin ayıklama işlemleri.
+
