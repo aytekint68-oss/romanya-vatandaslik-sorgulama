@@ -135,7 +135,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         st.markdown(f"Sistem, dosyanızın SOLUTIE bölümünde **{p_numarasi}** numaralı bir onay kodu tespit etti. Karar listeleri taranıyor...")
                         
                         if df_karar.empty:
-                            st.warning("Sistemde şu an Karar (Ordin) tabloları bulunmuyor.")
+                            st.warning("Sistemde şu an Karar (Ordine) tabloları bulunmuyor.")
                         else:
                             # GÜNCELLEME: P numarasını değil, kullanıcının ANA başvuru numarasını Karar Excel'inde arıyoruz.
                             # Örn: 14852/RD/2022'den 14852 ve 2022'yi ayıkla
@@ -159,7 +159,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     
                                 st.markdown(f"- **Kaynak Belge:** {k_row.get('Kaynak Belge', 'Bilinmiyor')}")
                             else:
-                                st.warning(f"⚠️ **Bilgi Notu:** Dosyanızın durum bölümünde bir onay kodu ({p_numarasi}) görünmektedir. **Muhtemelen dosyanız olumlu olarak çözümlenmiş ancak ANC tarafından henüz resmi bir 'Karar (Ordin)' listesi içinde yayımlanmamıştır.** Lütfen ilerleyen güncellemeleri takip ediniz.")
+                                st.warning(f"⚠️ **Bilgi Notu:** Dosyanızın durum bölümünde bir onay kodu ({p_numarasi}) görünmektedir. **Muhtemelen dosyanız olumlu olarak çözümlenmiş ancak ANC tarafından henüz resmi bir 'Karar (Ordine)' listesi içinde yayımlanmamıştır.** Lütfen ilerleyen güncellemeleri takip ediniz.")
                                 
                     else:
                         if solutie_metni:
