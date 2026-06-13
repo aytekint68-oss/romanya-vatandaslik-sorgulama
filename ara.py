@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import re
 import os
-from datetime import datetime
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(
@@ -30,7 +29,6 @@ df_dosya = veri_yukle("dosyadurumu.xlsx")
 df_karar_m10 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler.xlsx")
 df_karar_m11 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx")
 
-# Karar dosyalarını tek bir havuzda topluyoruz (Hata vermemesi için boş olmayanları birleştiriyoruz)
 karar_listesi = []
 if not df_karar_m10.empty:
     karar_listesi.append(df_karar_m10)
@@ -40,27 +38,53 @@ if not df_karar_m11.empty:
 df_karar = pd.concat(karar_listesi, ignore_index=True) if karar_listesi else pd.DataFrame()
 
 
-# --- SİSTEM GÜNCELLEME BİLGİLERİNİ ÇEKME ---
-dosya_guncelleme_tarihi = "Bilinmiyor"
-son_karar_belgesi = "Bilinmiyor"
+# --- GÜNCELLEME BİLGİLERİNİ PDF İSİMLERİNDEN ÇEKME MANTIĞI ---
+def en_guncel_belge_bilgisi(df):
+    """Excel içindeki 'Kaynak Belge' sütununu tarar, isimlerdeki tarihleri bulup en güncelini verir."""
+    if df.empty or 'Kaynak Belge' not in df.columns:
+        return "Veri Yok", "Bilinmiyor"
+    
+    # Benzersiz belge isimlerini al
+    unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
+    
+    # İsimdeki tarihi (DD.MM.YYYY) Regex ile yakala
+    unique_files['Parsed_Date'] = pd.to_datetime(
+        unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], 
+        format='%d.%m.%Y', 
+        errors='coerce'
+    )
+    
+    valid_files = unique_files.dropna(subset=['Parsed_Date'])
+    
+    if not valid_files.empty:
+        # Tarihe göre en yeniden eskiye sırala ve en üsttekini al
+        latest_row = valid_files.sort_values(by='Parsed_Date', ascending=False).iloc[0]
+        tarih_str = latest_row['Parsed_Date'].strftime('%d.%m.%Y')
+        return latest_row['Kaynak Belge'], tarih_str
+    elif not unique_files.empty:
+        # Eğer ismin içinde hiç tarih bulamazsa en üstteki dosyayı direkt yansıt
+        return unique_files.iloc[0]['Kaynak Belge'], "Tarih Bulunamadı"
+    
+    return "Veri Yok", "Bilinmiyor"
 
-# Dosya durumu güncelleme tarihi
-if os.path.exists("dosyadurumu.xlsx"):
-    timestamp = os.path.getmtime("dosyadurumu.xlsx")
-    dosya_guncelleme_tarihi = datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y %H:%M")
-
-# En son güncellenen karar dosyasının adını bulma
-if not df_karar.empty and 'Kaynak Belge' in df_karar.columns:
-    # İki tablodan gelen en üstteki veriyi (en yeni belgeyi) alır
-    son_karar_belgesi = df_karar['Kaynak Belge'].iloc[0]
+# Fonksiyonu çalıştırarak verileri topla
+_, dosya_guncelleme_tarihi = en_guncel_belge_bilgisi(df_dosya)
+m10_belge, m10_tarih = en_guncel_belge_bilgisi(df_karar_m10)
+m11_belge, m11_tarih = en_guncel_belge_bilgisi(df_karar_m11)
 
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama Merkezi")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu ve karar (Ordin) sonucunuzu tek ekranda görüntüleyin.")
 
-# Üst Bilgi Paneli (Güncelleme Detayları)
-st.info(f"🔄 **Dosya Durumu Son Güncelleme:** {dosya_guncelleme_tarihi}\n\n📄 **Sisteme Eklenen Son Karar Listesi:** {son_karar_belgesi}")
+# Üst Bilgi Paneli (Artık dosya tarihlerini direkt PDF'in içinden çekiyor)
+st.info(f"""
+🔄 **Dosya Durumu Son Güncelleme:** {dosya_guncelleme_tarihi}
+
+📄 **Sisteme Eklenen Son Kararlar:**
+- **Madde 10:** {m10_belge} *(Güncelleme: {m10_tarih})*
+- **Madde 11:** {m11_belge} *(Güncelleme: {m11_tarih})*
+""")
 
 st.markdown("---")
 
@@ -83,7 +107,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             ilk_numara = parcalar[0]
             son_yil = parcalar[-1]
             arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
-            # Sütun adının güvenliği için str.strip() uygulayarak arıyoruz
             df_dosya['Arama_Sutunu'] = df_dosya['Dosya No'].astype(str).str.strip()
             sonuclar = df_dosya[df_dosya['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
         else:
@@ -112,7 +135,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         # SOLUTIE içindeki 'P' numarasını (Örn: 1153/P/2018) yakalayan dedektif kod
                         p_match = re.search(r'(\d{1,6})\s*/\s*P\s*/\s*(\d{4})', solutie_metni, re.IGNORECASE)
                         if p_match:
-                            # Tertemiz hale getir
                             p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
                     else:
                         st.error("**📝 Karar / Durum (SOLUTIE):** Henüz bir karar/durum bilgisi girilmemiş (Beklemede).")
@@ -125,15 +147,13 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     st.markdown("## ⚖️ KARAR (ORDİN) DURUMU")
                     
                     if p_numarasi:
-                        st.markdown(f"Sistem, dosyanızın SOLUTIE bölümünde **{p_numarasi}** numaralı bir karar kodu tespit etti. Madde 10 ve Madde 11 listeleri taranıyor...")
+                        st.markdown(f"Sistem, dosyanızın SOLUTIE bölümünde **{p_numarasi}** numaralı bir onay kodu tespit etti. Madde 10 ve Madde 11 listeleri taranıyor...")
                         
                         if df_karar.empty:
                             st.warning("Sistemde şu an Karar (Ordin) tabloları bulunmuyor.")
                         else:
-                            # Karar tablosunda numarayı aramak için sütun adını tespit ediyoruz (Örn: Dosya Numarasi, Dosya No vb.)
                             karar_sutunu = 'Dosya Numarasi' if 'Dosya Numarasi' in df_karar.columns else ('Dosya No' if 'Dosya No' in df_karar.columns else df_karar.columns[0])
                             
-                            # Tam eşleşme arar
                             karar_sonucu = df_karar[df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.contains(f"^{p_numarasi.replace('/', '/')}$", flags=re.IGNORECASE, regex=True)]
                             
                             if not karar_sonucu.empty:
@@ -141,13 +161,11 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 st.success(f"🎉 **TEBRİKLER! Kararınız Yayımlandı.**")
                                 st.markdown(f"- **Karar Numarası:** {p_numarasi}")
                                 
-                                # Tarih bilgisi varsa ekle
                                 if 'Tarih' in k_row and str(k_row['Tarih']).strip():
                                     st.markdown(f"- **Karar Tarihi:** {k_row['Tarih']}")
                                     
                                 st.markdown(f"- **Kaynak Belge:** {k_row.get('Kaynak Belge', 'Bilinmiyor')}")
                             else:
-                                # Karar listesinde bulunamazsa verilecek özel bilgi notu
                                 st.warning(f"⚠️ **Bilgi Notu:** Dosyanızın durum bölümünde bir onay kodu ({p_numarasi}) görünmektedir. **Muhtemelen dosyanız olumlu olarak çözümlenmiş ancak ANC tarafından henüz resmi bir 'Karar (Ordin)' listesi içinde yayımlanmamıştır.** Lütfen ilerleyen güncellemeleri takip ediniz.")
                                 
                     else:
