@@ -37,17 +37,13 @@ if not df_karar_m11.empty:
 
 df_karar = pd.concat(karar_listesi, ignore_index=True) if karar_listesi else pd.DataFrame()
 
-
 # --- GÜNCELLEME BİLGİLERİNİ PDF İSİMLERİNDEN ÇEKME MANTIĞI ---
 def en_guncel_belge_bilgisi(df):
-    """Excel içindeki 'Kaynak Belge' sütununu tarar, isimlerdeki tarihleri bulup en güncelini verir."""
     if df.empty or 'Kaynak Belge' not in df.columns:
         return "Veri Yok", "Bilinmiyor"
     
-    # Benzersiz belge isimlerini al
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
     
-    # İsimdeki tarihi (DD.MM.YYYY) Regex ile yakala
     unique_files['Parsed_Date'] = pd.to_datetime(
         unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], 
         format='%d.%m.%Y', 
@@ -57,27 +53,22 @@ def en_guncel_belge_bilgisi(df):
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
     
     if not valid_files.empty:
-        # Tarihe göre en yeniden eskiye sırala ve en üsttekini al
         latest_row = valid_files.sort_values(by='Parsed_Date', ascending=False).iloc[0]
         tarih_str = latest_row['Parsed_Date'].strftime('%d.%m.%Y')
         return latest_row['Kaynak Belge'], tarih_str
     elif not unique_files.empty:
-        # Eğer ismin içinde hiç tarih bulamazsa en üstteki dosyayı direkt yansıt
         return unique_files.iloc[0]['Kaynak Belge'], "Tarih Bulunamadı"
     
     return "Veri Yok", "Bilinmiyor"
 
-# Fonksiyonu çalıştırarak verileri topla
 _, dosya_guncelleme_tarihi = en_guncel_belge_bilgisi(df_dosya)
 m10_belge, m10_tarih = en_guncel_belge_bilgisi(df_karar_m10)
 m11_belge, m11_tarih = en_guncel_belge_bilgisi(df_karar_m11)
-
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama Merkezi")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu ve karar (Ordin) sonucunuzu tek ekranda görüntüleyin.")
 
-# Üst Bilgi Paneli (Artık dosya tarihlerini direkt PDF'in içinden çekiyor)
 st.info(f"""
 🔄 **Dosya Durumu Son Güncelleme:** {dosya_guncelleme_tarihi}
 
@@ -88,7 +79,6 @@ st.info(f"""
 
 st.markdown("---")
 
-# Arama Kutusu
 st.markdown("💡 **Örnek Arama Formatı:** 1234/2017 veya 1234/RD/2017")
 aranan_kelime = st.text_input("Dosya Numaranız (No/Yıl):", placeholder="Örn: 514/2026")
 
@@ -98,10 +88,8 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
     elif df_dosya.empty:
         st.error("Sistemde şu an 'Dosya Durumu' (dosyadurumu.xlsx) verisi bulunmuyor.")
     else:
-        # Arama Kriterini Temizle
         temiz_arama = aranan_kelime.strip().upper().replace(" ", "")
         
-        # Akıllı & Tam Eşleşme Mantığı (Dosya Durumu İçin)
         if "/" in temiz_arama:
             parcalar = temiz_arama.split("/")
             ilk_numara = parcalar[0]
@@ -114,7 +102,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             df_dosya['Arama_Sutunu'] = df_dosya['Dosya No'].astype(str).str.strip()
             sonuclar = df_dosya[df_dosya['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
         
-        # --- SONUÇLARI GÖSTERME (AŞAMA 1: DOSYA DURUMU) ---
         if not sonuclar.empty:
             st.success(f"✅ Dosyanız bulundu! Durum ve Karar bilgileri aşağıdadır:")
             
@@ -132,7 +119,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     if solutie_metni:
                         st.success(f"**📝 Karar / Durum (SOLUTIE):** {solutie_metni}")
                         
-                        # SOLUTIE içindeki 'P' numarasını (Örn: 1153/P/2018) yakalayan dedektif kod
                         p_match = re.search(r'(\d{1,6})\s*/\s*P\s*/\s*(\d{4})', solutie_metni, re.IGNORECASE)
                         if p_match:
                             p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
@@ -143,18 +129,25 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     
                     st.markdown("---")
                     
-                    # --- SONUÇLARI GÖSTERME (AŞAMA 2: KARAR KONTROLÜ) ---
                     st.markdown("## ⚖️ KARAR (ORDİN) DURUMU")
                     
                     if p_numarasi:
-                        st.markdown(f"Sistem, dosyanızın SOLUTIE bölümünde **{p_numarasi}** numaralı bir onay kodu tespit etti. Madde 10 ve Madde 11 listeleri taranıyor...")
+                        st.markdown(f"Sistem, dosyanızın SOLUTIE bölümünde **{p_numarasi}** numaralı bir onay kodu tespit etti. Karar listeleri taranıyor...")
                         
                         if df_karar.empty:
                             st.warning("Sistemde şu an Karar (Ordin) tabloları bulunmuyor.")
                         else:
-                            karar_sutunu = 'Dosya Numarasi' if 'Dosya Numarasi' in df_karar.columns else ('Dosya No' if 'Dosya No' in df_karar.columns else df_karar.columns[0])
+                            # GÜNCELLEME: P numarasını değil, kullanıcının ANA başvuru numarasını Karar Excel'inde arıyoruz.
+                            # Örn: 14852/RD/2022'den 14852 ve 2022'yi ayıkla
+                            dosya_no_parcalar = str(row['Dosya No']).split('/')
+                            ana_no = dosya_no_parcalar[0].strip()
+                            ana_yil = dosya_no_parcalar[-1].strip()
+                            karar_icin_regex = f"^{ana_no}/.*{ana_yil}$"
                             
-                            karar_sonucu = df_karar[df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.contains(f"^{p_numarasi.replace('/', '/')}$", flags=re.IGNORECASE, regex=True)]
+                            # Excel'deki "Dosya No" sütununu otomatik bul ve içinde ara
+                            karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
+                            
+                            karar_sonucu = df_karar[df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.contains(karar_icin_regex, flags=re.IGNORECASE, regex=True)]
                             
                             if not karar_sonucu.empty:
                                 k_row = karar_sonucu.iloc[0]
