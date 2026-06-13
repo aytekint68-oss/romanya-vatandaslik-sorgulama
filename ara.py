@@ -163,7 +163,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 
                     else:
                         if solutie_metni:
-                            st.info("Bu dosyaya ait bir 'P' (Ordin) numarası tespit edilmedi.")
+                            st.info("Bu dosyaya ait bir 'P' (Ordine) numarası tespit edilmedi.")
                         else:
                             st.info("Dosyanız beklemede olduğu için henüz bir karar aşamasına geçilmemiştir.")
                             
