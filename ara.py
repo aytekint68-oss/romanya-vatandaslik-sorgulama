@@ -67,7 +67,7 @@ m11_belge, m11_tarih = en_guncel_belge_bilgisi(df_karar_m11)
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
-st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordine) sonucunuzu tek ekranda görüntüleyin.")
+st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu tek ekranda görüntüleyin.")
 
 st.info(f"""
 🔄 **Dosya Durumu Son Güncelleme:** {dosya_guncelleme_tarihi}
@@ -129,13 +129,13 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     
                     st.markdown("---")
                     
-                    st.markdown("## ⚖️ KARAR (ORDINE) DURUMU")
+                    st.markdown("## ⚖️ KARAR (ORDIN) DURUMU")
                     
                     if p_numarasi:
                         st.markdown(f"Sistem, dosyanızın SOLUTIE bölümünde **{p_numarasi}** numaralı bir onay kodu tespit etti. Karar listeleri taranıyor...")
                         
                         if df_karar.empty:
-                            st.warning("Sistemde şu an Karar (Ordine) tabloları bulunmuyor.")
+                            st.warning("Sistemde şu an Karar (Ordin) tabloları bulunmuyor.")
                         else:
                             # GÜNCELLEME: P numarasını değil, kullanıcının ANA başvuru numarasını Karar Excel'inde arıyoruz.
                             # Örn: 14852/RD/2022'den 14852 ve 2022'yi ayıkla
@@ -163,7 +163,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 
                     else:
                         if solutie_metni:
-                            st.info("Bu dosyaya ait bir 'P' (Ordine) numarası tespit edilmedi.")
+                            st.info("Bu dosyaya ait bir 'P' (Ordin) numarası tespit edilmedi.")
                         else:
                             st.info("Dosyanız beklemede olduğu için henüz bir karar aşamasına geçilmemiştir.")
                             
@@ -174,7 +174,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
 # Alt Bilgi
 footer_metni = """
 <div style='text-align: center; color: gray; font-size: 0.9em; line-height: 1.5;'>
-    <i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan resmi listeleri baz alarak otomatik çalışmaktadır.<br>
+    <i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan resmi dosya durum ve karar listelerini baz alarak otomatik çalışmaktadır.<br>
     Veriler bilgilendirme amaçlıdır. Kesin teyit için resmi kurum kaynaklarını referans alınız.</i>
 </div>
 """
