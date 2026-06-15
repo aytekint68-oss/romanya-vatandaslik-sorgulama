@@ -132,7 +132,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     st.markdown("## ⚖️ KARAR (ORDIN) DURUMU")
                     
                     # --- DÜZELTME 1: Regex'in sonundaki $ (Bitiş) işaretini kaldırdık ---
-                    # Böylece hücrenin sonunda "Copii minori: 3" gibi ek metinler olsa da bulabilecek.
                     dosya_no_parcalar = str(row['Dosya No']).split('/')
                     ana_no = dosya_no_parcalar[0].strip()
                     ana_yil = dosya_no_parcalar[-1].strip()
@@ -153,8 +152,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
                             
                             if not gosterilecek_karar:
-                                # PDF isminden (Örn: Ordin-2018P-11.06.2026-art.11.pdf) Karar No'yu türet (2018/P/2026)
-                                # Yeni Regex: Rakamlarla başlar, aradaki tire/boşlukları yoksayıp P harfini bulur, 20 ile başlayan yılı yakalar.
+                                # PDF isminden Karar No'yu türet (2018/P/2026)
                                 pdf_match = re.search(r'(\d+)[^\d]*P[^\d]*.*?(20\d{2})', kaynak_belge_adi, re.IGNORECASE)
                                 if pdf_match:
                                     gosterilecek_karar = f"{pdf_match.group(1)}/P/{pdf_match.group(2)}"
@@ -163,17 +161,14 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             
                             # --- DÜZELTME 3: Garantili Copii Minori Arama ---
                             copii_bilgisi = ""
-                            # İlgili satırdaki TÜM sütunların metnini birleştirip arıyoruz
                             tum_satir_metni = " ".join([str(val) for val in k_row.values if str(val) != "nan"])
                             
-                            # "Copii minori: 3", "Copii minori=3" veya "Copii minori 3" formatlarını affedici şekilde arar
                             copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
                             
                             if copii_match:
                                 cocuk_sayisi = copii_match.group(1)
                                 copii_bilgisi = f" &nbsp; | &nbsp; 👶 **Copii minori: {cocuk_sayisi}**"
                             else:
-                                # Alternatif: Eğer kelime geçmiyorsa ama sütun başlığında 'copii' yazıyorsa
                                 for col in k_row.index:
                                     if 'copii' in str(col).lower() and str(k_row[col]).strip() and str(k_row[col]).strip() not in ["nan", "None", ""]:
                                         cocuk_sayisi = str(k_row[col]).strip()
@@ -192,7 +187,8 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             if p_numarasi:
                                 st.warning(f"⚠️ **Bilgi Notu:** Dosyanızın durum bölümünde bir onay kodu ({p_numarasi}) görünmektedir. **Muhtemelen dosyanız olumlu olarak çözümlenmiş ancak ANC tarafından henüz resmi bir 'Karar (Ordine)' listesi içinde yayımlanmamıştır.** Lütfen ilerleyen güncellemeleri takip ediniz.")
                             else:
-                                st.info("Dosyanız henüz Karar (Ordin) listelerinde yayımlanmamıştır (Beklemede).")
+                                # DÜZELTME 4: Bilgi cümlesi kırmızı hata (error) kutusuna çevrildi
+                                st.error("🔴 Dosyanız henüz Karar (Ordin) listelerinde yayımlanmamıştır (Beklemede).")
                             
             st.markdown("---")
         else:
