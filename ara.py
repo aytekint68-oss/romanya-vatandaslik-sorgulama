@@ -175,7 +175,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
 footer_metni = """
 <div style='color: gray; font-size: 0.9em; line-height: 1.5; margin-top: 30px;'>
     <div style='text-align: left; margin-bottom: 15px;'>
-        <i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan resmi dosya durum ve karar listelerini baz alarak otomatik çalışmaktadır.<br>
+        <i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan resmi (Stadiu Dosar) dosya durum ve (Ordine) karar listelerini baz alarak otomatik çalışmaktadır.<br>
         Veriler bilgilendirme amaçlıdır. Kesin teyit için resmi kurum kaynaklarını referans alınız.</i>
     </div>
     <div style='text-align: center;'>
