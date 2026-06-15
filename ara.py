@@ -5,7 +5,7 @@ import os
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(
-    page_title="Romanya Vatandaşlık Dosya ve Karar Sorgulama",
+    page_title="Romanya Vatandaşlık Sorgulama",
     page_icon="https://flagcdn.com/w320/ro.png",
     layout="centered"
 )
