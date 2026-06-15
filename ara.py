@@ -175,8 +175,8 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
 footer_metni = """
 <div style='color: gray; font-size: 0.9em; line-height: 1.5; margin-top: 30px;'>
     <div style='text-align: left; margin-bottom: 15px;'>
-        <i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan resmi (Stadiu Dosar) dosya durum ve (Ordine) karar listelerini baz alarak otomatik çalışmaktadır.<br>
-        Veriler bilgilendirme amaçlıdır. Kesin teyit için resmi kurum kaynaklarını referans alınız.</i>
+        <i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan <b>bağımsız</b> bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla <b>hiçbir resmi bağı veya ortaklığı bulunmamaktadır.</b><br><br>
+        Sistemde sunulan veriler tamamen <b>bilgilendirme amaçlıdır</b> ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>
     </div>
     <div style='text-align: center;'>
         <span style='font-size: 1em;'><b>© 2026 Tasarım ve Geliştirme: <a href="mailto:aytekint@hotmail.com" style="color: #4F8BF9; text-decoration: none;">Aytekin Topçu</a></b></span>
