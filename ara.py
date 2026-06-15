@@ -173,9 +173,11 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
 
 # Alt Bilgi
 footer_metni = """
-<div style='text-align: center; color: gray; font-size: 0.9em; line-height: 1.5;'>
+<div style='text-align: center; color: gray; font-size: 0.9em; line-height: 1.5; margin-top: 30px;'>
     <i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan resmi dosya durum ve karar listelerini baz alarak otomatik çalışmaktadır.<br>
     Veriler bilgilendirme amaçlıdır. Kesin teyit için resmi kurum kaynaklarını referans alınız.</i>
+    <br><br>
+    <span style='font-size: 1em;'><b>© 2026 Tasarım ve Geliştirme: <a href="mailto:aytekint68@gmail.com" style="color: #4F8BF9; text-decoration: none;">Aytekin Topçu</a></b></span>
 </div>
 """
 st.markdown(footer_metni, unsafe_allow_html=True)
