@@ -26,7 +26,7 @@ def veri_yukle(dosya_adi):
 df_dosya = veri_yukle("dosyadurumu.xlsx")
 
 # 2. Madde 10 ve Madde 11 Kararlarını Yükle ve Birleştir
-df_karar_m10 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler.xlsx")
+df_karar_m10 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde10.xlsx")
 df_karar_m11 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx")
 
 karar_listesi = []
