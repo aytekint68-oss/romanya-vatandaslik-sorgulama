@@ -179,7 +179,7 @@ footer_metni = """
         Veriler bilgilendirme amaçlıdır. Kesin teyit için resmi kurum kaynaklarını referans alınız.</i>
     </div>
     <div style='text-align: center;'>
-        <span style='font-size: 1em;'><b>© 2026 Tasarım ve Geliştirme: <a href="mailto:aytekint68@gmail.com" style="color: #4F8BF9; text-decoration: none;">Aytekin Topçu</a></b></span>
+        <span style='font-size: 1em;'><b>© 2026 Tasarım ve Geliştirme: <a href="mailto:aytekint@hotmail.com" style="color: #4F8BF9; text-decoration: none;">Aytekin Topçu</a></b></span>
     </div>
 </div>
 """
