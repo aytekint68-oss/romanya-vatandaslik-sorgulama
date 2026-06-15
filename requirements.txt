@@ -2,4 +2,4 @@ streamlit
 pandas
 openpyxl
 PyMuPDF
-streamlit-gsheets-connection
+
