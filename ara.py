@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
 import re
 import os
@@ -137,22 +137,40 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         if df_karar.empty:
                             st.warning("Sistemde şu an Karar (Ordin) tabloları bulunmuyor.")
                         else:
-                            # GÜNCELLEME: P numarasını değil, kullanıcının ANA başvuru numarasını Karar Excel'inde arıyoruz.
-                            # Örn: 14852/RD/2022'den 14852 ve 2022'yi ayıkla
                             dosya_no_parcalar = str(row['Dosya No']).split('/')
                             ana_no = dosya_no_parcalar[0].strip()
                             ana_yil = dosya_no_parcalar[-1].strip()
                             karar_icin_regex = f"^{ana_no}/.*{ana_yil}$"
                             
-                            # Excel'deki "Dosya No" sütununu otomatik bul ve içinde ara
                             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
-                            
                             karar_sonucu = df_karar[df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.contains(karar_icin_regex, flags=re.IGNORECASE, regex=True)]
                             
                             if not karar_sonucu.empty:
                                 k_row = karar_sonucu.iloc[0]
                                 st.success(f"🎉 **TEBRİKLER! Kararınız Yayımlandı.**")
-                                st.markdown(f"- **Karar Numarası:** {p_numarasi}")
+                                
+                                # --- COPII MINORI KONTROLÜ VE EKLENMESİ ---
+                                copii_bilgisi = ""
+                                dosya_metni = str(k_row[karar_sutunu])
+                                # 1. Dosya No hücresinin içinde yazıyorsa yakala (Örn: "37064/2023. Copii minori: 3")
+                                copii_match = re.search(r'(Copii\s+minori\s*:\s*\d+)', dosya_metni, re.IGNORECASE)
+                                
+                                if copii_match:
+                                    copii_bilgisi = f" &nbsp; | &nbsp; 👶 **{copii_match.group(1).capitalize()}**"
+                                else:
+                                    # 2. Eğer Excel'de ayrı bir sütunda tutulmuşsa ilgili sütunu bul
+                                    for col in k_row.index:
+                                        if 'copii' in str(col).lower() and str(k_row[col]).strip() and str(k_row[col]).strip() != "nan":
+                                            cocuk_sayisi = str(k_row[col]).strip()
+                                            # Ondalıklı float (örn 2.0) görünümünü düzeltmek için
+                                            if cocuk_sayisi.replace('.', '', 1).isdigit():
+                                                cocuk_sayisi = int(float(cocuk_sayisi))
+                                            copii_bilgisi = f" &nbsp; | &nbsp; 👶 **Copii minori: {cocuk_sayisi}**"
+                                            break
+                                            
+                                # Karar numarasını ve varsa çocuk bilgisini yazdır
+                                st.markdown(f"- **Karar Numarası:** {p_numarasi}{copii_bilgisi}")
+                                # ------------------------------------------
                                 
                                 if 'Tarih' in k_row and str(k_row['Tarih']).strip():
                                     st.markdown(f"- **Karar Tarihi:** {k_row['Tarih']}")
