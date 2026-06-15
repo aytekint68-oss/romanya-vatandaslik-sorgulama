@@ -1,6 +1,5 @@
 streamlit
 pandas
 openpyxl
-requests
-beautifulsoup4
 PyMuPDF
+streamlit-gsheets-connection
