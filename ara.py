@@ -80,7 +80,7 @@ st.info(f"""
 st.markdown("---")
 
 st.markdown("💡 **Örnek Arama Formatı:** 1234/2017 veya 1234/RD/2017")
-aranan_kelime = st.text_input("Dosya Numaranız (No/Yıl):", placeholder="Örn: 514/2026")
+aranan_kelime = st.text_input("Dosya Numaranız (No/Yıl):", placeholder="Örn: 37064/2023")
 
 if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
     if not aranan_kelime:
@@ -123,7 +123,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         if p_match:
                             p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
                     else:
-                        st.error("**📝 Karar / Durum (SOLUTIE):** Henüz bir karar/durum bilgisi girilmemiş (Beklemede).")
+                        st.warning("**📝 Karar / Durum (SOLUTIE):** Henüz bir karar/durum bilgisi girilmemiş (Beklemede).")
                         
                     st.caption(f"📌 Kaynak: {row['Kaynak Belge']}")
                     
@@ -131,59 +131,56 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     
                     st.markdown("## ⚖️ KARAR (ORDIN) DURUMU")
                     
-                    if p_numarasi:
-                        st.markdown(f"Sistem, dosyanızın SOLUTIE bölümünde **{p_numarasi}** numaralı bir onay kodu tespit etti. Karar listeleri taranıyor...")
-                        
-                        if df_karar.empty:
-                            st.warning("Sistemde şu an Karar (Ordin) tabloları bulunmuyor.")
-                        else:
-                            dosya_no_parcalar = str(row['Dosya No']).split('/')
-                            ana_no = dosya_no_parcalar[0].strip()
-                            ana_yil = dosya_no_parcalar[-1].strip()
-                            karar_icin_regex = f"^{ana_no}/.*{ana_yil}$"
-                            
-                            karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
-                            karar_sonucu = df_karar[df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.contains(karar_icin_regex, flags=re.IGNORECASE, regex=True)]
-                            
-                            if not karar_sonucu.empty:
-                                k_row = karar_sonucu.iloc[0]
-                                st.success(f"🎉 **TEBRİKLER! Kararınız Yayımlandı.**")
-                                
-                                # --- COPII MINORI KONTROLÜ VE EKLENMESİ ---
-                                copii_bilgisi = ""
-                                dosya_metni = str(k_row[karar_sutunu])
-                                # 1. Dosya No hücresinin içinde yazıyorsa yakala (Örn: "37064/2023. Copii minori: 3")
-                                copii_match = re.search(r'(Copii\s+minori\s*:\s*\d+)', dosya_metni, re.IGNORECASE)
-                                
-                                if copii_match:
-                                    copii_bilgisi = f" &nbsp; | &nbsp; 👶 **{copii_match.group(1).capitalize()}**"
-                                else:
-                                    # 2. Eğer Excel'de ayrı bir sütunda tutulmuşsa ilgili sütunu bul
-                                    for col in k_row.index:
-                                        if 'copii' in str(col).lower() and str(k_row[col]).strip() and str(k_row[col]).strip() != "nan":
-                                            cocuk_sayisi = str(k_row[col]).strip()
-                                            # Ondalıklı float (örn 2.0) görünümünü düzeltmek için
-                                            if cocuk_sayisi.replace('.', '', 1).isdigit():
-                                                cocuk_sayisi = int(float(cocuk_sayisi))
-                                            copii_bilgisi = f" &nbsp; | &nbsp; 👶 **Copii minori: {cocuk_sayisi}**"
-                                            break
-                                            
-                                # Karar numarasını ve varsa çocuk bilgisini yazdır
-                                st.markdown(f"- **Karar Numarası:** {p_numarasi}{copii_bilgisi}")
-                                # ------------------------------------------
-                                
-                                if 'Tarih' in k_row and str(k_row['Tarih']).strip():
-                                    st.markdown(f"- **Karar Tarihi:** {k_row['Tarih']}")
-                                    
-                                st.markdown(f"- **Kaynak Belge:** {k_row.get('Kaynak Belge', 'Bilinmiyor')}")
-                            else:
-                                st.warning(f"⚠️ **Bilgi Notu:** Dosyanızın durum bölümünde bir onay kodu ({p_numarasi}) görünmektedir. **Muhtemelen dosyanız olumlu olarak çözümlenmiş ancak ANC tarafından henüz resmi bir 'Karar (Ordine)' listesi içinde yayımlanmamıştır.** Lütfen ilerleyen güncellemeleri takip ediniz.")
-                                
+                    # Karar listesinde aramak için ana numara ve yılı ayıklıyoruz (SOLUTIE boş olsa bile arayacak)
+                    dosya_no_parcalar = str(row['Dosya No']).split('/')
+                    ana_no = dosya_no_parcalar[0].strip()
+                    ana_yil = dosya_no_parcalar[-1].strip()
+                    karar_icin_regex = f"^{ana_no}/.*{ana_yil}$"
+                    
+                    if df_karar.empty:
+                        st.warning("Sistemde şu an Karar (Ordin) tabloları bulunmuyor.")
                     else:
-                        if solutie_metni:
-                            st.info("Bu dosyaya ait bir 'P' (Ordin) numarası tespit edilmedi.")
+                        # Excel'deki "Dosya No" sütununu bul ve içinde ara
+                        karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
+                        karar_sonucu = df_karar[df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.contains(karar_icin_regex, flags=re.IGNORECASE, regex=True)]
+                        
+                        if not karar_sonucu.empty:
+                            k_row = karar_sonucu.iloc[0]
+                            st.success(f"🎉 **TEBRİKLER! Kararınız Yayımlandı.**")
+                            
+                            gosterilecek_karar = p_numarasi if p_numarasi else "Belirtilmemiş (Dosya Karar Listesinde Bulundu)"
+                            
+                            # --- COPII MINORI KONTROLÜ VE EKLENMESİ ---
+                            copii_bilgisi = ""
+                            dosya_metni = str(k_row[karar_sutunu])
+                            # 1. Dosya No hücresinin içinde yazıyorsa yakala
+                            copii_match = re.search(r'(Copii\s+minori\s*:\s*\d+)', dosya_metni, re.IGNORECASE)
+                            
+                            if copii_match:
+                                copii_bilgisi = f" &nbsp; | &nbsp; 👶 **{copii_match.group(1).capitalize()}**"
+                            else:
+                                # 2. Eğer Excel'de ayrı bir sütunda tutulmuşsa ilgili sütunu bul
+                                for col in k_row.index:
+                                    if 'copii' in str(col).lower() and str(k_row[col]).strip() and str(k_row[col]).strip() != "nan":
+                                        cocuk_sayisi = str(k_row[col]).strip()
+                                        if cocuk_sayisi.replace('.', '', 1).isdigit():
+                                            cocuk_sayisi = int(float(cocuk_sayisi))
+                                        copii_bilgisi = f" &nbsp; | &nbsp; 👶 **Copii minori: {cocuk_sayisi}**"
+                                        break
+                                        
+                            st.markdown(f"- **Karar Numarası:** {gosterilecek_karar}{copii_bilgisi}")
+                            # ------------------------------------------
+                            
+                            if 'Tarih' in k_row and str(k_row['Tarih']).strip():
+                                st.markdown(f"- **Karar Tarihi:** {k_row['Tarih']}")
+                                
+                            st.markdown(f"- **Kaynak Belge:** {k_row.get('Kaynak Belge', 'Bilinmiyor')}")
                         else:
-                            st.info("Dosyanız beklemede olduğu için henüz bir karar aşamasına geçilmemiştir.")
+                            # Karar listelerinde bulunamadıysa
+                            if p_numarasi:
+                                st.warning(f"⚠️ **Bilgi Notu:** Dosyanızın durum bölümünde bir onay kodu ({p_numarasi}) görünmektedir. **Muhtemelen dosyanız olumlu olarak çözümlenmiş ancak ANC tarafından henüz resmi bir 'Karar (Ordine)' listesi içinde yayımlanmamıştır.** Lütfen ilerleyen güncellemeleri takip ediniz.")
+                            else:
+                                st.info("Dosyanız henüz Karar (Ordin) listelerinde yayımlanmamıştır (Beklemede).")
                             
             st.markdown("---")
         else:
