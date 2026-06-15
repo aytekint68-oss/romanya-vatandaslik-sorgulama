@@ -107,6 +107,29 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             
             for index, row in sonuclar.iterrows():
                 with st.container():
+                    
+                    # --- YENİ MİMARİ: Önce Karar listelerinde arama yapıyoruz ---
+                    dosya_no_parcalar = str(row['Dosya No']).split('/')
+                    ana_no = dosya_no_parcalar[0].strip()
+                    ana_yil = dosya_no_parcalar[-1].strip()
+                    
+                    karar_bulundu_mu = False
+                    k_row = None
+                    
+                    if not df_karar.empty:
+                        karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
+                        # Karar hücrelerindeki boşlukları kaldırıp büyük harfe çeviriyoruz
+                        temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
+                        
+                        # Gelişmiş Regex: "1.(47445/2023)" veya "47445/RD/2023" vb. ile tam ve kusursuz eşleşme
+                        karar_icin_regex = rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)"
+                        karar_sonucu = df_karar[temiz_karar_metni.str.contains(karar_icin_regex, regex=True)]
+                        
+                        if not karar_sonucu.empty:
+                            karar_bulundu_mu = True
+                            k_row = karar_sonucu.iloc[0]
+
+                    # --- Ekrana Çıktı Verme Kısmı ---
                     st.markdown(f"## 📂 DOSYA BİLGİLERİ: {row['Dosya No']}")
                     st.markdown(f"**📅 Başvuru Kayıt Tarihi:** {row['Başvuru Tarihi']}")
                     
@@ -117,13 +140,19 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     p_numarasi = None
                     
                     if solutie_metni:
-                        st.success(f"**📝 Karar / Durum (SOLUTIE):** {solutie_metni}")
-                        
                         p_match = re.search(r'(\d{1,6})\s*/\s*P\s*/\s*(\d{4})', solutie_metni, re.IGNORECASE)
                         if p_match:
                             p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
+                            
+                    # Akıllı SOLUTIE Gösterimi
+                    if solutie_metni:
+                        st.success(f"**📝 Karar / Durum (SOLUTIE):** {solutie_metni}")
                     else:
-                        st.warning("**📝 Karar / Durum (SOLUTIE):** Henüz bir karar/durum bilgisi girilmemiş (Beklemede).")
+                        if karar_bulundu_mu:
+                            # SOLUTIE boş olsa bile Karar bulunmuşsa özel mesaj
+                            st.info("**📝 Karar / Durum (SOLUTIE):** ANC ana tablosunda boş (Beklemede) görünmesine rağmen, Karar (Ordin) listelerinde OLUMLU sonuç tespit edildi!")
+                        else:
+                            st.warning("**📝 Karar / Durum (SOLUTIE):** Henüz bir karar/durum bilgisi girilmemiş (Beklemede).")
                         
                     st.caption(f"📌 Kaynak: {row['Kaynak Belge']}")
                     
@@ -131,64 +160,50 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     
                     st.markdown("## ⚖️ KARAR (ORDIN) DURUMU")
                     
-                    # --- DÜZELTME 1: Regex'in sonundaki $ (Bitiş) işaretini kaldırdık ---
-                    dosya_no_parcalar = str(row['Dosya No']).split('/')
-                    ana_no = dosya_no_parcalar[0].strip()
-                    ana_yil = dosya_no_parcalar[-1].strip()
-                    karar_icin_regex = f"^{ana_no}/.*?{ana_yil}" 
-                    
-                    if df_karar.empty:
-                        st.warning("Sistemde şu an Karar (Ordin) tabloları bulunmuyor.")
-                    else:
-                        karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
-                        karar_sonucu = df_karar[df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.contains(karar_icin_regex, flags=re.IGNORECASE, regex=True)]
+                    if karar_bulundu_mu:
+                        st.success(f"🎉 **TEBRİKLER! Kararınız Yayımlandı.**")
                         
-                        if not karar_sonucu.empty:
-                            k_row = karar_sonucu.iloc[0]
-                            st.success(f"🎉 **TEBRİKLER! Kararınız Yayımlandı.**")
-                            
-                            # --- DÜZELTME 2: Daha Esnek Karar Numarası Çıkarımı ---
-                            gosterilecek_karar = p_numarasi
-                            kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
-                            
-                            if not gosterilecek_karar:
-                                # PDF isminden Karar No'yu türet (2018/P/2026)
-                                pdf_match = re.search(r'(\d+)[^\d]*P[^\d]*.*?(20\d{2})', kaynak_belge_adi, re.IGNORECASE)
-                                if pdf_match:
-                                    gosterilecek_karar = f"{pdf_match.group(1)}/P/{pdf_match.group(2)}"
-                                else:
-                                    gosterilecek_karar = "Belirtilmemiş (Dosya Karar Listesinde Bulundu)"
-                            
-                            # --- DÜZELTME 3: Garantili Copii Minori Arama ---
-                            copii_bilgisi = ""
-                            tum_satir_metni = " ".join([str(val) for val in k_row.values if str(val) != "nan"])
-                            
-                            copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
-                            
-                            if copii_match:
-                                cocuk_sayisi = copii_match.group(1)
-                                copii_bilgisi = f" &nbsp; | &nbsp; 👶 **Copii minori: {cocuk_sayisi}**"
+                        # --- Karar Numarası ve PDF Kontrolü ---
+                        gosterilecek_karar = p_numarasi
+                        kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
+                        
+                        if not gosterilecek_karar:
+                            # PDF isminden Karar No'yu türet (2018/P/2026)
+                            pdf_match = re.search(r'(\d+)[^\d]*P[^\d]*.*?(20\d{2})', kaynak_belge_adi, re.IGNORECASE)
+                            if pdf_match:
+                                gosterilecek_karar = f"{pdf_match.group(1)}/P/{pdf_match.group(2)}"
                             else:
-                                for col in k_row.index:
-                                    if 'copii' in str(col).lower() and str(k_row[col]).strip() and str(k_row[col]).strip() not in ["nan", "None", ""]:
-                                        cocuk_sayisi = str(k_row[col]).strip()
-                                        if cocuk_sayisi.replace('.', '', 1).isdigit():
-                                            cocuk_sayisi = int(float(cocuk_sayisi))
-                                        copii_bilgisi = f" &nbsp; | &nbsp; 👶 **Copii minori: {cocuk_sayisi}**"
-                                        break
-                                        
-                            st.markdown(f"- **Karar Numarası:** {gosterilecek_karar}{copii_bilgisi}")
-                            
-                            if 'Tarih' in k_row and str(k_row['Tarih']).strip() and str(k_row['Tarih']).strip() != "nan":
-                                st.markdown(f"- **Karar Tarihi:** {k_row['Tarih']}")
-                                
-                            st.markdown(f"- **Kaynak Belge:** {kaynak_belge_adi}")
+                                gosterilecek_karar = "Belirtilmemiş (Dosya Karar Listesinde Bulundu)"
+                        
+                        # --- Copii Minori Arama ---
+                        copii_bilgisi = ""
+                        tum_satir_metni = " ".join([str(val) for val in k_row.values if str(val) != "nan"])
+                        
+                        copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
+                        
+                        if copii_match:
+                            cocuk_sayisi = copii_match.group(1)
+                            copii_bilgisi = f" &nbsp; | &nbsp; 👶 **Copii minori: {cocuk_sayisi}**"
                         else:
-                            if p_numarasi:
-                                st.warning(f"⚠️ **Bilgi Notu:** Dosyanızın durum bölümünde bir onay kodu ({p_numarasi}) görünmektedir. **Muhtemelen dosyanız olumlu olarak çözümlenmiş ancak ANC tarafından henüz resmi bir 'Karar (Ordine)' listesi içinde yayımlanmamıştır.** Lütfen ilerleyen güncellemeleri takip ediniz.")
-                            else:
-                                # DÜZELTME 4: Bilgi cümlesi kırmızı hata (error) kutusuna çevrildi
-                                st.error("🔴 Dosyanız henüz Karar (Ordin) listelerinde yayımlanmamıştır (Beklemede).")
+                            for col in k_row.index:
+                                if 'copii' in str(col).lower() and str(k_row[col]).strip() and str(k_row[col]).strip() not in ["nan", "None", ""]:
+                                    cocuk_sayisi = str(k_row[col]).strip()
+                                    if cocuk_sayisi.replace('.', '', 1).isdigit():
+                                        cocuk_sayisi = int(float(cocuk_sayisi))
+                                    copii_bilgisi = f" &nbsp; | &nbsp; 👶 **Copii minori: {cocuk_sayisi}**"
+                                    break
+                                    
+                        st.markdown(f"- **Karar Numarası:** {gosterilecek_karar}{copii_bilgisi}")
+                        
+                        if 'Tarih' in k_row and str(k_row['Tarih']).strip() and str(k_row['Tarih']).strip() != "nan":
+                            st.markdown(f"- **Karar Tarihi:** {k_row['Tarih']}")
+                            
+                        st.markdown(f"- **Kaynak Belge:** {kaynak_belge_adi}")
+                    else:
+                        if p_numarasi:
+                            st.warning(f"⚠️ **Bilgi Notu:** Dosyanızın durum bölümünde bir onay kodu ({p_numarasi}) görünmektedir. **Muhtemelen dosyanız olumlu olarak çözümlenmiş ancak ANC tarafından henüz resmi bir 'Karar (Ordine)' listesi içinde yayımlanmamıştır.** Lütfen ilerleyen güncellemeleri takip ediniz.")
+                        else:
+                            st.error("🔴 Dosyanız henüz Karar (Ordin) listelerinde yayımlanmamıştır (Beklemede).")
                             
             st.markdown("---")
         else:
