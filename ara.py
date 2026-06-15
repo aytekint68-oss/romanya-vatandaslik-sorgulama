@@ -70,7 +70,7 @@ st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu tek ekranda görüntüleyin.")
 
 st.info(f"""
-🔄 **Dosya Durumu Son Güncelleme:** {dosya_guncelleme_tarihi}
+🔄 **Dosya Durumu (Stadiu Dosar) Son Güncelleme:** {dosya_guncelleme_tarihi}
 
 📄 **Sisteme Eklenen Son Kararlar:**
 - **Madde 10:** {m10_belge} *(Güncelleme: {m10_tarih})*
