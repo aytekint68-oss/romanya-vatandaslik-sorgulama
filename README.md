@@ -20,7 +20,7 @@ Yüzlerce sayfalık karmaşık PDF listeleri arasında kaybolmayı önler ve kul
 Sistemin arka planda kusursuz çalışması için aşağıdaki 3 ana Excel dosyası ile beslenmesi gerekir:
 
 1. `dosyadurumu.xlsx` -> Tüm başvuruların genel durumunu (TERMEN ve SOLUTIE) barındırır.
-2. `Romanya_Vatandaslik_Tum_Veriler.xlsx` -> Madde 10 kapsamındaki onaylanmış karar (Ordine) listesi.
+2. `Romanya_Vatandaslik_Tum_Veriler_Madde10.xlsx` -> Madde 10 kapsamındaki onaylanmış karar (Ordine) listesi.
 3. `Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx` -> Madde 11 kapsamındaki onaylanmış karar (Ordine) listesi.
 
 *(Bu Excel dosyaları, sisteme entegre edilen özel bir PyMuPDF botu ile resmi PDF'lerden çekilerek oluşturulmaktadır.)*
