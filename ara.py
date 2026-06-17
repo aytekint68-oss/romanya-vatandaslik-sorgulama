@@ -79,7 +79,7 @@ st.info(f"""
 
 st.markdown("---")
 
-st.markdown("💡 **Örnek Arama Formatı:** 1234/2018 veya 1234/RD/2023")
+st.markdown("💡 **Örnek Arama Formatı:** 1234/2018 veya 37064/2023")
 aranan_kelime = st.text_input("Dosya Numaranız (No/Yıl):", placeholder="Örn: 37064/2023")
 
 if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
@@ -88,29 +88,32 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
     elif df_dosya.empty:
         st.error("Sistemde şu an 'Dosya Durumu' (dosyadurumu.xlsx) verisi bulunmuyor.")
     else:
-        temiz_arama = aranan_kelime.strip().upper().replace(" ", "")
+        # Sadece baştaki ve sondaki boşlukları siliyoruz (kullanıcı araya boşluk koyarsa hata alsın diye)
+        temiz_arama = aranan_kelime.strip()
         
-        # --- ZORUNLU FORMAT VE YIL KONTROLLERİ ---
-        if "/" not in temiz_arama:
-            st.warning("⚠️ Eksik giriş yaptınız. Lütfen sadece numara girmeyiniz; araya '/' işareti koyarak yılı da belirtiniz. (Örn: 1234/2023)")
+        # --- 1. KURAL: Sadece Rakam ve '/' Karakterine İzin Ver ---
+        if not re.fullmatch(r'[0-9/]+', temiz_arama):
+            st.warning("⚠️ Hatalı giriş yaptınız. Lütfen SADECE rakam ve '/' işareti kullanınız (Harf, boşluk veya özel karakter girmeyiniz). Örn: 1234/2023")
+            
+        # --- 2. KURAL: Sadece Bir Tane '/' Olmalı ---
+        elif temiz_arama.count("/") != 1:
+            st.warning("⚠️ Hatalı format. Lütfen araya sadece BİR adet '/' işareti koyarak dosya numarasını ve yılı ayırınız. (Örn: 1234/2023)")
+            
         else:
             parcalar = temiz_arama.split("/")
             ilk_numara = parcalar[0]
-            son_yil = parcalar[-1]
+            son_yil = parcalar[1]
             
-            # --- HEM SOLU HEM SAĞI AYNI ANDA KONTROL ET ---
-            sol_gecerli = ilk_numara.isdigit()
-            sag_gecerli = son_yil.isdigit() and len(son_yil) == 4
-            
-            if not sol_gecerli or not sag_gecerli:
-                st.warning("⚠️ Hatalı giriş yaptınız. Lütfen '/' işaretinin solundaki dosya numarasının SADECE rakamlardan oluştuğuna ve sağındaki yıl kısmının tam 4 basamaklı bir sayı olduğuna emin olunuz. (Örn: 1234/2023)")
-            
-            # Kural 3: Yıl 2017'den BÜYÜK olmalı (2018 ve sonrası)
+            # --- 3. KURAL: Parçaların Boş Olmaması ve Yılın 4 Basamaklı Olması ---
+            if len(ilk_numara) == 0:
+                st.warning("⚠️ Lütfen '/' işaretinden önce dosya numaranızı yazınız. (Örn: 1234/2023)")
+            elif len(son_yil) != 4:
+                st.warning("⚠️ Hatalı giriş yaptınız. Yıl kısmı KESİNLİKLE 4 basamaklı olmalıdır. (Örn: 1234/2023)")
             elif int(son_yil) <= 2017:
                 st.warning("⚠️ Sistem uyarısı: Girilen yıl 2017'den büyük olmalıdır. Lütfen 2018 veya daha güncel bir yıl giriniz.")
             
+            # --- TÜM KURALLARDAN GEÇEN TEMİZ SORGULAMA ---
             else:
-                # Tüm doğrulamaları geçen temiz sorgu tetikleniyor
                 arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
                 df_dosya['Arama_Sutunu'] = df_dosya['Dosya No'].astype(str).str.strip()
                 sonuclar = df_dosya[df_dosya['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
@@ -121,7 +124,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     for index, row in sonuclar.iterrows():
                         with st.container():
                             
-                            # --- YENİ MİMARİ: Önce Karar listelerinde arama yapıyoruz ---
                             dosya_no_parcalar = str(row['Dosya No']).split('/')
                             ana_no = dosya_no_parcalar[0].strip()
                             ana_yil = dosya_no_parcalar[-1].strip()
@@ -133,7 +135,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
                                 temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
                                 
-                                # Gelişmiş Regex: Tam ve kusursuz eşleşme
                                 karar_icin_regex = rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)"
                                 karar_sonucu = df_karar[temiz_karar_metni.str.contains(karar_icin_regex, regex=True)]
                                 
@@ -141,7 +142,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     karar_bulundu_mu = True
                                     k_row = karar_sonucu.iloc[0]
 
-                            # --- Ekrana Çıktı Verme Kısmı ---
                             st.markdown(f"## 📂 DOSYA BİLGİLERİ: {row['Dosya No']}")
                             st.markdown(f"**📅 Başvuru Kayıt Tarihi:** {row['Başvuru Tarihi']}")
                             
@@ -156,7 +156,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 if p_match:
                                     p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
                                     
-                            # Akıllı SOLUTIE Gösterimi
                             if solutie_metni:
                                 st.success(f"**📝 Karar / Durum (SOLUTIE):** {solutie_metni}")
                             else:
@@ -174,7 +173,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             if karar_bulundu_mu:
                                 st.success(f"🎉 **TEBRİKLER! Kararınız Yayımlandı.**")
                                 
-                                # --- Karar Numarası ve PDF Kontrolü ---
                                 gosterilecek_karar = p_numarasi
                                 kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
                                 
@@ -185,7 +183,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     else:
                                         gosterilecek_karar = "Belirtilmemiş (Dosya Karar Listesinde Bulundu)"
                                 
-                                # --- Copii Minori Arama ---
                                 copii_bilgisi = ""
                                 tum_satir_metni = " ".join([str(val) for val in k_row.values if str(val) != "nan"])
                                 
