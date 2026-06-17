@@ -98,12 +98,12 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             ilk_numara = parcalar[0]
             son_yil = parcalar[-1]
             
-            # --- YENİ: HEM SOLU HEM SAĞI AYNI ANDA KONTROL ET ---
+            # --- HEM SOLU HEM SAĞI AYNI ANDA KONTROL ET ---
             sol_gecerli = ilk_numara.isdigit()
             sag_gecerli = son_yil.isdigit() and len(son_yil) == 4
             
             if not sol_gecerli or not sag_gecerli:
-                st.warning("⚠️ Hatalı giriş yaptınız. Lütfen '/' işaretinin hem solundaki dosya numarasının hem de sağındaki yıl kısmının (4 basamaklı) SADECE rakamlardan oluştuğundan emin olunuz. (Örn: 1234/2023)")
+                st.warning("⚠️ Hatalı giriş yaptınız. Lütfen '/' işaretinin solundaki dosya numarasının SADECE rakamlardan oluştuğuna ve sağındaki yıl kısmının tam 4 basamaklı bir sayı olduğuna emin olunuz. (Örn: 1234/2023)")
             
             # Kural 3: Yıl 2017'den BÜYÜK olmalı (2018 ve sonrası)
             elif int(son_yil) <= 2017:
