@@ -79,7 +79,7 @@ st.info(f"""
 
 st.markdown("---")
 
-st.markdown("💡 **Örnek Arama Formatı:** 1234/2018 veya 37064/2023")
+st.markdown("💡 **Örnek Arama Formatı:** 1234/2017 veya 37064/2023")
 aranan_kelime = st.text_input("Dosya Numaranız (No/Yıl):", placeholder="Örn: 37064/2023")
 
 if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
@@ -104,15 +104,15 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             ilk_numara = parcalar[0]
             son_yil = parcalar[1]
             
-            # --- 3. KURAL: Mantıksal Hataların Önlenmesi (Boş, Sıfır veya Hatalı Yıl) ---
+            # --- 3. KURAL: Mantıksal Hataların Önlenmesi (Boş, Sıfır veya Aralık Dışı Yıl) ---
             if len(ilk_numara) == 0:
                 st.warning("⚠️ Lütfen '/' işaretinden önce dosya numaranızı yazınız. (Örn: 1234/2023)")
             elif int(ilk_numara) == 0:
                 st.warning("⚠️ Hatalı giriş yaptınız. Dosya numarası '0' olamaz. Lütfen geçerli bir dosya numarası giriniz. (Örn: 1234/2023)")
             elif len(son_yil) != 4:
                 st.warning("⚠️ Hatalı giriş yaptınız. Yıl kısmı KESİNLİKLE 4 basamaklı olmalıdır. (Örn: 1234/2023)")
-            elif int(son_yil) <= 2017:
-                st.warning("⚠️ Sistem uyarısı: Girilen yıl 2017'den büyük olmalıdır. Lütfen 2018 veya daha güncel bir yıl giriniz.")
+            elif not (2017 <= int(son_yil) <= 2026):
+                st.warning("⚠️ Sistem uyarısı: Dosya yılı yalnızca 2017 ile 2026 yılları arasında olabilir.")
             
             # --- TÜM KURALLARDAN GEÇEN TEMİZ SORGULAMA ---
             else:
