@@ -98,13 +98,12 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             ilk_numara = parcalar[0]
             son_yil = parcalar[-1]
             
-            # Kural 1: İlk kısım (Dosya Numarası) SADECE rakamlardan oluşmalı
-            if not ilk_numara.isdigit():
-                st.warning("⚠️ Hatalı giriş yaptınız. Lütfen dosya numarasının ilk kısmının ( / işaretinden önceki bölümün) SADECE rakamlardan oluştuğundan emin olunuz. (Örn: 1234/2023)")
+            # --- YENİ: HEM SOLU HEM SAĞI AYNI ANDA KONTROL ET ---
+            sol_gecerli = ilk_numara.isdigit()
+            sag_gecerli = son_yil.isdigit() and len(son_yil) == 4
             
-            # Kural 2: Yıl kısmı SADECE rakamlardan oluşmalı ve tam 4 basamaklı olmalı
-            elif not (son_yil.isdigit() and len(son_yil) == 4):
-                st.warning("⚠️ Hatalı giriş yaptınız. Lütfen sondaki yıl kısmının tam ve 4 basamaklı SADECE rakamlardan oluşan bir sayı olduğundan emin olunuz. (Örn: 1234/2023)")
+            if not sol_gecerli or not sag_gecerli:
+                st.warning("⚠️ Hatalı giriş yaptınız. Lütfen '/' işaretinin hem solundaki dosya numarasının hem de sağındaki yıl kısmının (4 basamaklı) SADECE rakamlardan oluştuğundan emin olunuz. (Örn: 1234/2023)")
             
             # Kural 3: Yıl 2017'den BÜYÜK olmalı (2018 ve sonrası)
             elif int(son_yil) <= 2017:
