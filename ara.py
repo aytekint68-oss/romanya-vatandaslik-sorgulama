@@ -88,7 +88,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
     elif df_dosya.empty:
         st.error("Sistemde şu an 'Dosya Durumu' (dosyadurumu.xlsx) verisi bulunmuyor.")
     else:
-        # Sadece baştaki ve sondaki boşlukları siliyoruz (kullanıcı araya boşluk koyarsa hata alsın diye)
+        # Sadece baştaki ve sondaki boşlukları siliyoruz
         temiz_arama = aranan_kelime.strip()
         
         # --- 1. KURAL: Sadece Rakam ve '/' Karakterine İzin Ver ---
@@ -104,9 +104,11 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             ilk_numara = parcalar[0]
             son_yil = parcalar[1]
             
-            # --- 3. KURAL: Parçaların Boş Olmaması ve Yılın 4 Basamaklı Olması ---
+            # --- 3. KURAL: Mantıksal Hataların Önlenmesi (Boş, Sıfır veya Hatalı Yıl) ---
             if len(ilk_numara) == 0:
                 st.warning("⚠️ Lütfen '/' işaretinden önce dosya numaranızı yazınız. (Örn: 1234/2023)")
+            elif int(ilk_numara) == 0:
+                st.warning("⚠️ Hatalı giriş yaptınız. Dosya numarası '0' olamaz. Lütfen geçerli bir dosya numarası giriniz. (Örn: 1234/2023)")
             elif len(son_yil) != 4:
                 st.warning("⚠️ Hatalı giriş yaptınız. Yıl kısmı KESİNLİKLE 4 basamaklı olmalıdır. (Örn: 1234/2023)")
             elif int(son_yil) <= 2017:
