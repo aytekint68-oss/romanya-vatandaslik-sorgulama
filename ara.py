@@ -83,23 +83,19 @@ def max_ordin_hesapla_vektorel(df_k):
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
     
-    # Tüm tabloyu tek hamlede tarayıp Tarih/Yıl bilgisini bulur
     if 'Kaynak Belge' in df_k.columns:
         temp_df['Yil'] = df_k['Kaynak Belge'].astype(str).str.extract(r'\d{2}[\.\-\_]\d{2}[\.\-\_](\d{4})')[0]
         temp_df['Yil'] = temp_df['Yil'].fillna(df_k['Kaynak Belge'].astype(str).str.extract(r'\b(202\d)\b')[0])
     else:
         temp_df['Yil'] = df_k[ordin_col].astype(str).str.extract(r'\b(202\d)\b')[0]
         
-    # Tüm tabloyu tek hamlede tarayıp Ordin Numarasını bulur
     temp_df['No'] = df_k[ordin_col].astype(str).str.extract(r'(\d{1,6})')[0]
     
-    # Metinleri sayıya çevir, boş olanları at, yıla göre grupla ve maksimumu bul (0.05 saniye sürer)
     temp_df['Yil'] = pd.to_numeric(temp_df['Yil'], errors='coerce')
     temp_df['No'] = pd.to_numeric(temp_df['No'], errors='coerce')
     
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-# Uygulama açılırken hesaplamaları hafızaya alır, bir daha sunucuyu yormaz
 max_ordin_m10 = max_ordin_hesapla_vektorel(df_karar_m10)
 max_ordin_m11 = max_ordin_hesapla_vektorel(df_karar_m11)
 
@@ -263,18 +259,24 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
                                 madde_adi = "Madde 10" if is_m10 else "Madde 11"
                                 
-                                # AKILLI TEŞHİS MOTORU (Aynı Yılın Karşılaştırması)
+                                # --- YENİLENMİŞ HATASIZ TEŞHİS MOTORU ---
                                 if p_numarasi and user_ordin_yil > 0:
                                     max_pub_ordin = max_ordin_m10.get(user_ordin_yil, 0) if is_m10 else max_ordin_m11.get(user_ordin_yil, 0)
                                     
-                                    if max_pub_ordin > 0 and user_ordin_no <= max_pub_ordin:
-                                        st.error(f"** ({p_numarasi})**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğini göstermektedir. Lütfen kesin ve nihai sonuç için adresinize gelecek resmi tebligatı bekleyiniz.", icon="🚨")
+                                    # KURAL 1: Kullanıcının numarası, sistemdeki son numaraya EŞİT ise (Sıcağı sıcağına ONAY)
+                                    if max_pub_ordin > 0 and user_ordin_no == max_pub_ordin:
+                                        st.info(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Sistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en güncel **{madde_adi}** kararı tam olarak sizin numaranız olan **{max_pub_ordin}/{user_ordin_yil}**'dir.\n\nKarar belgeniz ANC tarafından şu an sisteme alınmış ve çok yeni yayımlanmış görünmektedir. Veritabanı senkronizasyon aşamasında olduğu için dosya detaylarınız birkaç saat içinde tamamen netleşecektir. Bu durum dosyanızın **OLUMLU (ONAY)** sonuçlandığına işaret eder. Tebrik eder, ilerleyen duyuruları takip etmenizi öneririz! 🎉", icon="ℹ️")
                                     
+                                    # KURAL 2: Kullanıcının numarası, sistemdeki son numaradan KÜÇÜK ise (Potansiyel RED)
+                                    elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
+                                        st.error(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğini göstermektedir. Lütfen kesin ve nihai sonuç için adresinize gelecek resmi tebligatı bekleyiniz.", icon="🚨")
+                                    
+                                    # KURAL 3: Kullanıcının numarası, sistemdeki son numaradan BÜYÜK ise (Sırada bekleyen ONAY)
                                     elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
-                                        st.info(f"** ({p_numarasi})**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) henüz bu sıraya ulaşmamıştır. Bu durum, dosyanızın büyük ihtimalle **OLUMLU (ONAY)** sonuçlandığını ve sıradaki listelerde yayımlanmak üzere beklediğini müjdelemektedir. Gelecek listeleri heyecanla takip edebilirsiniz! 🎉", icon="ℹ️")
+                                        st.info(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) henüz bu sıraya ulaşmamıştır. Bu durum, dosyanızın büyük ihtimalle **OLUMLU (ONAY)** sonuçlandığını ve sıradaki listelerde yayımlanmak üzere beklediğini müjdelemektedir. Gelecek listeleri heyecanla takip edebilirsiniz! 🎉", icon="ℹ️")
                                     
                                     else:
-                                        st.warning(f"** ({p_numarasi})**\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak **{user_ordin_yil}** yılına ait resmi listeler henüz yayımlanmamıştır.", icon="⚠️")
+                                        st.warning(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak **{user_ordin_yil}** yılına ait resmi listeler henüz yayımlanmamıştır.", icon="⚠️")
                                 else:
                                     st.error("🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır.", icon="❌")
                         st.markdown("<br>", unsafe_allow_html=True)
