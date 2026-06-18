@@ -263,9 +263,9 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 if p_numarasi and user_ordin_yil > 0:
                                     max_pub_ordin = max_ordin_m10.get(user_ordin_yil, 0) if is_m10 else max_ordin_m11.get(user_ordin_yil, 0)
                                     
-                                    # KURAL 1: Kullanıcının numarası, sistemdeki son numaraya EŞİT ise (Sıcağı sıcağına ONAY)
+                                    # KURAL 1: Kullanıcının numarası, sistemdeki son numaraya EŞİT ise (Eksik/Red İhtimali)
                                     if max_pub_ordin > 0 and user_ordin_no == max_pub_ordin:
-                                        st.info(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Sistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en güncel **{madde_adi}** kararı tam olarak sizin numaranız olan **{max_pub_ordin}/{user_ordin_yil}**'dir.\n\nKarar belgeniz ANC tarafından şu an sisteme alınmış ve çok yeni yayımlanmış görünmektedir. Veritabanı senkronizasyon aşamasında olduğu için dosya detaylarınız birkaç saat içinde tamamen netleşecektir. Bu durum dosyanızın **OLUMLU (ONAY)** sonuçlandığına işaret eder. Tebrik eder, ilerleyen duyuruları takip etmenizi öneririz! 🎉", icon="ℹ️")
+                                        st.warning(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Sistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en güncel **{madde_adi}** kararı tam olarak sizin numaranız olan **{max_pub_ordin}/{user_ordin_yil}**'dir.\n\nTeknik bir hata sonucu dosya numaranız ordin listesine eklenmemiş olabilir veya onay verilmemiş olup listeden çıkarılmış olabilirsiniz. Resmi tebligat ve ilerleyen duyuruları takip etmenizi öneririz.", icon="⚠️")
                                     
                                     # KURAL 2: Kullanıcının numarası, sistemdeki son numaradan KÜÇÜK ise (Potansiyel RED)
                                     elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
