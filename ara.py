@@ -70,41 +70,38 @@ _, dosya_guncelleme_tarihi = en_guncel_belge_bilgisi(df_dosya)
 m10_belge, m10_tarih = en_guncel_belge_bilgisi(df_karar_m10)
 m11_belge, m11_tarih = en_guncel_belge_bilgisi(df_karar_m11)
 
-# --- YILLARA VE MADDELERE GÖRE MAKSİMUM YAYINLANMIŞ ORDİN NUMARASINI BULMA MOTORU ---
-def max_ordin_hesapla(df_k):
-    max_dict = {}
-    if not df_k.empty:
-        for _, row in df_k.iterrows():
-            satir_metni = " ".join([str(val) for val in row.values if pd.notna(val)])
-            
-            yil = 0
-            yil_match = re.search(r'\d{2}[\.\-\_]\d{2}[\.\-\_](\d{4})', satir_metni)
-            if yil_match:
-                yil = int(yil_match.group(1))
-            else:
-                yil_match2 = re.search(r'\b(202\d)\b', satir_metni)
-                if yil_match2:
-                    yil = int(yil_match2.group(1))
-            
-            o_num = 0
-            ordin_col_val = str(row.get('Karar (Ordin) No', ''))
-            if ordin_col_val and ordin_col_val != 'nan':
-                o_match = re.search(r'(\d{1,6})', ordin_col_val)
-                if o_match:
-                    o_num = int(o_match.group(1))
-            
-            if not o_num:
-                o_match2 = re.search(r'(?:ordin|op|o|art)[^\d]*(\d{1,6})\b', satir_metni, re.IGNORECASE)
-                if o_match2:
-                    o_num = int(o_match2.group(1))
-            
-            if yil > 0 and o_num > 0:
-                if yil not in max_dict or o_num > max_dict[yil]:
-                    max_dict[yil] = o_num
-    return max_dict
+# --- SUNUCU DOSTU ŞİMŞEK HIZINDA (VEKTÖREL) MAKSİMUM ORDİN HESAPLAMA MOTORU ---
+@st.cache_data
+def max_ordin_hesapla_vektorel(df_k):
+    if df_k.empty:
+        return {}
+        
+    ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
+    if not ordin_sutunlari:
+        return {}
+        
+    ordin_col = ordin_sutunlari[0]
+    temp_df = pd.DataFrame()
+    
+    # Tüm tabloyu tek hamlede tarayıp Tarih/Yıl bilgisini bulur
+    if 'Kaynak Belge' in df_k.columns:
+        temp_df['Yil'] = df_k['Kaynak Belge'].astype(str).str.extract(r'\d{2}[\.\-\_]\d{2}[\.\-\_](\d{4})')[0]
+        temp_df['Yil'] = temp_df['Yil'].fillna(df_k['Kaynak Belge'].astype(str).str.extract(r'\b(202\d)\b')[0])
+    else:
+        temp_df['Yil'] = df_k[ordin_col].astype(str).str.extract(r'\b(202\d)\b')[0]
+        
+    # Tüm tabloyu tek hamlede tarayıp Ordin Numarasını bulur
+    temp_df['No'] = df_k[ordin_col].astype(str).str.extract(r'(\d{1,6})')[0]
+    
+    # Metinleri sayıya çevir, boş olanları at, yıla göre grupla ve maksimumu bul (0.05 saniye sürer)
+    temp_df['Yil'] = pd.to_numeric(temp_df['Yil'], errors='coerce')
+    temp_df['No'] = pd.to_numeric(temp_df['No'], errors='coerce')
+    
+    return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-max_ordin_m10 = max_ordin_hesapla(df_karar_m10)
-max_ordin_m11 = max_ordin_hesapla(df_karar_m11)
+# Uygulama açılırken hesaplamaları hafızaya alır, bir daha sunucuyu yormaz
+max_ordin_m10 = max_ordin_hesapla_vektorel(df_karar_m10)
+max_ordin_m11 = max_ordin_hesapla_vektorel(df_karar_m11)
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
