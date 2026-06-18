@@ -44,25 +44,20 @@ def en_guncel_belge_bilgisi(df):
     
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
     
-    # 1. Aşama: Dosya isminden Gün.Ay.Yıl formatındaki tarihi çek
     unique_files['Parsed_Date'] = pd.to_datetime(
         unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], 
         format='%d.%m.%Y', 
         errors='coerce'
     )
     
-    # 2. Aşama: Aynı tarihte birden fazla karar varsa büyük numaralıyı bul (Örn 2050 vs 2054)
-    # Karışıklık olmaması için isimdeki tarihi siliyoruz
     isimler_tarihsiz = unique_files['Kaynak Belge'].str.replace(r'\d{2}\.\d{2}\.\d{4}', '', regex=True)
     
-    # Kalan metinden (art11 vb. ufak rakamları es geçmek için) 3 veya daha fazla haneli ana dosya numarasını çekiyoruz
     unique_files['Karar_No'] = isimler_tarihsiz.str.extract(r'(\d{3,6})')[0]
     unique_files['Karar_No'] = pd.to_numeric(unique_files['Karar_No'], errors='coerce').fillna(0)
     
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
     
     if not valid_files.empty:
-        # 3. Aşama: Önce Tarihe göre, sonra Karar Numarasına göre azalan (en büyük/en yeni) olarak sırala
         latest_row = valid_files.sort_values(by=['Parsed_Date', 'Karar_No'], ascending=[False, False]).iloc[0]
         tarih_str = latest_row['Parsed_Date'].strftime('%d.%m.%Y')
         return latest_row['Kaynak Belge'], tarih_str
@@ -74,6 +69,42 @@ def en_guncel_belge_bilgisi(df):
 _, dosya_guncelleme_tarihi = en_guncel_belge_bilgisi(df_dosya)
 m10_belge, m10_tarih = en_guncel_belge_bilgisi(df_karar_m10)
 m11_belge, m11_tarih = en_guncel_belge_bilgisi(df_karar_m11)
+
+# --- YILLARA VE MADDELERE GÖRE MAKSİMUM YAYINLANMIŞ ORDİN NUMARASINI BULMA MOTORU ---
+def max_ordin_hesapla(df_k):
+    max_dict = {}
+    if not df_k.empty:
+        for _, row in df_k.iterrows():
+            satir_metni = " ".join([str(val) for val in row.values if pd.notna(val)])
+            
+            yil = 0
+            yil_match = re.search(r'\d{2}[\.\-\_]\d{2}[\.\-\_](\d{4})', satir_metni)
+            if yil_match:
+                yil = int(yil_match.group(1))
+            else:
+                yil_match2 = re.search(r'\b(202\d)\b', satir_metni)
+                if yil_match2:
+                    yil = int(yil_match2.group(1))
+            
+            o_num = 0
+            ordin_col_val = str(row.get('Karar (Ordin) No', ''))
+            if ordin_col_val and ordin_col_val != 'nan':
+                o_match = re.search(r'(\d{1,6})', ordin_col_val)
+                if o_match:
+                    o_num = int(o_match.group(1))
+            
+            if not o_num:
+                o_match2 = re.search(r'(?:ordin|op|o|art)[^\d]*(\d{1,6})\b', satir_metni, re.IGNORECASE)
+                if o_match2:
+                    o_num = int(o_match2.group(1))
+            
+            if yil > 0 and o_num > 0:
+                if yil not in max_dict or o_num > max_dict[yil]:
+                    max_dict[yil] = o_num
+    return max_dict
+
+max_ordin_m10 = max_ordin_hesapla(df_karar_m10)
+max_ordin_m11 = max_ordin_hesapla(df_karar_m11)
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
@@ -147,11 +178,15 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
 
                         solutie_metni = str(row['SOLUTIE']).strip()
                         p_numarasi = None
+                        user_ordin_no = 0
+                        user_ordin_yil = 0
                         
                         if solutie_metni:
                             p_match = re.search(r'(\d{1,6})\s*/\s*P\s*/\s*(\d{4})', solutie_metni, re.IGNORECASE)
                             if p_match:
                                 p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
+                                user_ordin_no = int(p_match.group(1))
+                                user_ordin_yil = int(p_match.group(2))
 
                         # =========================================================
                         # --- YENİ PROFESYONEL VE ESTETİK KART TASARIMI ---
@@ -185,7 +220,8 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 else:
                                     st.warning("**📝 Kurum Notu (Solutie):** Henüz bir not girilmemiş (İnceleme Bekliyor).", icon="⏳")
                                     
-                            st.caption(f"📌 Kaynak: {row['Kaynak Belge']}")
+                            kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
+                            st.caption(f"📌 Kaynak: {kaynak_dosya_metni}")
                             st.divider()
                             
                             # 4. BÖLÜM: KARAR (ORDIN)
@@ -211,7 +247,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     if 'Tarih' in k_row and str(k_row['Tarih']).strip() and str(k_row['Tarih']).strip() != "nan":
                                         st.markdown(f"📅 **Karar Tarihi:** {k_row['Tarih']}")
                                         
-                                    # Çocuk sayısı arama (Temizlenmiş liste görünümü)
                                     tum_satir_metni = " ".join([str(val) for val in k_row.values if str(val) != "nan"])
                                     copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
                                     
@@ -227,8 +262,22 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                                 
                                     st.markdown(f"📂 **Kaynak Belge:** {kaynak_belge_adi}")
                             else:
+                                # İLGİLİ MADDEYİ TESPİT ET (Madde 10 mu 11 mi?)
+                                is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
+                                madde_adi = "Madde 10" if is_m10 else "Madde 11"
+                                
+                                # AKILLI TEŞHİS MOTORU
                                 if p_numarasi:
-                                    st.warning(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak resmi listelerde henüz yayımlanmamıştır.", icon="⚠️")
+                                    max_pub_ordin = max_ordin_m10.get(user_ordin_yil, 0) if is_m10 else max_ordin_m11.get(user_ordin_yil, 0)
+                                    
+                                    if max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
+                                        st.error(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Ancak, sistemdeki {madde_adi} kararları sizin numaranızı çoktan geçmiş olmasına rağmen dosyanız yayımlanan listelerde yer almamaktadır.\n\nBu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğine işaret etmektedir. Kesin ve nihai sonuç için adresinize gelecek resmi tebligatı beklemenizi rica ederiz.", icon="🚨")
+                                    
+                                    elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
+                                        st.info(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Sistemde {madde_adi} için yayımlanan son karar numarası henüz bu sayıya ulaşmamıştır.\n\nBu durum, dosyanızın büyük ihtimalle **OLUMLU (ONAY)** sonuçlandığını ve sıradaki listelerde yayımlanmak üzere beklediğini göstermektedir. Gelişmeleri ve yeni listeleri heyecanla takip etmenizi öneririz! 🎉", icon="ℹ️")
+                                    
+                                    else:
+                                        st.warning(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak resmi listelerde henüz yayımlanmamıştır.", icon="⚠️")
                                 else:
                                     st.error("🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır.", icon="❌")
                         st.markdown("<br>", unsafe_allow_html=True)
