@@ -269,7 +269,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     
                                     # KURAL 2: Kullanıcının numarası, sistemdeki son numaradan KÜÇÜK ise (Potansiyel RED)
                                     elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
-                                        st.error(f"**{p_numarasi}**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğini göstermektedir. Lütfen kesin ve nihai sonuç için adresinize gelecek resmi tebligatı bekleyiniz.", icon="🚨")
+                                        st.error(f"**{p_numarasi}**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğini göstermektedir. Resmi tebligat ve ilerleyen duyuruları takip etmenizi öneririz.", icon="🚨")
                                     
                                     # KURAL 3: Kullanıcının numarası, sistemdeki son numaradan BÜYÜK ise (Sırada bekleyen ONAY)
                                     elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
