@@ -44,16 +44,26 @@ def en_guncel_belge_bilgisi(df):
     
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
     
+    # 1. Aşama: Dosya isminden Gün.Ay.Yıl formatındaki tarihi çek
     unique_files['Parsed_Date'] = pd.to_datetime(
         unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], 
         format='%d.%m.%Y', 
         errors='coerce'
     )
     
+    # 2. Aşama: Aynı tarihte birden fazla karar varsa büyük numaralıyı bul (Örn 2050 vs 2054)
+    # Karışıklık olmaması için isimdeki tarihi siliyoruz
+    isimler_tarihsiz = unique_files['Kaynak Belge'].str.replace(r'\d{2}\.\d{2}\.\d{4}', '', regex=True)
+    
+    # Kalan metinden (art11 vb. ufak rakamları es geçmek için) 3 veya daha fazla haneli ana dosya numarasını çekiyoruz
+    unique_files['Karar_No'] = isimler_tarihsiz.str.extract(r'(\d{3,6})')[0]
+    unique_files['Karar_No'] = pd.to_numeric(unique_files['Karar_No'], errors='coerce').fillna(0)
+    
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
     
     if not valid_files.empty:
-        latest_row = valid_files.sort_values(by='Parsed_Date', ascending=False).iloc[0]
+        # 3. Aşama: Önce Tarihe göre, sonra Karar Numarasına göre azalan (en büyük/en yeni) olarak sırala
+        latest_row = valid_files.sort_values(by=['Parsed_Date', 'Karar_No'], ascending=[False, False]).iloc[0]
         tarih_str = latest_row['Parsed_Date'].strftime('%d.%m.%Y')
         return latest_row['Kaynak Belge'], tarih_str
     elif not unique_files.empty:
