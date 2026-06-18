@@ -182,7 +182,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         user_ordin_yil = 0
                         
                         if solutie_metni:
-                            p_match = re.search(r'(\d{1,6})\s*/\s*P\s*/\s*(\d{4})', solutie_metni, re.IGNORECASE)
+                            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
                             if p_match:
                                 p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
                                 user_ordin_no = int(p_match.group(1))
@@ -266,18 +266,18 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
                                 madde_adi = "Madde 10" if is_m10 else "Madde 11"
                                 
-                                # AKILLI TEŞHİS MOTORU
-                                if p_numarasi:
+                                # AKILLI TEŞHİS MOTORU (Aynı Yılın Karşılaştırması)
+                                if p_numarasi and user_ordin_yil > 0:
                                     max_pub_ordin = max_ordin_m10.get(user_ordin_yil, 0) if is_m10 else max_ordin_m11.get(user_ordin_yil, 0)
                                     
-                                    if max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
-                                        st.error(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Ancak, sistemdeki {madde_adi} kararları sizin numaranızı çoktan geçmiş olmasına rağmen dosyanız yayımlanan listelerde yer almamaktadır.\n\nBu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğine işaret etmektedir. Kesin ve nihai sonuç için adresinize gelecek resmi tebligatı beklemenizi rica ederiz.", icon="🚨")
+                                    if max_pub_ordin > 0 and user_ordin_no <= max_pub_ordin:
+                                        st.error(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğini göstermektedir. Lütfen kesin ve nihai sonuç için adresinize gelecek resmi tebligatı bekleyiniz.", icon="🚨")
                                     
                                     elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
-                                        st.info(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Sistemde {madde_adi} için yayımlanan son karar numarası henüz bu sayıya ulaşmamıştır.\n\nBu durum, dosyanızın büyük ihtimalle **OLUMLU (ONAY)** sonuçlandığını ve sıradaki listelerde yayımlanmak üzere beklediğini göstermektedir. Gelişmeleri ve yeni listeleri heyecanla takip etmenizi öneririz! 🎉", icon="ℹ️")
+                                        st.info(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) henüz bu sıraya ulaşmamıştır. Bu durum, dosyanızın büyük ihtimalle **OLUMLU (ONAY)** sonuçlandığını ve sıradaki listelerde yayımlanmak üzere beklediğini müjdelemektedir. Gelecek listeleri heyecanla takip edebilirsiniz! 🎉", icon="ℹ️")
                                     
                                     else:
-                                        st.warning(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak resmi listelerde henüz yayımlanmamıştır.", icon="⚠️")
+                                        st.warning(f"**Onay Kodu Tespit Edildi ({p_numarasi})**\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak **{user_ordin_yil}** yılına ait resmi listeler henüz yayımlanmamıştır.", icon="⚠️")
                                 else:
                                     st.error("🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır.", icon="❌")
                         st.markdown("<br>", unsafe_allow_html=True)
