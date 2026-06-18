@@ -10,9 +10,9 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- VERİ YÜKLEME VE ÖNBELLEK ---
+# --- TAM OTOMATİK VERİ YÜKLEME VE ÖNBELLEK ---
 @st.cache_data
-def veri_yukle(dosya_adi):
+def veri_yukle(dosya_adi, degistirme_zamani):
     if os.path.exists(dosya_adi):
         try:
             df = pd.read_excel(dosya_adi)
@@ -22,14 +22,23 @@ def veri_yukle(dosya_adi):
             return pd.DataFrame()
     return pd.DataFrame()
 
-# 1. Dosya Durumunu Yükle
-df_dosya = veri_yukle("dosyadurumu.xlsx")
+# Dosyanın saatini kontrol eden Akıllı Fonksiyon
+def akilli_veri_yukle(dosya_adi):
+    if os.path.exists(dosya_adi):
+        # Dosyanın GitHub'dan sunucuya en son indirildiği saati bulur
+        guncelleme_saati = os.path.getmtime(dosya_adi)
+        return veri_yukle(dosya_adi, guncelleme_saati)
+    return pd.DataFrame()
+
+# 1. Dosya Durumunu Yükle (Artık "akilli_veri_yukle" kullanıyoruz)
+df_dosya = akilli_veri_yukle("dosyadurumu.xlsx")
 
 # 2. Madde 10 ve Madde 11 Kararlarını Yükle ve Birleştir
-df_karar_m10 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde10.xlsx")
-df_karar_m11 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx")
+df_karar_m10 = akilli_veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde10.xlsx")
+df_karar_m11 = akilli_veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx")
 
 karar_listesi = []
+# ... Kodun geri kalanı tamamen aynı kalacak ...
 if not df_karar_m10.empty:
     karar_listesi.append(df_karar_m10)
 if not df_karar_m11.empty:
