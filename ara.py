@@ -10,35 +10,44 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- TAM OTOMATİK VERİ YÜKLEME VE ÖNBELLEK ---
+# --- TAM OTOMATİK VERİ YÜKLEME VE ÖNBELLEK (ZIP VE CSV İÇİN OPTİMİZE) ---
 @st.cache_data
 def veri_yukle(dosya_adi, degistirme_zamani):
     if os.path.exists(dosya_adi):
         try:
-            df = pd.read_excel(dosya_adi)
-            df = df.fillna("")
-            return df
+            # Önce noktalı virgül (Avrupa/TR Excel CSV) formatını dener
+            df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False)
+            
+            # Eğer dosya yanlış ayrılmışsa (tek sütun çıkarsa), virgül formatına geçer
+            if len(df.columns) < 2:
+                df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
+                
+            return df.fillna("")
         except Exception:
-            return pd.DataFrame()
+            try:
+                # B Planı: Windows Türkçe (cp1254) karakter kodlaması ile dener
+                df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False)
+                if len(df.columns) < 2:
+                    df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False)
+                return df.fillna("")
+            except Exception:
+                return pd.DataFrame()
     return pd.DataFrame()
 
-# Dosyanın saatini kontrol eden Akıllı Fonksiyon
 def akilli_veri_yukle(dosya_adi):
     if os.path.exists(dosya_adi):
-        # Dosyanın GitHub'dan sunucuya en son indirildiği saati bulur
         guncelleme_saati = os.path.getmtime(dosya_adi)
         return veri_yukle(dosya_adi, guncelleme_saati)
     return pd.DataFrame()
 
-# 1. Dosya Durumunu Yükle (Artık "akilli_veri_yukle" kullanıyoruz)
-df_dosya = akilli_veri_yukle("dosyadurumu.xlsx")
-
-# 2. Madde 10 ve Madde 11 Kararlarını Yükle ve Birleştir
-df_karar_m10 = akilli_veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde10.xlsx")
-df_karar_m11 = akilli_veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.xlsx")
+# =========================================================
+# DOSYALARI BURADAN YÜKLÜYORUZ (BÜYÜK DOSYA ARTIK .ZIP)
+# =========================================================
+df_dosya = akilli_veri_yukle("dosyadurumu.zip") 
+df_karar_m10 = akilli_veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
+df_karar_m11 = akilli_veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
 
 karar_listesi = []
-# ... Kodun geri kalanı tamamen aynı kalacak ...
 if not df_karar_m10.empty:
     karar_listesi.append(df_karar_m10)
 if not df_karar_m11.empty:
@@ -129,7 +138,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
     if not aranan_kelime:
         st.warning("Lütfen arama yapmak için bir dosya numarası girin.")
     elif df_dosya.empty:
-        st.error("Sistemde şu an 'Dosya Durumu' (dosyadurumu.xlsx) verisi bulunmuyor.")
+        st.error("Sistemde şu an 'Dosya Durumu' verisi bulunmuyor.")
     else:
         temiz_arama = aranan_kelime.strip()
         
@@ -278,7 +287,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     
                                     # KURAL 2: Kullanıcının numarası, sistemdeki son numaradan KÜÇÜK ise (Potansiyel RED)
                                     elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
-                                        st.error(f"**{p_numarasi}**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğini göstermektedir. Resmi tebligat ve ilerleyen duyuruları takip etmenizi öneririz.", icon="🚨")
+                                        st.error(f"**{p_numarasi}**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğini göstermektedir. Lütfen kesin ve nihai sonuç için adresinize gelecek resmi tebligatı bekleyiniz.", icon="🚨")
                                     
                                     # KURAL 3: Kullanıcının numarası, sistemdeki son numaradan BÜYÜK ise (Sırada bekleyen ONAY)
                                     elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
