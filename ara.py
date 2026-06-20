@@ -232,7 +232,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     st.warning("**📝 Kurum Notu (Solutie):** Henüz bir not girilmemiş (İnceleme Bekliyor).", icon="⏳")
                                     
                             kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
-                            st.caption(f"📌 **Kaynak:** {kaynak_dosya_metni}")
+                            st.markdown(f"📌 **Kaynak:** {kaynak_dosya_metni}")
                             st.divider()
                             
                             # 4. BÖLÜM: KARAR (ORDIN)
