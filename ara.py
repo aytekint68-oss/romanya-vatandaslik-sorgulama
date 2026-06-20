@@ -232,7 +232,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     st.warning("**📝 Kurum Notu (Solutie):** Henüz bir not girilmemiş (İnceleme Bekliyor).", icon="⏳")
                                     
                             kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
-                            st.markdown(f"📂 **Kaynak Belge:** {kaynak_dosya_metni}")
+                            st.markdown(f"📂 **Kaynak Belge (Stadiu Dosar):** {kaynak_dosya_metni}")
                             st.divider()
                             
                             # 4. BÖLÜM: KARAR (ORDIN)
@@ -271,7 +271,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                                     st.markdown(f"👶 **Çocuk (Copii Minori):** {int(float(cocuk_sayisi))}")
                                                 break
                                                 
-                                    st.markdown(f"📂 **Kaynak Belge:** {kaynak_belge_adi}")
+                                    st.markdown(f"📂 **Kaynak Belge (Ordin):** {kaynak_belge_adi}")
                             else:
                                 # İLGİLİ MADDEYİ TESPİT ET (Madde 10 mu 11 mi?)
                                 is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
