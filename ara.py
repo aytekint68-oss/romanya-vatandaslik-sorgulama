@@ -125,8 +125,8 @@ st.info(f"""
 🔄 **Dosya Durumu (Stadiu Dosar) Son Güncelleme:** {dosya_guncelleme_tarihi}
 
 📄 **Sisteme Eklenen Son Kararlar:**
-- **Madde 10:** {m10_belge} *(Güncelleme: {m10_tarih})*
-- **Madde 11:** {m11_belge} *(Güncelleme: {m11_tarih})*
+- **Madde 10:** {m10_belge} 
+- **Madde 11:** {m11_belge} 
 """)
 
 st.markdown("---")
