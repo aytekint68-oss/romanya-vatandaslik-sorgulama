@@ -119,7 +119,7 @@ max_ordin_m11 = max_ordin_hesapla_vektorel(df_karar_m11)
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
-st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu tek ekranda görüntüleyin.")
+st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve karar (**Ordin**) sonucunuzu tek ekranda görüntüleyin.")
 
 st.info(f"""
 🔄 **Dosya Durumu (Stadiu Dosar) Son Güncelleme:** {dosya_guncelleme_tarihi}
