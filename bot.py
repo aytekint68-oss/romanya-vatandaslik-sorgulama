@@ -159,19 +159,22 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- ARAMA İŞLEMİ ---
     arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
-    df_dosya['Arama_Sutunu'] = df_dosya['Dosya No'].astype(str).str.strip()
-    sonuclar = df_dosya[df_dosya['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
+    
+    # KOPYA OLUŞTUR VE BOŞLUKLARI TAMAMEN TEMİZLE
+    df_gecici = df_dosya.copy()
+    df_gecici['Arama_Sutunu'] = df_gecici['Dosya No'].astype(str).str.strip()
+    sonuclar = df_gecici[df_gecici['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)].copy()
 
     if sonuclar.empty:
         await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun bir dosya bulunamadı. Lütfen kontrol edip tekrar deneyin.", parse_mode='HTML')
         return
 
-    # 🌟 MÜKERRER MESAJ ENGELLEYİCİ
-    sonuclar = sonuclar.drop_duplicates(subset=['Dosya No'])
+    # 🌟 KESİN MÜKERRER MESAJ ENGELLEYİCİ (Arama_Sutunu baz alınarak temizlenir)
+    sonuclar = sonuclar.drop_duplicates(subset=['Arama_Sutunu'])
 
     # Sonuçları ekrana bas
     for index, row in sonuclar.iterrows():
-        dosya_no_parcalar = str(row['Dosya No']).split('/')
+        dosya_no_parcalar = str(row['Arama_Sutunu']).split('/')
         ana_no = dosya_no_parcalar[0].strip()
         ana_yil = dosya_no_parcalar[-1].strip()
         
@@ -209,7 +212,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # --- MESAJI İNŞA ET (HTML) ---
         yanit = (
             f"📂 <b>DOSYA BİLGİLERİ</b>\n"
-            f"<b>No:</b> {row['Dosya No']}\n"
+            f"<b>No:</b> {row['Arama_Sutunu']}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n"
             f"⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n\n"
@@ -230,7 +233,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]:
                 karar_tarihi = "Belirtilmemiş"
                 
-            # 🌟 YENİ: BULUNAN TÜM SATIRLARDAKİ ÇOCUKLARI (KÜÇÜKLERİ) TOPLA
+            # Bulunan tüm satırlardaki çocukları (küçükleri) topla
             toplam_cocuk = 0
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
