@@ -48,7 +48,7 @@ def veri_yukle(dosya_adi):
             if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
             df = df.fillna("")
             
-            # 🌟 KÜRESEL TEMİZLİK: Otomatik oluşan indeks sütunlarını siler
+            # Otomatik oluşan indeks sütunlarını siler
             indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
             if indeks_sutunlari:
                 df = df.drop(columns=indeks_sutunlari)
@@ -129,7 +129,8 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
         if not df_karar.empty:
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
             temiz_metin = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
-            regex = rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)"
+            # Uyarıyı çözen düzenlenmiş Regex
+            regex = rf"(?:^|\D){ana_no}/(?:[A-Z]+/)?{ana_yil}(?:$|\D)"
             if not df_karar[temiz_metin.str.contains(regex, regex=True)].empty:
                 onaylandi_mi = True
 
@@ -218,10 +219,11 @@ veritabanini_kontrol_et()
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
     m10_belgeler, _ = en_guncel_belgeler(hafiza['df_karar_m10'])
-    m11_belge, _ = en_guncel_belgeler(hafiza['df_karar_m11'])
+    # Hata Düzeltildi: m11_belge_bilgisi silindi, m11_belgeler eklendi.
+    m11_belgeler, _ = en_guncel_belgeler(hafiza['df_karar_m11'])
 
     m10_metin = "\n".join([f"🔸 {b}" for b in m10_belgeler]) if m10_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
-    m11_metin = "\n".join([f"🔸 {b}" for b in m11_belge]) if m11_belge[0] != "Veri Yok" else "🔸 Veri Yok"
+    m11_metin = "\n".join([f"🔸 {b}" for b in m11_belgeler]) if m11_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
@@ -279,14 +281,32 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not df_karar.empty:
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
             temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
-            karar_sonucu = df_karar[temiz_karar_metni.str.contains(rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)", regex=True)].copy()
+            
+            # Uyarıyı çözen düzenlenmiş Regex
+            regex = rf"(?:^|\D){ana_no}/(?:[A-Z]+/)?{ana_yil}(?:$|\D)"
+            karar_sonucu = df_karar[temiz_karar_metni.str.contains(regex, regex=True)].copy()
             
             if not karar_sonucu.empty:
-                # 🌟 EN DOĞRU VE SAF PDF FİLTRELEME: En yüksek sıklığa sahip asıl PDF grubunu seçer
-                en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
-                karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge]
+                def kaynak_temizle(kb):
+                    kb_clean = str(kb).lower()
+                    return re.sub(r'(_anonimizat|_anonim|_anonim_izat|\.pdf|\.csv|\s+|-|_)', '', kb_clean)
                 
-                karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
+                karar_sonucu['Temiz_Kaynak'] = karar_sonucu['Kaynak Belge'].apply(kaynak_temizle)
+                
+                korunan_satirlar = []
+                for tk, grup in karar_sonucu.groupby('Temiz_Kaynak'):
+                    en_cok_kayit_iceren_belge = grup['Kaynak Belge'].value_counts().idxmax()
+                    kesin_grup = grup[grup['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
+                    
+                    kontrol_sutunlari = [col for col in kesin_grup.columns if 'kaynak' not in str(col).lower() and col != 'Temiz_Kaynak']
+                    kesin_grup = kesin_grup.drop_duplicates(subset=kontrol_sutunlari)
+                    
+                    korunan_satirlar.append(kesin_grup)
+                
+                karar_sonucu = pd.concat(korunan_satirlar, ignore_index=True) if korunan_satirlar else pd.DataFrame()
+                
+                if not karar_sonucu.empty:
+                    karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
         solutie_metni = str(row['SOLUTIE']).strip()
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
@@ -333,7 +353,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 toplam_cocuk += int(float(c_val))
                                 break
 
-            # 👥 Küresel drop_duplicates() sayesinde asıl reşit kişi sayısını hatasız (tam 2 olarak) yazar!
             yetiskin_satiri = f"👥 <b>Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi}\n" if onaylanan_kisi_sayisi > 1 else ""
             cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
