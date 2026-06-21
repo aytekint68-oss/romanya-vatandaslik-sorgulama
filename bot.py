@@ -404,37 +404,71 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 yanit += "❌ 🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır."
 
-            # 🌟 GÖRSEL DOKUNUŞ BURAYA EKLENDİ
             if zaten_takipte:
-                yanit += "\n\n━━━━━━━━━━━━━━━━━━\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğiz. 🔔"
+                yanit += "\n━━━━━━━━━━━━━━━━━━\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğiz. 🔔"
 
         reply_markup = None
         if buton_ekle:
-            klavye = [[InlineKeyboardButton("🔔 Karar Çıkınca Haberdar Et", callback_data=f"takip_{ana_no}_{ana_yil}")]]
+            # 🌟 BUTON ARTIK DOĞRUDAN TAKİBE ALMAK YERİNE KVKK ONAY PENCERESİNİ TETİKLER
+            klavye = [[InlineKeyboardButton("🔔 Karar Çıkınca Haberdar Et", callback_data=f"kvkk_{ana_no}_{ana_yil}")]]
             reply_markup = InlineKeyboardMarkup(klavye)
 
         await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=reply_markup)
 
-# --- BUTON TIKLAMA ---
+# --- BUTON TIKLAMA VE KVKK SÜRECİ ---
 async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    # 🌟 ADIM 1: KULLANICIYA KVKK METNİNİ GÖSTER
+    if query.data.startswith("kvkk_"):
+        _, ilk_no, son_yil = query.data.split('_')
+        
+        kvkk_metni = (
+            "🛡️ <b>KVKK Aydınlatma ve Onay</b>\n\n"
+            f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı takibe almak üzeresiniz.\n\n"
+            "Size otomatik bildirim gönderebilmemiz için <b>Telegram ID'niz</b> ve <b>Dosya Numaranız</b> "
+            "sunucularımızda güvenle saklanacaktır. Bu veriler <u>sadece</u> size haber vermek amacıyla kullanılır "
+            "ve asla üçüncü şahıslarla paylaşılmaz.\n\n"
+            "Devam etmek için onaylıyor musunuz?"
+        )
+        klavye = [
+            [InlineKeyboardButton("✅ Okudum, Onaylıyorum", callback_data=f"takip_{ilk_no}_{son_yil}")],
+            [InlineKeyboardButton("❌ Reddediyorum", callback_data="iptal_takip")]
+        ]
+        
+        # Ana sonuç mesajındaki ilk butonu silip, ayrı bir bilgilendirme mesajı atıyoruz
+        await query.edit_message_reply_markup(reply_markup=None)
+        await context.bot.send_message(
+            chat_id=query.message.chat_id, 
+            text=kvkk_metni, 
+            parse_mode='HTML', 
+            reply_markup=InlineKeyboardMarkup(klavye)
+        )
+        return
+
+    # 🌟 ADIM 2 (A): KULLANICI REDDEDERSE
+    if query.data == "iptal_takip":
+        await query.edit_message_text(text="❌ Takip işlemi iptal edildi. Verileriniz kaydedilmedi.", parse_mode='HTML')
+        return
+
+    # 🌟 ADIM 2 (B): KULLANICI ONAYLARSA (SİSTEME KAYIT)
     if query.data.startswith("takip_"):
         _, ilk_no, son_yil = query.data.split('_')
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
         chat_id = str(query.message.chat_id) 
         
         if any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(dosya_no_temiz) for k in hafiza['bekleyenler']):
-            await query.edit_message_reply_markup(reply_markup=None)
-            await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
+            await query.edit_message_text(text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
             return
             
         hafiza['bekleyenler'].append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
         set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum']) 
         
-        await query.edit_message_reply_markup(reply_markup=None)
-        await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", parse_mode='HTML')
+        await query.edit_message_text(
+            text=f"🔔 <b>Harika! KVKK onayınız alındı.</b>\n\n{dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", 
+            parse_mode='HTML'
+        )
 
 if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
