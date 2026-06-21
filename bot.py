@@ -176,7 +176,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n"
             f"⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n\n"
             f"📝 <b>Kurum Notu (Solutie):</b>\n{kurum_notu}\n\n"
-            f"📌 <i>Kaynak: {kaynak_dosya_metni}</i>\n"
+            f"📂 <b>Kaynak Belge:</b> {kaynak_dosya_metni}</i>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⚖️ <b>KARAR (ORDIN) DURUMU</b>\n"
         )
