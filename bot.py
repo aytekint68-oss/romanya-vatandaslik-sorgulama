@@ -180,7 +180,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni veriler yüklenmiştir.\n"
                         f"📂 <b>Sisteme Yeni Eklenenler:</b>\n{degisim_metni}\n\n"
                         f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni listelerde görünmemiştir. "
-                        f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
+                        f"Dosyanızı sizin için takip etmeye devam ediyoruz, lütfen umudunuzu kaybetmeyin! 🙏"
                     )
                     await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 
@@ -405,14 +405,14 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
                     yanit += f"🚨 <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Sizin kararınız ({user_ordin_no}) geride kalmış. Dosyanız OLUMSUZ sonuçlanmış olabilir. Tebligatı bekleyiniz."
                 elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
-                    yanit += f"ℹ️ <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Numaranız ({user_ordin_no}) sıraya ulaşmamış. Dosyanız büyük ihtimalle OLUMLU sonuçlandı, yayımlanması bekleniyor! 🎉"
+                    yanit += f"ℹ️ <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Numaranız ({user_ordin_no}) sıraya ulaşmamış. Dosyanız büyük ihtimalle OLUMLU sonuçlanmış olabilir, yayımlanması bekleniyor! 🎉"
                 else:
                     yanit += f"⚠️ <b>{p_numarasi}</b>\n\nDosyanız olumlu sonuçlanmış ancak {user_ordin_yil} yılı listeleri yayımlanmamıştır."
             else:
                 yanit += "❌ 🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır."
 
             if zaten_takipte:
-                yanit += "\n\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğim. 🔔"
+                yanit += "\n\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğiz. 🔔"
 
         reply_markup = None
         if buton_ekle:
@@ -433,14 +433,14 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(dosya_no_temiz) for k in hafiza['bekleyenler']):
             await query.edit_message_reply_markup(reply_markup=None)
-            await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
+            await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listemizde!")
             return
             
         hafiza['bekleyenler'].append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
         set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum']) 
         
         await query.edit_message_reply_markup(reply_markup=None)
-        await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", parse_mode='HTML')
+        await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no_temiz} numaralı dosyanızı takibe aldık. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğiz.", parse_mode='HTML')
 
 if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
