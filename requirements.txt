@@ -2,4 +2,4 @@ streamlit
 pandas
 openpyxl
 PyMuPDF
-
+python-telegram-bot
