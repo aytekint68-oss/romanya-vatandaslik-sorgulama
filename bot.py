@@ -114,7 +114,6 @@ veritabanini_kontrol_et_ve_yukle()
 
 # --- TELEGRAM BOT KOMUTLARI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Veritabanı bilgilerini al
     _, dosya_guncelleme_tarihi = en_guncel_belge_bilgisi(hafiza['df_dosya'])
     m10_belge, _ = en_guncel_belge_bilgisi(hafiza['df_karar_m10'])
     m11_belge, _ = en_guncel_belge_bilgisi(hafiza['df_karar_m11'])
@@ -136,7 +135,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(mesaj, parse_mode='HTML')
 
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Her sorgudan önce veritabanı değişmiş mi diye kontrol et (Şimşek hızında)
     veritabanini_kontrol_et_ve_yukle()
     
     aranan_kelime = update.message.text.strip()
@@ -148,21 +146,15 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # --- KONTROLLER ---
-    if not re.fullmatch(r'[0-9/]+', aranan_kelime):
-        await update.message.reply_text("⚠️ <b>Hatalı giriş:</b> Lütfen SADECE rakam ve '/' işareti kullanınız. Örn: 1234/2023", parse_mode='HTML')
-        return
-    if aranan_kelime.count("/") != 1:
+    if not re.fullmatch(r'[0-9/]+', aranan_kelime) or aranan_kelime.count("/") != 1:
         await update.message.reply_text("⚠️ <b>Hatalı format:</b> Lütfen araya sadece BİR adet '/' işareti koyunuz. Örn: 1234/2023", parse_mode='HTML')
         return
         
     parcalar = aranan_kelime.split("/")
     ilk_numara, son_yil = parcalar[0], parcalar[1]
     
-    if len(ilk_numara) == 0 or int(ilk_numara) == 0:
-        await update.message.reply_text("⚠️ Hatalı giriş. Dosya numarası '0' veya boş olamaz.")
-        return
-    if len(son_yil) != 4 or not (2017 <= int(son_yil) <= 2026):
-        await update.message.reply_text("⚠️ Sistem uyarısı: Yıl KESİNLİKLE 4 basamaklı ve 2017-2026 arasında olmalıdır.")
+    if len(ilk_numara) == 0 or int(ilk_numara) == 0 or len(son_yil) != 4 or not (2017 <= int(son_yil) <= 2026):
+        await update.message.reply_text("⚠️ Sistem uyarısı: Geçersiz dosya numarası veya yıl (2017-2026 arası olmalıdır).")
         return
 
     # --- ARAMA İŞLEMİ ---
@@ -174,7 +166,10 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun bir dosya bulunamadı. Lütfen kontrol edip tekrar deneyin.", parse_mode='HTML')
         return
 
-    # Sonuç bulunduysa döngüyle mesajı oluştur
+    # 🌟 MÜKERRER MESAJ ENGELLEYİCİ
+    sonuclar = sonuclar.drop_duplicates(subset=['Dosya No'])
+
+    # Sonuçları ekrana bas
     for index, row in sonuclar.iterrows():
         dosya_no_parcalar = str(row['Dosya No']).split('/')
         ana_no = dosya_no_parcalar[0].strip()
@@ -182,6 +177,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         karar_bulundu_mu = False
         k_row = None
+        onaylanan_kisi_sayisi = 0
         
         if not df_karar.empty:
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
@@ -191,7 +187,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if not karar_sonucu.empty:
                 karar_bulundu_mu = True
-                k_row = karar_sonucu.iloc[0]
+                k_row = karar_sonucu.iloc[0] # Temel bilgiler için ilk satırı referans al
+                onaylanan_kisi_sayisi = len(karar_sonucu) # Eşleşen satır sayısını say (Ana başvuru + Reşit olan çocuklar)
 
         solutie_metni = str(row['SOLUTIE']).strip()
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
@@ -230,28 +227,33 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 gosterilecek_karar = f"{pdf_match.group(1)}/P/{pdf_match.group(2)}" if pdf_match else "Belirtilmemiş"
             
             karar_tarihi = k_row.get('Tarih', '')
-            if pd.isna(karar_tarihi) or str(karar_tarihi).strip() == "nan":
+            if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]:
                 karar_tarihi = "Belirtilmemiş"
                 
-            # Çocuk sayısı arama
-            tum_satir_metni = " ".join([str(val) for val in k_row.values if str(val) != "nan"])
-            copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
-            cocuk = copii_match.group(1) if copii_match else "Bulunamadı"
-            if cocuk == "Bulunamadı":
-                for col in k_row.index:
-                    if 'copii' in str(col).lower() and str(k_row[col]).strip() not in ["nan", "None", ""]:
-                        c_val = str(k_row[col]).strip()
-                        if c_val.replace('.', '', 1).isdigit():
-                            cocuk = str(int(float(c_val)))
-                            break
+            # 🌟 YENİ: BULUNAN TÜM SATIRLARDAKİ ÇOCUKLARI (KÜÇÜKLERİ) TOPLA
+            toplam_cocuk = 0
+            for _, kr in karar_sonucu.iterrows():
+                tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
+                copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
+                if copii_match:
+                    toplam_cocuk += int(copii_match.group(1))
+                else:
+                    for col in kr.index:
+                        if 'copii' in str(col).lower() and str(kr[col]).strip() not in ["nan", "None", ""]:
+                            c_val = str(kr[col]).strip()
+                            if c_val.replace('.', '', 1).isdigit():
+                                toplam_cocuk += int(float(c_val))
+                                break
 
-            # Eğer çocuk bulunamazsa, çocuk satırını komple gizle
-            cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {cocuk}\n" if cocuk != "Bulunamadı" else ""
+            # Yetişkin ve Çocuk Satırlarını Hazırla
+            yetiskin_satiri = f"👥 <b>Dosyadaki Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi} <i>(Ana başvuru + Erişkin olanlar)</i>\n" if onaylanan_kisi_sayisi > 1 else ""
+            cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
             yanit += (
                 f"🎉 <b>TEBRİKLER! Kararınız yayımlandı.</b>\n\n"
                 f"📜 <b>Karar Numarası:</b> {gosterilecek_karar}\n"
                 f"📅 <b>Karar Tarihi:</b> {karar_tarihi}\n"
+                f"{yetiskin_satiri}"
                 f"{cocuk_satiri}"
                 f"📂 <b>Kaynak Belge:</b> {kaynak_belge_adi}"
             )
@@ -278,10 +280,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- BOTU ÇALIŞTIR ---
 if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
-    
-    # Komut ve Mesajları Bağla
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
-    
-    print("✅ Bot başarıyla ayağa kalktı! Telegram üzerinden mesaj gönderebilirsiniz.")
     app.run_polling()
