@@ -103,18 +103,17 @@ def tum_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return []
     return df['Kaynak Belge'].dropna().unique().tolist()
 
-# --- BİLDİRİM DAĞITIM MOTORU ---
-async def bildirimleri_dagit(app_context, degisen_listeler, yeni_durum):
+# --- 🌟 HEDEFLİ BİLDİRİM DAĞITIM MOTORU ---
+async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum):
     df_karar = hafiza['df_karar_birlesik']
+    df_dosya = hafiza['df_dosya']
     kalan_bekleyenler = []
     bekleyenler = hafiza['bekleyenler'] 
     
-    if len(degisen_listeler) > 10:
-        degisim_metni = "\n".join([f"🔹 {liste}" for liste in degisen_listeler[:10]]) + f"\n🔹 <i>...ve {len(degisen_listeler)-10} belge daha.</i>"
-    else:
-        degisim_metni = "\n".join([f"🔹 {liste}" for liste in degisen_listeler])
-        
-    print(f"Sistemdeki {len(bekleyenler)} kişiye bildirim dağıtılıyor...")
+    print(f"Sistemdeki {len(bekleyenler)} kişiye hedefli bildirim dağıtılıyor...")
+
+    # Performans için dosya numaralarını topluca aramaya hazır hale getiriyoruz
+    arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
 
     for kisi in bekleyenler:
         chat_id = kisi['chat_id']
@@ -142,14 +141,49 @@ async def bildirimleri_dagit(app_context, degisen_listeler, yeni_durum):
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 print(f"✅ {dosya_tam} için MÜJDE iletildi.")
             else:
-                msg = (
-                    f"🔔 <b>Sistem Güncellemesi:</b>\n\n"
-                    f"ANC sistemine yeni veriler/dosyalar yüklenmiştir.\n"
-                    f"📂 <b>Sisteme Yeni Eklenenler:</b>\n{degisim_metni}\n\n"
-                    f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni listelerde görünmemiştir. "
-                    f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
-                )
-                await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
+                # 🌟 KİŞİYE ÖZEL BİLDİRİM FİLTRESİ
+                is_m10 = False
+                is_m11 = True # Aksini görene kadar Romanya genel başvurularını (Madde 11) kabul ediyoruz
+                
+                # Kişinin Stadiu Dosar dosyasından Madde tipini öğreniyoruz
+                if not arama_sutunu.empty:
+                    arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
+                    user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
+                    if not user_row.empty:
+                        kaynak_dosya_metni = str(user_row.iloc[0].get('Kaynak Belge', ''))
+                        if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
+                            is_m10 = True
+                            is_m11 = False
+
+                kullanici_icin_degisenler = []
+                
+                if dosya_tarih_degisti:
+                    kullanici_icin_degisenler.append(f"Stadiu Dosar Durumu (Güncelleme: {dosya_tarih})")
+                
+                # Kişi Madde 10 ise SADECE Madde 10 PDF'lerini listeye ekle
+                if is_m10 and eklenen_m10:
+                    for b in eklenen_m10: kullanici_icin_degisenler.append(f"Madde 10: {b}")
+                
+                # Kişi Madde 11 ise SADECE Madde 11 PDF'lerini listeye ekle
+                if is_m11 and eklenen_m11:
+                    for b in eklenen_m11: kullanici_icin_degisenler.append(f"Madde 11: {b}")
+
+                # Sadece bu kullanıcıyı ilgilendiren bir değişiklik varsa mesaj at!
+                if kullanici_icin_degisenler:
+                    if len(kullanici_icin_degisenler) > 10:
+                        degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler[:10]]) + f"\n🔹 <i>...ve {len(kullanici_icin_degisenler)-10} belge daha.</i>"
+                    else:
+                        degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler])
+                        
+                    msg = (
+                        f"🔔 <b>Sistem Güncellemesi:</b>\n\n"
+                        f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni veriler yüklenmiştir.\n"
+                        f"📂 <b>Sisteme Yeni Eklenenler:</b>\n{degisim_metni}\n\n"
+                        f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni listelerde görünmemiştir. "
+                        f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
+                    )
+                    await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
+                
                 kalan_bekleyenler.append(kisi) 
         except Exception as e:
             print(f"Hata ({chat_id}): {e}")
@@ -160,7 +194,7 @@ async def bildirimleri_dagit(app_context, degisen_listeler, yeni_durum):
     hafiza['bekleyenler'] = kalan_bekleyenler
     hafiza['son_durum'] = yeni_durum
     set_bulut_verisi(kalan_bekleyenler, yeni_durum)
-    print("✅ Bildirim dağıtımı tamamlandı, bulut güncellendi.")
+    print("✅ Hedefli bildirim dağıtımı tamamlandı, bulut güncellendi.")
 
 def veritabanini_kontrol_et(app_context=None):
     if not hafiza['bulut_yuklendi']:
@@ -201,12 +235,7 @@ def veritabanini_kontrol_et(app_context=None):
             eklenen_m10 = list(set(yeni_m10_belgeler) - set(eski_m10))
             eklenen_m11 = list(set(yeni_m11_belgeler) - set(eski_m11))
 
-            degisen_listeler = []
-            if dosya_tarih != eski_dosya_tarih and dosya_tarih not in ["Bilinmiyor", "Veri Yok", "Tarih Bulunamadı"]:
-                degisen_listeler.append(f"Stadiu Dosar Durumu (Güncelleme: {dosya_tarih})")
-            
-            for b in eklenen_m10: degisen_listeler.append(f"Madde 10: {b}")
-            for b in eklenen_m11: degisen_listeler.append(f"Madde 11: {b}")
+            dosya_tarih_degisti = (dosya_tarih != eski_dosya_tarih and dosya_tarih not in ["Bilinmiyor", "Veri Yok", "Tarih Bulunamadı"])
 
             yeni_durum = {
                 "dosya_tarih": dosya_tarih, 
@@ -217,8 +246,9 @@ def veritabanini_kontrol_et(app_context=None):
             if not eski_m10 and not eski_m11:
                 hafiza['son_durum'] = yeni_durum
                 set_bulut_verisi(hafiza['bekleyenler'], yeni_durum)
-            elif degisen_listeler:
-                app_context.create_task(bildirimleri_dagit(app_context, degisen_listeler, yeni_durum))
+            elif eklenen_m10 or eklenen_m11 or dosya_tarih_degisti:
+                # 🌟 Yeni fonksiyona gerekli spesifik listeleri yolluyoruz
+                app_context.create_task(bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum))
 
 # İlk yükleme
 veritabanini_kontrol_et()
