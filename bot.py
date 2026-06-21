@@ -266,7 +266,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
         "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "⚖️ <i><b>Yasal Bilgilendirme:</b> Bu platform bağımsız bir otomasyon sistemidir. Veriler bilgilendirme amaçlıdır. Nihai teyit için resmi kaynakları referans alınız.</i>"
+        "⚖️ <b>Yasal Bilgilendirme:</b>\n"
+        "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
+        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML')
 
@@ -409,7 +411,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         reply_markup = None
         if buton_ekle:
-            # 🌟 BUTON ARTIK DOĞRUDAN TAKİBE ALMAK YERİNE KVKK ONAY PENCERESİNİ TETİKLER
             klavye = [[InlineKeyboardButton("🔔 Karar Çıkınca Haberdar Et", callback_data=f"kvkk_{ana_no}_{ana_yil}")]]
             reply_markup = InlineKeyboardMarkup(klavye)
 
@@ -420,7 +421,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # 🌟 ADIM 1: KULLANICIYA KVKK METNİNİ GÖSTER
     if query.data.startswith("kvkk_"):
         _, ilk_no, son_yil = query.data.split('_')
         
@@ -437,7 +437,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("❌ Reddediyorum", callback_data="iptal_takip")]
         ]
         
-        # Ana sonuç mesajındaki ilk butonu silip, ayrı bir bilgilendirme mesajı atıyoruz
         await query.edit_message_reply_markup(reply_markup=None)
         await context.bot.send_message(
             chat_id=query.message.chat_id, 
@@ -447,12 +446,10 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 🌟 ADIM 2 (A): KULLANICI REDDEDERSE
     if query.data == "iptal_takip":
         await query.edit_message_text(text="❌ Takip işlemi iptal edildi. Verileriniz kaydedilmedi.", parse_mode='HTML')
         return
 
-    # 🌟 ADIM 2 (B): KULLANICI ONAYLARSA (SİSTEME KAYIT)
     if query.data.startswith("takip_"):
         _, ilk_no, son_yil = query.data.split('_')
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
