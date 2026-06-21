@@ -34,11 +34,12 @@ def set_bulut_verisi(bekleyenler, son_durum):
     except Exception as e:
         print("Bulut Hafıza güncellenemedi:", e)
 
-# --- CSV YÜKLEME ---
+# --- CANLI HAFIZA (RAM) VE CSV YÜKLEME ---
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
-    'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0
+    'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0,
+    'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False # 🌟 YENİ EKLENDİ
 }
 
 def veri_yukle(dosya_adi):
@@ -47,11 +48,9 @@ def veri_yukle(dosya_adi):
             df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False)
             if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
             df = df.fillna("")
-            
             indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
             if indeks_sutunlari:
                 df = df.drop(columns=indeks_sutunlari)
-                
             for col in df.select_dtypes(include=['object']).columns:
                 df[col] = df[col].astype(str).str.strip()
             return df
@@ -72,7 +71,7 @@ def veri_yukle(dosya_adi):
 def max_ordin_hesapla_vektorel(df_k):
     if df_k.empty: return {}
     ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-    if not ordinances_sutunlari: return {}
+    if not ordin_sutunlari: return {}
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
     if 'Kaynak Belge' in df_k.columns:
@@ -88,7 +87,6 @@ def en_guncel_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return ["Veri Yok"], "Bilinmiyor"
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
     unique_files['Parsed_Date'] = pd.to_datetime(unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], format='%d.%m.%Y', errors='coerce')
-    
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
     if not valid_files.empty:
         max_date = valid_files['Parsed_Date'].max()
@@ -103,9 +101,10 @@ def tum_belgeler(df):
     return df['Kaynak Belge'].dropna().unique().tolist()
 
 # --- BİLDİRİM DAĞITIM MOTORU ---
-async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_durum):
+async def bildirimleri_dagit(app_context, degisen_listeler, yeni_durum):
     df_karar = hafiza['df_karar_birlesik']
     kalan_bekleyenler = []
+    bekleyenler = hafiza['bekleyenler'] # Artık canlı hafızadan okuyor
     
     if len(degisen_listeler) > 10:
         degisim_metni = "\n".join([f"🔹 {liste}" for liste in degisen_listeler[:10]]) + f"\n🔹 <i>...ve {len(degisen_listeler)-10} belge daha.</i>"
@@ -116,7 +115,7 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
 
     for kisi in bekleyenler:
         chat_id = kisi['chat_id']
-        dosya_tam = kisi['dosya_no'] # Burası artık her zaman standart "Sayı/Yıl" formatında
+        dosya_tam = kisi['dosya_no']
         ana_no, ana_yil = dosya_tam.split('/')
         
         onaylandi_mi = False
@@ -127,7 +126,12 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
             
             eslesenler = df_karar[temiz_metin.str.contains(regex, regex=True)].copy()
             if not eslesenler.empty:
-                onaylandi_mi = True
+                eslesenler['Tam_Eslesme'] = temiz_metin.str.extract(rf"({ana_no}/(?:[A-Z]+/)?{ana_yil})")[0]
+                aranan_harfli = dosya_tam.replace(" ", "").upper()
+                if (eslesenler['Tam_Eslesme'] == aranan_harfli).any():
+                    onaylandi_mi = True
+                elif not eslesenler.empty:
+                    onaylandi_mi = True
 
         try:
             if onaylandi_mi:
@@ -150,10 +154,20 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
 
         await asyncio.sleep(0.05) 
 
+    # Canlı hafızayı ve bulutu aynı anda güncelle
+    hafiza['bekleyenler'] = kalan_bekleyenler
+    hafiza['son_durum'] = yeni_durum
     set_bulut_verisi(kalan_bekleyenler, yeni_durum)
     print("✅ Bildirim dağıtımı tamamlandı, bulut güncellendi.")
 
 def veritabanini_kontrol_et(app_context=None):
+    # 🌟 Bot ilk uyandığında buluttaki veriyi çekip RAM'e kaydeder
+    if not hafiza['bulut_yuklendi']:
+        bulut = get_bulut_verisi()
+        hafiza['bekleyenler'] = bulut.get("bekleyenler", [])
+        hafiza['son_durum'] = bulut.get("son_durum", {})
+        hafiza['bulut_yuklendi'] = True
+
     ana_dosya = "dosyadurumu.zip"
     if not os.path.exists(ana_dosya): return
     mevcut_saat = os.path.getmtime(ana_dosya)
@@ -178,10 +192,7 @@ def veritabanini_kontrol_et(app_context=None):
             yeni_m11_belgeler = tum_belgeler(hafiza['df_karar_m11'])
             _, dosya_tarih = en_guncel_belgeler(hafiza['df_dosya'])
 
-            bulut = get_bulut_verisi()
-            eski_durum = bulut.get("son_durum", {})
-            bekleyenler = bulut.get("bekleyenler", [])
-
+            eski_durum = hafiza['son_durum']
             eski_m10 = eski_durum.get("m10_belgeler", [])
             eski_m11 = eski_durum.get("m11_belgeler", [])
             eski_dosya_tarih = eski_durum.get("dosya_tarih", "")
@@ -203,9 +214,10 @@ def veritabanini_kontrol_et(app_context=None):
             }
             
             if not eski_m10 and not eski_m11:
-                set_bulut_verisi(bekleyenler, yeni_durum)
+                hafiza['son_durum'] = yeni_durum
+                set_bulut_verisi(hafiza['bekleyenler'], yeni_durum)
             elif degisen_listeler:
-                app_context.create_task(bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_durum))
+                app_context.create_task(bildirimleri_dagit(app_context, degisen_listeler, yeni_durum))
 
 # İlk yükleme
 veritabanini_kontrol_et()
@@ -237,7 +249,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context)
     aranan_kelime = update.message.text.strip()
-    chat_id = update.message.chat_id
+    chat_id = str(update.message.chat_id) # 🌟 VERİ TİPİ SABİTLENDİ
     df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
     
     if df_dosya.empty:
@@ -263,14 +275,12 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun dosya bulunamadı.", parse_mode='HTML')
         return
 
-    sonuclar = sonuclar.drop_duplicates(subset=['Arama_Sutunu'])
+    sonuclar['Tekil_Anahtar'] = sonuclar['Arama_Sutunu'].apply(lambda x: f"{str(x).split('/')[0].strip()}_{str(x).split('/')[-1].strip()}")
+    sonuclar = sonuclar.drop_duplicates(subset=['Tekil_Anahtar'])
 
     for index, row in sonuclar.iterrows():
-        dosya_no_standart = row['Arama_Sutunu']
-        ana_no = dosya_no_standart.split('/')[0].strip()
-        ana_yil = dosya_no_standart.split('/')[-1].strip()
-        
-        # 🌟 KRİTİK EŞLEŞME STANDARDI: Bulutta sorgulama yaparken her zaman temiz formatı ("Sayı/Yıl") baz alıyoruz.
+        ana_no, ana_yil = str(row['Tekil_Anahtar']).split('_')[0], str(row['Tekil_Anahtar']).split('_')[-1]
+        dosya_no_standart = f"{ana_no}/{ana_yil}"
         bulut_takip_formati = f"{ana_no}/{ana_yil}"
         
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
@@ -284,7 +294,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if not karar_sonucu.empty:
                 karar_sonucu['Tam_Eslesme'] = temiz_karar_metni.str.extract(rf"({ana_no}/(?:[A-Z]+/)?{ana_yil})")[0]
-                aranan_dosya_harfli = dosya_no_standart.replace(" ", "").upper()
+                aranan_dosya_harfli = row['Arama_Sutunu'].replace(" ", "").upper()
                 
                 if (karar_sonucu['Tam_Eslesme'] == aranan_dosya_harfli).any():
                     karar_sonucu = karar_sonucu[karar_sonucu['Tam_Eslesme'] == aranan_dosya_harfli]
@@ -347,11 +357,11 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             yanit += f"🎉 <b>TEBRİKLER! Kararınız yayımlandı.</b>\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n{yetiskin_satiri}{cocuk_satiri}📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
-            bulut_verisi = get_bulut_verisi()
-            takip_listesi = bulut_verisi.get("bekleyenler", [])
+            # 🌟 BULUT GECİKMESİ BİTTİ! Doğrudan anlık (RAM) hafızaya bakıyoruz.
+            takip_listesi = hafiza['bekleyenler']
             
-            # 🌟 KONTROLÜ SABİTLEDİK: Kullanıcı ne yazarsa yazsın, her zaman temiz bulut formatıyla karşılaştırır.
-            if any(k['chat_id'] == chat_id and k['dosya_no'] == bulut_takip_formati for k in takip_listesi):
+            # String kontrolleri eklendi (Tip uyuşmazlığı hatası önlendi)
+            if any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(bulut_takip_formati) for k in takip_listesi):
                 zaten_takipte = True
             else:
                 buton_ekle = True
@@ -389,22 +399,17 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if query.data.startswith("takip_"):
         _, ilk_no, son_yil = query.data.split('_')
-        
-        # 🌟 KAYIT SİSTEMİNİ SABİTLEDİK: Butona basıldığında buluta daima temiz format ("Sayı/Yıl") kaydolur.
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
-        chat_id = query.message.chat_id
+        chat_id = str(query.message.chat_id) # 🌟 VERİ TİPİ SABİTLENDİ
         
-        bulut = get_bulut_verisi()
-        liste = bulut.get("bekleyenler", [])
-        son_durum = bulut.get("son_durum", {})
-        
-        if any(k['chat_id'] == chat_id and k['dosya_no'] == dosya_no_temiz for k in liste):
+        # Saniyesinde canlı hafızaya yaz (Bekleme Yok!)
+        if any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(dosya_no_temiz) for k in hafiza['bekleyenler']):
             await query.edit_message_reply_markup(reply_markup=None)
             await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
             return
             
-        liste.append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
-        set_bulut_verisi(liste, son_durum) 
+        hafiza['bekleyenler'].append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
+        set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum']) 
         
         await query.edit_message_reply_markup(reply_markup=None)
         await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", parse_mode='HTML')
