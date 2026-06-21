@@ -160,7 +160,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- ARAMA İŞLEMİ ---
     arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
     
-    # KOPYA OLUŞTUR VE BOŞLUKLARI TAMAMEN TEMİZLE
     df_gecici = df_dosya.copy()
     df_gecici['Arama_Sutunu'] = df_gecici['Dosya No'].astype(str).str.strip()
     sonuclar = df_gecici[df_gecici['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)].copy()
@@ -169,8 +168,9 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun bir dosya bulunamadı. Lütfen kontrol edip tekrar deneyin.", parse_mode='HTML')
         return
 
-    # 🌟 KESİN MÜKERRER MESAJ ENGELLEYİCİ (Arama_Sutunu baz alınarak temizlenir)
-    sonuclar = sonuclar.drop_duplicates(subset=['Arama_Sutunu'])
+    # 🌟 KESİN ÇÖZÜM: Aradaki RD harflerini yok sayıp sadece Numara_Yıl üzerinden tekilleştiriyoruz
+    sonuclar['Tekil_Anahtar'] = sonuclar['Arama_Sutunu'].apply(lambda x: f"{str(x).split('/')[0].strip()}_{str(x).split('/')[-1].strip()}")
+    sonuclar = sonuclar.drop_duplicates(subset=['Tekil_Anahtar'])
 
     # Sonuçları ekrana bas
     for index, row in sonuclar.iterrows():
