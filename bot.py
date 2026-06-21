@@ -128,7 +128,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>Madde 11:</b> {m11_belge}\n\n"
         "💡 <b>Kullanım:</b>\n"
         "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
-        "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>"
+        "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "⚖️ <i><b>Yasal Bilgilendirme:</b> Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan <b>bağımsız</b> bir otomasyon sistemidir. Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
+        "Sistemde sunulan veriler tamamen <b>bilgilendirme amaçlıdır</b> ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML')
 
