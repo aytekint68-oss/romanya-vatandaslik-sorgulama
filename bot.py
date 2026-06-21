@@ -205,7 +205,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) and karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
@@ -262,11 +262,24 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_sonucu = df_karar[temiz_karar_metni.str.contains(rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)", regex=True)].copy()
             
             if not karar_sonucu.empty:
-                # 🌟 MÜKEMMEL HİBRİT FİLTRE (MAX FREQUENCY): En çok kayda (satıra) sahip olan asıl PDF dosyasını seçelim
-                en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
-                karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge]
+                # 🌟 ULTRA AKILLI GRUPLAMA VE TEMİZLEME MOTORU (Ties and Multi-Document Fix)
+                def kaynak_temizle(kb):
+                    kb_clean = str(kb).lower()
+                    return re.sub(r'(_anonimizat|_anonim|_anonim_izat|\.pdf|\.csv|\s+|-|_)', '', kb_clean)
                 
-                karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
+                karar_sonucu['Temiz_Kaynak'] = karar_sonucu['Kaynak Belge'].apply(kaynak_temizle)
+                
+                korunan_satirlar = []
+                # Her bir farklı ana karar grubu (Örn: ordin-1935 grubu, ordin-1936 grubu vs) için ayrı ayrı asıl dosyayı seçer
+                for tk, grup in karar_sonucu.groupby('Temiz_Kaynak'):
+                    en_cok_kayit_iceren_belge = grup['Kaynak Belge'].value_counts().idxmax()
+                    kesin_grup = grup[grup['Kaynak Belge'] == en_cok_kayit_iceren_belge]
+                    korunan_satirlar.append(kesin_grup)
+                
+                karar_sonucu = pd.concat(korunan_satirlar, ignore_index=True) if korunan_satirlar else pd.DataFrame()
+                
+                if not karar_sonucu.empty:
+                    karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
         solutie_metni = str(row['SOLUTIE']).strip()
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
@@ -290,8 +303,10 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         zaten_takipte = False
 
         if karar_bulundu_mu:
-            kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
             gosterilecek_karar = p_numarasi
+            # Tüm farklı geçerli kaynak dosyaları birleştirerek gösterir
+            kaynak_belge_adi = ", ".join(karar_sonucu['Kaynak Belge'].unique())
+            
             if not gosterilecek_karar:
                 pdf_match = re.search(r'(\d+)[^\d]*P[^\d]*.*?(20\d{2})', kaynak_belge_adi, re.IGNORECASE)
                 gosterilecek_karar = f"{pdf_match.group(1)}/P/{pdf_match.group(2)}" if pdf_match else "Belirtilmemiş"
@@ -312,7 +327,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 toplam_cocuk += int(float(c_val))
                                 break
 
-            # 👥 Eğer asıl listede birden fazla reşit kayıt varsa tam sayıyı şık bir şekilde gösterir!
             yetiskin_satiri = f"👥 <b>Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi}\n" if onaylanan_kisi_sayisi > 1 else ""
             cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
