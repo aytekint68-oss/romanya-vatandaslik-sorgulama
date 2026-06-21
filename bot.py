@@ -34,7 +34,7 @@ def set_bulut_verisi(bekleyenler, son_durum):
     except Exception as e:
         print("Bulut Hafıza güncellenemedi:", e)
 
-# --- CSV YÜKLEME (DROP_DUPLICATES İPTAL EDİLDİ) ---
+# --- CSV YÜKLEME ---
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
@@ -48,12 +48,10 @@ def veri_yukle(dosya_adi):
             if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
             df = df.fillna("")
             
-            # Sadece gereksiz index/unnamed sütunlarını temizle
             indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
             if indeks_sutunlari:
                 df = df.drop(columns=indeks_sutunlari)
                 
-            # Boşlukları temizle (ASLA SATIR SİLME)
             for col in df.select_dtypes(include=['object']).columns:
                 df[col] = df[col].astype(str).str.strip()
             return df
@@ -74,7 +72,7 @@ def veri_yukle(dosya_adi):
 def max_ordin_hesapla_vektorel(df_k):
     if df_k.empty: return {}
     ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-    if not ordin_sutunlari: return {}
+    if not ordinances_sutunlari: return {}
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
     if 'Kaynak Belge' in df_k.columns:
@@ -118,7 +116,7 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
 
     for kisi in bekleyenler:
         chat_id = kisi['chat_id']
-        dosya_tam = kisi['dosya_no']
+        dosya_tam = kisi['dosya_no'] # Burası artık her zaman standart "Sayı/Yıl" formatında
         ana_no, ana_yil = dosya_tam.split('/')
         
         onaylandi_mi = False
@@ -129,12 +127,7 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
             
             eslesenler = df_karar[temiz_metin.str.contains(regex, regex=True)].copy()
             if not eslesenler.empty:
-                eslesenler['Tam_Eslesme'] = temiz_metin.str.extract(rf"({ana_no}/(?:[A-Z]+/)?{ana_yil})")[0]
-                aranan_harfli = dosya_tam.replace(" ", "").upper()
-                if (eslesenler['Tam_Eslesme'] == aranan_harfli).any():
-                    onaylandi_mi = True
-                elif not eslesenler.empty:
-                    onaylandi_mi = True
+                onaylandi_mi = True
 
         try:
             if onaylandi_mi:
@@ -270,13 +263,15 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun dosya bulunamadı.", parse_mode='HTML')
         return
 
-    # Dosya arama listesindeki tam tekrarları (farklı uygulamalar RD vb. haricinde) tekilleştir
     sonuclar = sonuclar.drop_duplicates(subset=['Arama_Sutunu'])
 
     for index, row in sonuclar.iterrows():
         dosya_no_standart = row['Arama_Sutunu']
         ana_no = dosya_no_standart.split('/')[0].strip()
         ana_yil = dosya_no_standart.split('/')[-1].strip()
+        
+        # 🌟 KRİTİK EŞLEŞME STANDARDI: Bulutta sorgulama yaparken her zaman temiz formatı ("Sayı/Yıl") baz alıyoruz.
+        bulut_takip_formati = f"{ana_no}/{ana_yil}"
         
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
         
@@ -288,23 +283,18 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_sonucu = df_karar[temiz_karar_metni.str.contains(regex, regex=True)].copy()
             
             if not karar_sonucu.empty:
-                # 🌟 KESİN ÇÖZÜM BÖLÜMÜ 1: Tam Dosya Numarası Eşleştirmesi (3380/2023 ile 3380/RD/2023 karışmasını engeller)
                 karar_sonucu['Tam_Eslesme'] = temiz_karar_metni.str.extract(rf"({ana_no}/(?:[A-Z]+/)?{ana_yil})")[0]
                 aranan_dosya_harfli = dosya_no_standart.replace(" ", "").upper()
                 
-                # Eğer tam aranan numara (örn: 3380/2023) bulunuyorsa sadece onu seç, diğerlerini (RD) çöpe at
                 if (karar_sonucu['Tam_Eslesme'] == aranan_dosya_harfli).any():
                     karar_sonucu = karar_sonucu[karar_sonucu['Tam_Eslesme'] == aranan_dosya_harfli]
                 else:
-                    # Tam eşleşme yoksa (ANC hatası vb.) en çok geçen numarayı grup al
                     en_yaygin = karar_sonucu['Tam_Eslesme'].value_counts().idxmax()
                     karar_sonucu = karar_sonucu[karar_sonucu['Tam_Eslesme'] == en_yaygin]
                 
-                # 🌟 KESİN ÇÖZÜM BÖLÜMÜ 2: Asıl PDF Belgesini İzolasyon (Update ile Orijinal çakışmasını engeller)
                 en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
                 karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
                 
-                # Hiçbir satırı SİLMİYORUZ! PDF'te kaç satır kaldıysa kişi sayısı da tam odur!
                 karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
         solutie_metni = str(row['SOLUTIE']).strip()
@@ -352,7 +342,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 toplam_cocuk += int(float(c_val))
                                 break
 
-            # 👥 Birebir eşleşme algoritması sayesinde sadece aranan numarayı bulur ve 2 ise 2 yazar!
             yetiskin_satiri = f"👥 <b>Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi}\n" if onaylanan_kisi_sayisi > 1 else ""
             cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
@@ -361,7 +350,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             bulut_verisi = get_bulut_verisi()
             takip_listesi = bulut_verisi.get("bekleyenler", [])
             
-            if any(k['chat_id'] == chat_id and k['dosya_no'] == dosya_no_standart for k in takip_listesi):
+            # 🌟 KONTROLÜ SABİTLEDİK: Kullanıcı ne yazarsa yazsın, her zaman temiz bulut formatıyla karşılaştırır.
+            if any(k['chat_id'] == chat_id and k['dosya_no'] == bulut_takip_formati for k in takip_listesi):
                 zaten_takipte = True
             else:
                 buton_ekle = True
@@ -399,23 +389,25 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if query.data.startswith("takip_"):
         _, ilk_no, son_yil = query.data.split('_')
-        dosya_no = f"{ilk_no}/{son_yil}"
+        
+        # 🌟 KAYIT SİSTEMİNİ SABİTLEDİK: Butona basıldığında buluta daima temiz format ("Sayı/Yıl") kaydolur.
+        dosya_no_temiz = f"{ilk_no}/{son_yil}"
         chat_id = query.message.chat_id
         
         bulut = get_bulut_verisi()
         liste = bulut.get("bekleyenler", [])
         son_durum = bulut.get("son_durum", {})
         
-        if any(k['chat_id'] == chat_id and k['dosya_no'] == dosya_no for k in liste):
+        if any(k['chat_id'] == chat_id and k['dosya_no'] == dosya_no_temiz for k in liste):
             await query.edit_message_reply_markup(reply_markup=None)
-            await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no} numaralı dosya zaten takip listenizde!")
+            await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
             return
             
-        liste.append({"chat_id": chat_id, "dosya_no": dosya_no})
+        liste.append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
         set_bulut_verisi(liste, son_durum) 
         
         await query.edit_message_reply_markup(reply_markup=None)
-        await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", parse_mode='HTML')
+        await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", parse_mode='HTML')
 
 if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
