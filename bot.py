@@ -34,7 +34,7 @@ def set_bulut_verisi(bekleyenler, son_durum):
     except Exception as e:
         print("Bulut Hafıza güncellenemedi:", e)
 
-# --- CSV YÜKLEME (MÜKERRER SİLME İPTAL EDİLDİ) ---
+# --- CSV YÜKLEME (DROP_DUPLICATES İPTAL EDİLDİ) ---
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
@@ -48,15 +48,14 @@ def veri_yukle(dosya_adi):
             if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
             df = df.fillna("")
             
-            # Sadece isimsiz kalıntı sütunları temizler
+            # Sadece gereksiz index/unnamed sütunlarını temizle
             indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
             if indeks_sutunlari:
                 df = df.drop(columns=indeks_sutunlari)
                 
-            # Boşlukları temizler (Ancak ASLA drop_duplicates YAPMAZ!)
+            # Boşlukları temizle (ASLA SATIR SİLME)
             for col in df.select_dtypes(include=['object']).columns:
                 df[col] = df[col].astype(str).str.strip()
-                
             return df
         except Exception:
             try:
@@ -127,8 +126,15 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
             temiz_metin = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
             regex = rf"(?:^|\D){ana_no}/(?:[A-Z]+/)?{ana_yil}(?:$|\D)"
-            if not df_karar[temiz_metin.str.contains(regex, regex=True)].empty:
-                onaylandi_mi = True
+            
+            eslesenler = df_karar[temiz_metin.str.contains(regex, regex=True)].copy()
+            if not eslesenler.empty:
+                eslesenler['Tam_Eslesme'] = temiz_metin.str.extract(rf"({ana_no}/(?:[A-Z]+/)?{ana_yil})")[0]
+                aranan_harfli = dosya_tam.replace(" ", "").upper()
+                if (eslesenler['Tam_Eslesme'] == aranan_harfli).any():
+                    onaylandi_mi = True
+                elif not eslesenler.empty:
+                    onaylandi_mi = True
 
         try:
             if onaylandi_mi:
@@ -264,13 +270,13 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun dosya bulunamadı.", parse_mode='HTML')
         return
 
-    # Dosya durumu listesindeki mükerrer bildirimleri engellemek için tekilleştirme (Burası mesaj atmak için gereklidir, Karar tablosunu etkilemez)
-    sonuclar['Tekil_Anahtar'] = sonuclar['Arama_Sutunu'].apply(lambda x: f"{str(x).split('/')[0].strip()}_{str(x).split('/')[-1].strip()}")
-    sonuclar = sonuclar.drop_duplicates(subset=['Tekil_Anahtar'])
+    # Dosya arama listesindeki tam tekrarları (farklı uygulamalar RD vb. haricinde) tekilleştir
+    sonuclar = sonuclar.drop_duplicates(subset=['Arama_Sutunu'])
 
     for index, row in sonuclar.iterrows():
-        ana_no, ana_yil = str(row['Tekil_Anahtar']).split('_')[0], str(row['Tekil_Anahtar']).split('_')[-1]
-        dosya_no_standart = f"{ana_no}/{ana_yil}"
+        dosya_no_standart = row['Arama_Sutunu']
+        ana_no = dosya_no_standart.split('/')[0].strip()
+        ana_yil = dosya_no_standart.split('/')[-1].strip()
         
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
         
@@ -282,14 +288,23 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_sonucu = df_karar[temiz_karar_metni.str.contains(regex, regex=True)].copy()
             
             if not karar_sonucu.empty:
-                # 🌟 SADECE ASIL BELGEYİ SEÇ, SATIRLARI SİLME!
-                # Aynı dosya numarasının birden fazla PDF'de yer aldığı durumlarda (örn: Update belgesi)
-                # En çok kaydın bulunduğu ana belgeyi referans alıyoruz.
+                # 🌟 KESİN ÇÖZÜM BÖLÜMÜ 1: Tam Dosya Numarası Eşleştirmesi (3380/2023 ile 3380/RD/2023 karışmasını engeller)
+                karar_sonucu['Tam_Eslesme'] = temiz_karar_metni.str.extract(rf"({ana_no}/(?:[A-Z]+/)?{ana_yil})")[0]
+                aranan_dosya_harfli = dosya_no_standart.replace(" ", "").upper()
+                
+                # Eğer tam aranan numara (örn: 3380/2023) bulunuyorsa sadece onu seç, diğerlerini (RD) çöpe at
+                if (karar_sonucu['Tam_Eslesme'] == aranan_dosya_harfli).any():
+                    karar_sonucu = karar_sonucu[karar_sonucu['Tam_Eslesme'] == aranan_dosya_harfli]
+                else:
+                    # Tam eşleşme yoksa (ANC hatası vb.) en çok geçen numarayı grup al
+                    en_yaygin = karar_sonucu['Tam_Eslesme'].value_counts().idxmax()
+                    karar_sonucu = karar_sonucu[karar_sonucu['Tam_Eslesme'] == en_yaygin]
+                
+                # 🌟 KESİN ÇÖZÜM BÖLÜMÜ 2: Asıl PDF Belgesini İzolasyon (Update ile Orijinal çakışmasını engeller)
                 en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
                 karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
                 
-                # Karar_sonucu içindeki satırların HİÇBİRİNİ silmiyoruz! Ad-soyad verisi olmadığı için 
-                # listede görünen her bir satır o dosyaya dahil ayrı bir reşit kişi (aile ferdi) olarak sayılır.
+                # Hiçbir satırı SİLMİYORUZ! PDF'te kaç satır kaldıysa kişi sayısı da tam odur!
                 karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
         solutie_metni = str(row['SOLUTIE']).strip()
@@ -337,7 +352,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 toplam_cocuk += int(float(c_val))
                                 break
 
-            # Drop_duplicates kaldırıldığı için CSV dosyasındaki asıl satır sayısı kaç ise onu eksiksiz yazar!
+            # 👥 Birebir eşleşme algoritması sayesinde sadece aranan numarayı bulur ve 2 ise 2 yazar!
             yetiskin_satiri = f"👥 <b>Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi}\n" if onaylanan_kisi_sayisi > 1 else ""
             cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
