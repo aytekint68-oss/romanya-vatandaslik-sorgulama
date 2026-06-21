@@ -39,7 +39,7 @@ hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
     'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0,
-    'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False # 🌟 YENİ EKLENDİ
+    'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False 
 }
 
 def veri_yukle(dosya_adi):
@@ -51,7 +51,8 @@ def veri_yukle(dosya_adi):
             indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
             if indeks_sutunlari:
                 df = df.drop(columns=indeks_sutunlari)
-            for col in df.select_dtypes(include=['object']).columns:
+            # Pandas uyarılarını susturan yeni format: 'object', 'string' eklendi
+            for col in df.select_dtypes(include=['object', 'string']).columns:
                 df[col] = df[col].astype(str).str.strip()
             return df
         except Exception:
@@ -62,7 +63,7 @@ def veri_yukle(dosya_adi):
                 indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
                 if indeks_sutunlari:
                     df = df.drop(columns=indeks_sutunlari)
-                for col in df.select_dtypes(include=['object']).columns:
+                for col in df.select_dtypes(include=['object', 'string']).columns:
                     df[col] = df[col].astype(str).str.strip()
                 return df
             except Exception: pass
@@ -71,7 +72,7 @@ def veri_yukle(dosya_adi):
 def max_ordin_hesapla_vektorel(df_k):
     if df_k.empty: return {}
     ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-    if not ordin_sutunlari: return {}
+    if not ordin_sutunlari: return {} # YAZIM HATASI BURADA DÜZELTİLDİ
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
     if 'Kaynak Belge' in df_k.columns:
@@ -104,7 +105,7 @@ def tum_belgeler(df):
 async def bildirimleri_dagit(app_context, degisen_listeler, yeni_durum):
     df_karar = hafiza['df_karar_birlesik']
     kalan_bekleyenler = []
-    bekleyenler = hafiza['bekleyenler'] # Artık canlı hafızadan okuyor
+    bekleyenler = hafiza['bekleyenler'] 
     
     if len(degisen_listeler) > 10:
         degisim_metni = "\n".join([f"🔹 {liste}" for liste in degisen_listeler[:10]]) + f"\n🔹 <i>...ve {len(degisen_listeler)-10} belge daha.</i>"
@@ -154,14 +155,12 @@ async def bildirimleri_dagit(app_context, degisen_listeler, yeni_durum):
 
         await asyncio.sleep(0.05) 
 
-    # Canlı hafızayı ve bulutu aynı anda güncelle
     hafiza['bekleyenler'] = kalan_bekleyenler
     hafiza['son_durum'] = yeni_durum
     set_bulut_verisi(kalan_bekleyenler, yeni_durum)
     print("✅ Bildirim dağıtımı tamamlandı, bulut güncellendi.")
 
 def veritabanini_kontrol_et(app_context=None):
-    # 🌟 Bot ilk uyandığında buluttaki veriyi çekip RAM'e kaydeder
     if not hafiza['bulut_yuklendi']:
         bulut = get_bulut_verisi()
         hafiza['bekleyenler'] = bulut.get("bekleyenler", [])
@@ -249,7 +248,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context)
     aranan_kelime = update.message.text.strip()
-    chat_id = str(update.message.chat_id) # 🌟 VERİ TİPİ SABİTLENDİ
+    chat_id = str(update.message.chat_id) 
     df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
     
     if df_dosya.empty:
@@ -357,10 +356,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             yanit += f"🎉 <b>TEBRİKLER! Kararınız yayımlandı.</b>\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n{yetiskin_satiri}{cocuk_satiri}📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
-            # 🌟 BULUT GECİKMESİ BİTTİ! Doğrudan anlık (RAM) hafızaya bakıyoruz.
             takip_listesi = hafiza['bekleyenler']
             
-            # String kontrolleri eklendi (Tip uyuşmazlığı hatası önlendi)
             if any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(bulut_takip_formati) for k in takip_listesi):
                 zaten_takipte = True
             else:
@@ -400,9 +397,8 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data.startswith("takip_"):
         _, ilk_no, son_yil = query.data.split('_')
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
-        chat_id = str(query.message.chat_id) # 🌟 VERİ TİPİ SABİTLENDİ
+        chat_id = str(query.message.chat_id) 
         
-        # Saniyesinde canlı hafızaya yaz (Bekleme Yok!)
         if any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(dosya_no_temiz) for k in hafiza['bekleyenler']):
             await query.edit_message_reply_markup(reply_markup=None)
             await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
