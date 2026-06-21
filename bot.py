@@ -70,7 +70,6 @@ def max_ordin_hesapla_vektorel(df_k):
     temp_df['Yil'], temp_df['No'] = pd.to_numeric(temp_df['Yil'], errors='coerce'), pd.to_numeric(temp_df['No'], errors='coerce')
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-# 🌟 ÇOKLU BELGE ALGILAYICI
 def en_guncel_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return ["Veri Yok"], "Bilinmiyor"
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
@@ -79,7 +78,6 @@ def en_guncel_belgeler(df):
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
     if not valid_files.empty:
         max_date = valid_files['Parsed_Date'].max()
-        # En yeni tarihe sahip TÜM dosyaları listeye al
         latest_files = valid_files[valid_files['Parsed_Date'] == max_date]['Kaynak Belge'].tolist()
         return latest_files, max_date.strftime('%d.%m.%Y')
     elif not unique_files.empty:
@@ -95,7 +93,6 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
     df_karar = hafiza['df_karar_birlesik']
     kalan_bekleyenler = []
     
-    # Eğer aynı anda 10'dan fazla PDF yüklenirse mesaj çok uzamasın diye kısaltma yapıyoruz
     if len(degisen_listeler) > 10:
         degisim_metni = "\n".join([f"🔹 {liste}" for liste in degisen_listeler[:10]]) + f"\n🔹 <i>...ve {len(degisen_listeler)-10} belge daha.</i>"
     else:
@@ -130,12 +127,12 @@ async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_du
                     f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
                 )
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
-                kalan_bekleyenler.append(kisi) # Çıkmadığı için takibe devam
+                kalan_bekleyenler.append(kisi) 
         except Exception as e:
             print(f"Hata ({chat_id}): {e}")
             kalan_bekleyenler.append(kisi)
 
-        await asyncio.sleep(0.05) # Telegram spam engelleyici
+        await asyncio.sleep(0.05) 
 
     set_bulut_verisi(kalan_bekleyenler, yeni_durum)
     print("✅ Bildirim dağıtımı tamamlandı, bulut güncellendi.")
@@ -160,7 +157,6 @@ def veritabanini_kontrol_et(app_context=None):
         hafiza['max_m11'] = max_ordin_hesapla_vektorel(hafiza['df_karar_m11'])
         hafiza['son_guncelleme'] = mevcut_saat
         
-        # 🌟 BULUT KARŞILAŞTIRMASI (TAM PDF LİSTESİ FARKINI BULUR)
         if app_context:
             yeni_m10_belgeler = tum_belgeler(hafiza['df_karar_m10'])
             yeni_m11_belgeler = tum_belgeler(hafiza['df_karar_m11'])
@@ -174,7 +170,6 @@ def veritabanini_kontrol_et(app_context=None):
             eski_m11 = eski_durum.get("m11_belgeler", [])
             eski_dosya_tarih = eski_durum.get("dosya_tarih", "")
 
-            # İki liste arasındaki farkı bulur (Sadece YENİ eklenenleri alır)
             eklenen_m10 = list(set(yeni_m10_belgeler) - set(eski_m10))
             eklenen_m11 = list(set(yeni_m11_belgeler) - set(eski_m11))
 
@@ -191,7 +186,6 @@ def veritabanini_kontrol_et(app_context=None):
                 "m11_belgeler": yeni_m11_belgeler
             }
             
-            # İlk çalışma anında (bulut boşken) yüzlerce sahte mesaj atmamak için koruma:
             if not eski_m10 and not eski_m11:
                 set_bulut_verisi(bekleyenler, yeni_durum)
             elif degisen_listeler:
@@ -265,9 +259,13 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not df_karar.empty:
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
             temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
-            karar_sonucu = df_karar[temiz_karar_metni.str.contains(rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)", regex=True)]
+            karar_sonucu = df_karar[temiz_karar_metni.str.contains(rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)", regex=True)].copy()
             
             if not karar_sonucu.empty:
+                # 🌟 AKILLI FİLTRE: Kaynak Belge hariç her şeyi aynı olan mükerrer PDF satırlarını sil.
+                kontrol_sutunlari = [col for col in karar_sonucu.columns if 'kaynak' not in str(col).lower()]
+                karar_sonucu = karar_sonucu.drop_duplicates(subset=kontrol_sutunlari)
+                
                 karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
         solutie_metni = str(row['SOLUTIE']).strip()
