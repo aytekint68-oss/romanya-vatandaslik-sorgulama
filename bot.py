@@ -69,7 +69,7 @@ def max_ordin_hesapla_vektorel(df_k):
     temp_df['Yil'], temp_df['No'] = pd.to_numeric(temp_df['Yil'], errors='coerce'), pd.to_numeric(temp_df['No'], errors='coerce')
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-# 🌟 GİZLİ SİLAH: MÜJDE DAĞITIM MOTORU (Bot uyandığında ilk burası çalışır)
+# 🌟 GİZLİ SİLAH: MÜJDE DAĞITIM MOTORU
 async def mujdeleri_dagit(app_context):
     df_karar = hafiza['df_karar_birlesik']
     if df_karar.empty: return
@@ -92,7 +92,6 @@ async def mujdeleri_dagit(app_context):
         regex = rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)"
         
         if not df_karar[temiz_metin.str.contains(regex, regex=True)].empty:
-            # KARAR ÇIKMIŞ! TELEGRAMDAN MESAJ AT!
             msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
             try:
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
@@ -100,12 +99,12 @@ async def mujdeleri_dagit(app_context):
                 print(f"✅ {dosya_tam} dosyası için müjde gönderildi!")
             except Exception as e:
                 print(f"Mesaj gönderilemedi: {e}")
-                kalan_bekleyenler.append(kisi) # Hata olursa listeden silme
+                kalan_bekleyenler.append(kisi) 
         else:
-            kalan_bekleyenler.append(kisi) # Henüz çıkmamış, listede kalsın
+            kalan_bekleyenler.append(kisi) 
             
     if degisiklik_var:
-        set_takip_listesi(kalan_bekleyenler) # Onaylananları listeden çıkar
+        set_takip_listesi(kalan_bekleyenler) 
         print("✅ Müjde dağıtımı tamamlandı, bulut güncellendi.")
 
 def veritabanini_kontrol_et(app_context=None):
@@ -128,7 +127,6 @@ def veritabanini_kontrol_et(app_context=None):
         hafiza['son_guncelleme'] = mevcut_saat
         print("✅ Güncelleme tamamlandı.")
         
-        # Eğer bot aktifse (app_context varsa) müjdeleri dağıt
         if app_context:
             app_context.create_task(mujdeleri_dagit(app_context))
 
@@ -146,7 +144,7 @@ def en_guncel_belge_bilgisi(df):
         return unique_files.iloc[0]['Kaynak Belge'], "Tarih Bulunamadı"
     return "Veri Yok", "Bilinmiyor"
 
-# İlk veritabanı yüklemesi
+# İlk yükleme
 veritabanini_kontrol_et()
 
 # --- TELEGRAM MESAJLAŞMA MANTIĞI ---
@@ -171,7 +169,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(mesaj, parse_mode='HTML')
 
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    veritabanini_kontrol_et(context) # Güncelleme varsa oku ve müjdeleri dağıt
+    veritabanini_kontrol_et(context)
     aranan_kelime = update.message.text.strip()
     df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
     
@@ -183,7 +181,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ <b>Hatalı format:</b> Lütfen araya sadece BİR adet '/' işareti koyunuz. Örn: 1234/2023", parse_mode='HTML')
         return
         
-    ilk_numara, son_yil = aranan_kelime.split("/")
+    parcalar = aranan_kelime.split("/")
+    ilk_numara, son_yil = parcalar[0], parcalar[1]
     if not ilk_numara.isdigit() or int(ilk_numara) == 0 or len(son_yil) != 4 or not (2017 <= int(son_yil) <= 2026):
         await update.message.reply_text("⚠️ Sistem uyarısı: Geçersiz dosya numarası veya yıl.")
         return
@@ -197,7 +196,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun dosya bulunamadı.", parse_mode='HTML')
         return
 
-    # Mükerrer temizliği (RD vb. dahil)
+    # Mükerrerleri (RD vs) temizle
     sonuclar['Tekil_Anahtar'] = sonuclar['Arama_Sutunu'].apply(lambda x: f"{str(x).split('/')[0].strip()}_{str(x).split('/')[-1].strip()}")
     sonuclar = sonuclar.drop_duplicates(subset=['Tekil_Anahtar'])
 
@@ -219,14 +218,15 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
             if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
 
-        termen = str(row.get('TERMEN', '')).strip()
-        termen = termen if termen and termen != "-" else "Belirtilmemiş"
+        kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
+        termen_metni = str(row.get('TERMEN', '')).strip()
+        termen = termen_metni if termen_metni and termen_metni != "-" else "Belirtilmemiş"
         kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
         yanit = (
             f"📂 <b>DOSYA BİLGİLERİ</b>\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n⏳ <b>Sonraki Aşama:</b> {termen}\n\n"
-            f"📝 <b>Kurum Notu:</b>\n{kurum_notu}\n\n📂 <b>Kaynak:</b> {str(row.get('Kaynak Belge', ''))}\n━━━━━━━━━━━━━━━━━━\n"
+            f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n\n"
+            f"📝 <b>Kurum Notu:</b>\n{kurum_notu}\n\n📂 <b>Kaynak:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
             f"⚖️ <b>KARAR (ORDIN) DURUMU</b>\n"
         )
 
@@ -260,8 +260,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             yanit += f"🎉 <b>TEBRİKLER! Kararınız yayımlandı.</b>\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n{yetiskin_satiri}{cocuk_satiri}📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
-            buton_ekle = True # Karar çıkmamışsa takip butonu ekleyeceğiz
-            is_m10 = bool(re.search(r'art[- ]?10', str(row.get('Kaynak Belge', '')), re.IGNORECASE))
+            buton_ekle = True # 🌟 İŞTE BUTON BURADA AKTİFLEŞİYOR
+            is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
             madde_adi = "Madde 10" if is_m10 else "Madde 11"
             
             if p_numarasi and user_ordin_yil > 0:
@@ -277,12 +277,13 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 yanit += "❌ 🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır."
 
-        # BUTON MANTIĞI
+        # 🌟 İŞTE KODUN EKSİK KALAN O SİHİRLİ BÖLÜMÜ 
         reply_markup = None
         if buton_ekle:
             klavye = [[InlineKeyboardButton("🔔 Karar Çıkınca Haberdar Et", callback_data=f"takip_{ilk_numara}_{son_yil}")]]
             reply_markup = InlineKeyboardMarkup(klavye)
 
+        # Mesajı yolla (Eğer buton_ekle True ise butonla birlikte yollar)
         await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=reply_markup)
 
 # --- BUTON TIKLAMA (TAKİP SİSTEMİ) ---
@@ -297,25 +298,21 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         liste = get_takip_listesi()
         
-        # Eğer zaten takip ediliyorsa
         if any(k['chat_id'] == chat_id and k['dosya_no'] == dosya_no for k in liste):
             await query.edit_message_reply_markup(reply_markup=None)
             await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no} numaralı dosya zaten takip listenizde!")
             return
             
-        # Yeni kişiyi ekle ve buluta kaydet
         liste.append({"chat_id": chat_id, "dosya_no": dosya_no})
         set_takip_listesi(liste)
         
-        await query.edit_message_reply_markup(reply_markup=None) # Butonu yok et
+        await query.edit_message_reply_markup(reply_markup=None)
         await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde mesajı göndereceğim.", parse_mode='HTML')
 
 # --- BOTU BAŞLAT ---
 if __name__ == '__main__':
-    # Bot sunucu başladığında ilk veritabanı kontrolünü yapacak ve müjdeleri dağıtacak
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # Sunucu başlarken arka planda task başlat (Müjdeler için)
     async def post_init(application: Application):
         veritabanini_kontrol_et(application)
         
