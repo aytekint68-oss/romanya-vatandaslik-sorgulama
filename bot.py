@@ -7,11 +7,14 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 # ==========================================
-# AYARLAR (KENDİ BİLGİLERİNİZİ BURAYA YAPIŞTIRIN)
+# GÜVENLİ AYARLAR (ŞİFRELER SUNUCUDAN OKUNUR)
 # ==========================================
-BOT_TOKEN = "8819617191:AAEYvGjIM7OO5PAqNqUKJiGeionzmNTlGZ8"
-JSONBIN_ID = "6a37c90dda38895dfee67f47"
-JSONBIN_KEY = "$2a$10$uPjGuKiKSQDQ/aefIBs66uxwscYlgeP/w0tRf79CpRSsLv3XwNn/S"
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+JSONBIN_ID = os.getenv("JSONBIN_BIN_ID")
+JSONBIN_KEY = os.getenv("JSONBIN_MASTER_KEY")
+
+if not BOT_TOKEN or not JSONBIN_ID or not JSONBIN_KEY:
+    print("❌ HATA: Çevre değişkenleri (Environment Variables) Render üzerinde tanımlanmamış!")
 
 print("🤖 Akıllı Asistan Başlatılıyor...")
 
@@ -51,7 +54,6 @@ def veri_yukle(dosya_adi):
             indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
             if indeks_sutunlari:
                 df = df.drop(columns=indeks_sutunlari)
-            # Pandas uyarılarını susturan yeni format: 'object', 'string' eklendi
             for col in df.select_dtypes(include=['object', 'string']).columns:
                 df[col] = df[col].astype(str).str.strip()
             return df
@@ -72,7 +74,7 @@ def veri_yukle(dosya_adi):
 def max_ordin_hesapla_vektorel(df_k):
     if df_k.empty: return {}
     ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-    if not ordin_sutunlari: return {} # YAZIM HATASI BURADA DÜZELTİLDİ
+    if not ordin_sutunlari: return {}
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
     if 'Kaynak Belge' in df_k.columns:
