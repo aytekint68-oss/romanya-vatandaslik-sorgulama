@@ -1,68 +1,116 @@
 ﻿import pandas as pd
 import re
 import os
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 # ==========================================
-# TELEGRAM BOT TOKENİNİZİ BURAYA YAPIŞTIRIN
+# AYARLAR (KENDİ BİLGİLERİNİZİ BURAYA YAPIŞTIRIN)
 # ==========================================
 BOT_TOKEN = "8819617191:AAEYvGjIM7OO5PAqNqUKJiGeionzmNTlGZ8"
+JSONBIN_ID = "6a37c90dda38895dfee67f47"
+JSONBIN_KEY = "$2a$10$uPjGuKiKSQDQ/aefIBs66uxwscYlgeP/w0tRf79CpRSsLv3XwNn/S"
 
-print("🤖 Telegram Botu Başlatılıyor, Veritabanları Hazırlanıyor...")
+print("🤖 Akıllı Asistan Başlatılıyor...")
 
-# --- HAFIZA VE OTOMATİK GÜNCELLEME YÖNETİMİ ---
+# --- BULUT HAFIZA (JSONBIN) FONKSİYONLARI ---
+def get_takip_listesi():
+    headers = {"X-Master-Key": JSONBIN_KEY}
+    try:
+        res = requests.get(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}/latest", headers=headers)
+        if res.status_code == 200:
+            return res.json().get("record", {}).get("bekleyenler", [])
+    except Exception as e:
+        print("Bulut Hafıza okunamadı:", e)
+    return []
+
+def set_takip_listesi(liste):
+    headers = {"X-Master-Key": JSONBIN_KEY, "Content-Type": "application/json"}
+    payload = {"bekleyenler": liste}
+    try:
+        requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers)
+    except Exception as e:
+        print("Bulut Hafıza güncellenemedi:", e)
+
+# --- CSV YÜKLEME VE HAFIZA ---
 hafiza = {
-    'df_dosya': pd.DataFrame(),
-    'df_karar_m10': pd.DataFrame(),
-    'df_karar_m11': pd.DataFrame(),
-    'df_karar_birlesik': pd.DataFrame(),
-    'max_m10': {},
-    'max_m11': {},
-    'son_guncelleme': 0
+    'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
+    'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
+    'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0
 }
 
 def veri_yukle(dosya_adi):
     if os.path.exists(dosya_adi):
         try:
             df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False)
-            if len(df.columns) < 2:
-                df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
+            if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
             return df.fillna("")
         except Exception:
             try:
                 df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False)
-                if len(df.columns) < 2:
-                    df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False)
+                if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False)
                 return df.fillna("")
-            except Exception:
-                return pd.DataFrame()
+            except Exception: pass
     return pd.DataFrame()
 
 def max_ordin_hesapla_vektorel(df_k):
     if df_k.empty: return {}
     ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
     if not ordin_sutunlari: return {}
-    
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
-    
     if 'Kaynak Belge' in df_k.columns:
         temp_df['Yil'] = df_k['Kaynak Belge'].astype(str).str.extract(r'\d{2}[\.\-\_]\d{2}[\.\-\_](\d{4})')[0]
         temp_df['Yil'] = temp_df['Yil'].fillna(df_k['Kaynak Belge'].astype(str).str.extract(r'\b(202\d)\b')[0])
     else:
         temp_df['Yil'] = df_k[ordin_col].astype(str).str.extract(r'\b(202\d)\b')[0]
-        
     temp_df['No'] = df_k[ordin_col].astype(str).str.extract(r'(\d{1,6})')[0]
-    temp_df['Yil'] = pd.to_numeric(temp_df['Yil'], errors='coerce')
-    temp_df['No'] = pd.to_numeric(temp_df['No'], errors='coerce')
+    temp_df['Yil'], temp_df['No'] = pd.to_numeric(temp_df['Yil'], errors='coerce'), pd.to_numeric(temp_df['No'], errors='coerce')
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-def veritabanini_kontrol_et_ve_yukle():
-    ana_dosya = "dosyadurumu.zip"
-    if not os.path.exists(ana_dosya):
-        return
+# 🌟 GİZLİ SİLAH: MÜJDE DAĞITIM MOTORU (Bot uyandığında ilk burası çalışır)
+async def mujdeleri_dagit(app_context):
+    df_karar = hafiza['df_karar_birlesik']
+    if df_karar.empty: return
+
+    bekleyenler = get_takip_listesi()
+    if not bekleyenler: return
+
+    kalan_bekleyenler = []
+    degisiklik_var = False
     
+    print(f"🔍 {len(bekleyenler)} kişi takip ediliyor. Yeni kararlar taranıyor...")
+
+    for kisi in bekleyenler:
+        chat_id = kisi['chat_id']
+        dosya_tam = kisi['dosya_no']
+        ana_no, ana_yil = dosya_tam.split('/')
+        
+        karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
+        temiz_metin = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
+        regex = rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)"
+        
+        if not df_karar[temiz_metin.str.contains(regex, regex=True)].empty:
+            # KARAR ÇIKMIŞ! TELEGRAMDAN MESAJ AT!
+            msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
+            try:
+                await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
+                degisiklik_var = True
+                print(f"✅ {dosya_tam} dosyası için müjde gönderildi!")
+            except Exception as e:
+                print(f"Mesaj gönderilemedi: {e}")
+                kalan_bekleyenler.append(kisi) # Hata olursa listeden silme
+        else:
+            kalan_bekleyenler.append(kisi) # Henüz çıkmamış, listede kalsın
+            
+    if degisiklik_var:
+        set_takip_listesi(kalan_bekleyenler) # Onaylananları listeden çıkar
+        print("✅ Müjde dağıtımı tamamlandı, bulut güncellendi.")
+
+def veritabanini_kontrol_et(app_context=None):
+    ana_dosya = "dosyadurumu.zip"
+    if not os.path.exists(ana_dosya): return
     mevcut_saat = os.path.getmtime(ana_dosya)
     if mevcut_saat > hafiza['son_guncelleme']:
         print("🔄 Yeni dosya tespit edildi. Veritabanı Telegram için güncelleniyor...")
@@ -79,40 +127,29 @@ def veritabanini_kontrol_et_ve_yukle():
         hafiza['max_m11'] = max_ordin_hesapla_vektorel(hafiza['df_karar_m11'])
         hafiza['son_guncelleme'] = mevcut_saat
         print("✅ Güncelleme tamamlandı.")
+        
+        # Eğer bot aktifse (app_context varsa) müjdeleri dağıt
+        if app_context:
+            app_context.create_task(mujdeleri_dagit(app_context))
 
-# --- EN GÜNCEL BELGE BİLGİSİNİ ÇEKEN FONKSİYON ---
 def en_guncel_belge_bilgisi(df):
-    if df.empty or 'Kaynak Belge' not in df.columns:
-        return "Veri Yok", "Bilinmiyor"
-    
+    if df.empty or 'Kaynak Belge' not in df.columns: return "Veri Yok", "Bilinmiyor"
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
-    
-    unique_files['Parsed_Date'] = pd.to_datetime(
-        unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], 
-        format='%d.%m.%Y', 
-        errors='coerce'
-    )
-    
+    unique_files['Parsed_Date'] = pd.to_datetime(unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], format='%d.%m.%Y', errors='coerce')
     isimler_tarihsiz = unique_files['Kaynak Belge'].str.replace(r'\d{2}\.\d{2}\.\d{4}', '', regex=True)
-    
-    unique_files['Karar_No'] = isimler_tarihsiz.str.extract(r'(\d{3,6})')[0]
-    unique_files['Karar_No'] = pd.to_numeric(unique_files['Karar_No'], errors='coerce').fillna(0)
-    
+    unique_files['Karar_No'] = pd.to_numeric(isimler_tarihsiz.str.extract(r'(\d{3,6})')[0], errors='coerce').fillna(0)
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
-    
     if not valid_files.empty:
         latest_row = valid_files.sort_values(by=['Parsed_Date', 'Karar_No'], ascending=[False, False]).iloc[0]
-        tarih_str = latest_row['Parsed_Date'].strftime('%d.%m.%Y')
-        return latest_row['Kaynak Belge'], tarih_str
+        return latest_row['Kaynak Belge'], latest_row['Parsed_Date'].strftime('%d.%m.%Y')
     elif not unique_files.empty:
         return unique_files.iloc[0]['Kaynak Belge'], "Tarih Bulunamadı"
-    
     return "Veri Yok", "Bilinmiyor"
 
-# İlk yüklemeyi yap
-veritabanini_kontrol_et_ve_yukle()
+# İlk veritabanı yüklemesi
+veritabanini_kontrol_et()
 
-# --- TELEGRAM BOT KOMUTLARI ---
+# --- TELEGRAM MESAJLAŞMA MANTIĞI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, dosya_guncelleme_tarihi = en_guncel_belge_bilgisi(hafiza['df_dosya'])
     m10_belge, _ = en_guncel_belge_bilgisi(hafiza['df_karar_m10'])
@@ -129,117 +166,87 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
         "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "⚖️ <i><b>Yasal Bilgilendirme:</b> Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan <b>bağımsız</b> bir otomasyon sistemidir. Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
-        "Sistemde sunulan veriler tamamen <b>bilgilendirme amaçlıdır</b> ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
+        "⚖️ <i><b>Yasal Bilgilendirme:</b> Bu platform bağımsız bir otomasyon sistemidir. Veriler bilgilendirme amaçlıdır. Nihai teyit için resmi kaynakları referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML')
 
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    veritabanini_kontrol_et_ve_yukle()
-    
+    veritabanini_kontrol_et(context) # Güncelleme varsa oku ve müjdeleri dağıt
     aranan_kelime = update.message.text.strip()
-    df_dosya = hafiza['df_dosya']
-    df_karar = hafiza['df_karar_birlesik']
+    df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
     
     if df_dosya.empty:
-        await update.message.reply_text("❌ Sistemde şu an veri bulunmuyor. Lütfen daha sonra tekrar deneyin.")
+        await update.message.reply_text("❌ Sistemde veri bulunmuyor.")
         return
 
-    # --- KONTROLLER ---
     if not re.fullmatch(r'[0-9/]+', aranan_kelime) or aranan_kelime.count("/") != 1:
         await update.message.reply_text("⚠️ <b>Hatalı format:</b> Lütfen araya sadece BİR adet '/' işareti koyunuz. Örn: 1234/2023", parse_mode='HTML')
         return
         
-    parcalar = aranan_kelime.split("/")
-    ilk_numara, son_yil = parcalar[0], parcalar[1]
-    
-    if len(ilk_numara) == 0 or int(ilk_numara) == 0 or len(son_yil) != 4 or not (2017 <= int(son_yil) <= 2026):
-        await update.message.reply_text("⚠️ Sistem uyarısı: Geçersiz dosya numarası veya yıl (2017-2026 arası olmalıdır).")
+    ilk_numara, son_yil = aranan_kelime.split("/")
+    if not ilk_numara.isdigit() or int(ilk_numara) == 0 or len(son_yil) != 4 or not (2017 <= int(son_yil) <= 2026):
+        await update.message.reply_text("⚠️ Sistem uyarısı: Geçersiz dosya numarası veya yıl.")
         return
 
-    # --- ARAMA İŞLEMİ ---
     arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
-    
     df_gecici = df_dosya.copy()
     df_gecici['Arama_Sutunu'] = df_gecici['Dosya No'].astype(str).str.strip()
     sonuclar = df_gecici[df_gecici['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)].copy()
 
     if sonuclar.empty:
-        await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun bir dosya bulunamadı. Lütfen kontrol edip tekrar deneyin.", parse_mode='HTML')
+        await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun dosya bulunamadı.", parse_mode='HTML')
         return
 
-    # 🌟 KESİN ÇÖZÜM: Aradaki RD harflerini yok sayıp sadece Numara_Yıl üzerinden tekilleştiriyoruz
+    # Mükerrer temizliği (RD vb. dahil)
     sonuclar['Tekil_Anahtar'] = sonuclar['Arama_Sutunu'].apply(lambda x: f"{str(x).split('/')[0].strip()}_{str(x).split('/')[-1].strip()}")
     sonuclar = sonuclar.drop_duplicates(subset=['Tekil_Anahtar'])
 
-    # Sonuçları ekrana bas
     for index, row in sonuclar.iterrows():
-        dosya_no_parcalar = str(row['Arama_Sutunu']).split('/')
-        ana_no = dosya_no_parcalar[0].strip()
-        ana_yil = dosya_no_parcalar[-1].strip()
-        
-        karar_bulundu_mu = False
-        k_row = None
-        onaylanan_kisi_sayisi = 0
+        ana_no, ana_yil = str(row['Arama_Sutunu']).split('/')[0].strip(), str(row['Arama_Sutunu']).split('/')[-1].strip()
+        karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
         
         if not df_karar.empty:
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
             temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
-            karar_icin_regex = rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)"
-            karar_sonucu = df_karar[temiz_karar_metni.str.contains(karar_icin_regex, regex=True)]
+            karar_sonucu = df_karar[temiz_karar_metni.str.contains(rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)", regex=True)]
             
             if not karar_sonucu.empty:
-                karar_bulundu_mu = True
-                k_row = karar_sonucu.iloc[0] # Temel bilgiler için ilk satırı referans al
-                onaylanan_kisi_sayisi = len(karar_sonucu) # Eşleşen satır sayısını say (Ana başvuru + Reşit olan çocuklar)
+                karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
         solutie_metni = str(row['SOLUTIE']).strip()
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
-        
         if solutie_metni:
             p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
-            if p_match:
-                p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
-                user_ordin_no = int(p_match.group(1))
-                user_ordin_yil = int(p_match.group(2))
+            if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
 
-        kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
-        termen_metni = str(row.get('TERMEN', '')).strip()
-        termen = termen_metni if termen_metni and termen_metni != "-" else "Belirtilmemiş"
-        
-        kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak resmi listelerde sonuç tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
+        termen = str(row.get('TERMEN', '')).strip()
+        termen = termen if termen and termen != "-" else "Belirtilmemiş"
+        kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
-        # --- MESAJI İNŞA ET (HTML) ---
         yanit = (
-            f"📂 <b>DOSYA BİLGİLERİ</b>\n"
-            f"<b>No:</b> {row['Arama_Sutunu']}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n"
-            f"⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n\n"
-            f"📝 <b>Kurum Notu (Solutie):</b>\n{kurum_notu}\n\n"
-            f"📂 <b>Kaynak Belge:</b> {kaynak_dosya_metni}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"📂 <b>DOSYA BİLGİLERİ</b>\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
+            f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n⏳ <b>Sonraki Aşama:</b> {termen}\n\n"
+            f"📝 <b>Kurum Notu:</b>\n{kurum_notu}\n\n📂 <b>Kaynak:</b> {str(row.get('Kaynak Belge', ''))}\n━━━━━━━━━━━━━━━━━━\n"
             f"⚖️ <b>KARAR (ORDIN) DURUMU</b>\n"
         )
 
+        buton_ekle = False
+
         if karar_bulundu_mu:
-            gosterilecek_karar = p_numarasi
             kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
+            gosterilecek_karar = p_numarasi
             if not gosterilecek_karar:
                 pdf_match = re.search(r'(\d+)[^\d]*P[^\d]*.*?(20\d{2})', kaynak_belge_adi, re.IGNORECASE)
                 gosterilecek_karar = f"{pdf_match.group(1)}/P/{pdf_match.group(2)}" if pdf_match else "Belirtilmemiş"
             
-            karar_tarihi = k_row.get('Tarih', '')
-            if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]:
-                karar_tarihi = "Belirtilmemiş"
+            karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
+            if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: karar_tarihi = "Belirtilmemiş"
                 
-            # Bulunan tüm satırlardaki çocukları (küçükleri) topla
             toplam_cocuk = 0
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
                 copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
-                if copii_match:
-                    toplam_cocuk += int(copii_match.group(1))
+                if copii_match: toplam_cocuk += int(copii_match.group(1))
                 else:
                     for col in kr.index:
                         if 'copii' in str(col).lower() and str(kr[col]).strip() not in ["nan", "None", ""]:
@@ -248,41 +255,74 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 toplam_cocuk += int(float(c_val))
                                 break
 
-            # Yetişkin ve Çocuk Satırlarını Hazırla
-            yetiskin_satiri = f"👥 <b>Dosyadaki Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi} <i>(Ana başvuru + Erişkin olanlar)</i>\n" if onaylanan_kisi_sayisi > 1 else ""
+            yetiskin_satiri = f"👥 <b>Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi}\n" if onaylanan_kisi_sayisi > 1 else ""
             cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
-            yanit += (
-                f"🎉 <b>TEBRİKLER! Kararınız yayımlandı.</b>\n\n"
-                f"📜 <b>Karar Numarası:</b> {gosterilecek_karar}\n"
-                f"📅 <b>Karar Tarihi:</b> {karar_tarihi}\n"
-                f"{yetiskin_satiri}"
-                f"{cocuk_satiri}"
-                f"📂 <b>Kaynak Belge:</b> {kaynak_belge_adi}"
-            )
+            yanit += f"🎉 <b>TEBRİKLER! Kararınız yayımlandı.</b>\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n{yetiskin_satiri}{cocuk_satiri}📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
-            is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
+            buton_ekle = True # Karar çıkmamışsa takip butonu ekleyeceğiz
+            is_m10 = bool(re.search(r'art[- ]?10', str(row.get('Kaynak Belge', '')), re.IGNORECASE))
             madde_adi = "Madde 10" if is_m10 else "Madde 11"
             
             if p_numarasi and user_ordin_yil > 0:
                 max_pub_ordin = hafiza['max_m10'].get(user_ordin_yil, 0) if is_m10 else hafiza['max_m11'].get(user_ordin_yil, 0)
-                
                 if max_pub_ordin > 0 and user_ordin_no == max_pub_ordin:
-                    yanit += f"⚠️ <b>{p_numarasi}</b>\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Sistem verilerine göre, <b>{user_ordin_yil}</b> yılı için yayımlanan en güncel <b>{madde_adi}</b> kararı tam olarak sizin numaranız olan <b>{max_pub_ordin}/{user_ordin_yil}</b>'dir.\n\nTeknik bir hata sonucu dosya numaranız ordin listesine eklenmemiş olabilir veya onay verilmemiş olup listeden çıkarılmış olabilirsiniz. Resmi tebligat ve ilerleyen duyuruları takip etmenizi öneririz."
+                    yanit += f"⚠️ <b>{p_numarasi}</b>\n\nDosya durumunuzda karar tespit edildi. Sistemdeki son {madde_adi} kararı sizin numaranızdır ({max_pub_ordin}/{user_ordin_yil}). Listelere eklenmemiş olabilirsiniz, resmi tebligatı bekleyiniz."
                 elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
-                    yanit += f"🚨 <b>{p_numarasi}</b>\n\nSistem verilerine göre, <b>{user_ordin_yil}</b> yılı için yayımlanan en son <b>{madde_adi}</b> kararı <b>{max_pub_ordin}/{user_ordin_yil}</b> numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef <b>OLUMSUZ (RED)</b> sonuçlanmış olabileceğini göstermektedir. Lütfen kesin ve nihai sonuç için adresinize gelecek resmi tebligatı bekleyiniz."
+                    yanit += f"🚨 <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Sizin kararınız ({user_ordin_no}) geride kalmış. Dosyanız OLUMSUZ sonuçlanmış olabilir. Tebligatı bekleyiniz."
                 elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
-                    yanit += f"ℹ️ <b>{p_numarasi}</b>\n\nSistem verilerine göre, <b>{user_ordin_yil}</b> yılı için yayımlanan en son <b>{madde_adi}</b> kararı <b>{max_pub_ordin}/{user_ordin_yil}</b> numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) henüz bu sıraya ulaşmamıştır. Bu durum, dosyanızın büyük ihtimalle <b>OLUMLU (ONAY)</b> sonuçlandığını ve sıradaki listelerde yayımlanmak üzere beklediğini müjdelemektedir. Gelecek listeleri heyecanla takip edebilirsiniz! 🎉"
+                    yanit += f"ℹ️ <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Numaranız ({user_ordin_no}) sıraya ulaşmamış. Dosyanız büyük ihtimalle OLUMLU sonuçlandı, yayımlanması bekleniyor! 🎉"
                 else:
-                    yanit += f"⚠️ <b>{p_numarasi}</b>\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak <b>{user_ordin_yil}</b> yılına ait resmi listeler henüz yayımlanmamıştır."
+                    yanit += f"⚠️ <b>{p_numarasi}</b>\n\nDosyanız olumlu sonuçlanmış ancak {user_ordin_yil} yılı listeleri yayımlanmamıştır."
             else:
                 yanit += "❌ 🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır."
 
-        await update.message.reply_text(yanit, parse_mode='HTML')
+        # BUTON MANTIĞI
+        reply_markup = None
+        if buton_ekle:
+            klavye = [[InlineKeyboardButton("🔔 Karar Çıkınca Haberdar Et", callback_data=f"takip_{ilk_numara}_{son_yil}")]]
+            reply_markup = InlineKeyboardMarkup(klavye)
 
-# --- BOTU ÇALIŞTIR ---
+        await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=reply_markup)
+
+# --- BUTON TIKLAMA (TAKİP SİSTEMİ) ---
+async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data.startswith("takip_"):
+        _, ilk_no, son_yil = query.data.split('_')
+        dosya_no = f"{ilk_no}/{son_yil}"
+        chat_id = query.message.chat_id
+        
+        liste = get_takip_listesi()
+        
+        # Eğer zaten takip ediliyorsa
+        if any(k['chat_id'] == chat_id and k['dosya_no'] == dosya_no for k in liste):
+            await query.edit_message_reply_markup(reply_markup=None)
+            await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no} numaralı dosya zaten takip listenizde!")
+            return
+            
+        # Yeni kişiyi ekle ve buluta kaydet
+        liste.append({"chat_id": chat_id, "dosya_no": dosya_no})
+        set_takip_listesi(liste)
+        
+        await query.edit_message_reply_markup(reply_markup=None) # Butonu yok et
+        await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde mesajı göndereceğim.", parse_mode='HTML')
+
+# --- BOTU BAŞLAT ---
 if __name__ == '__main__':
+    # Bot sunucu başladığında ilk veritabanı kontrolünü yapacak ve müjdeleri dağıtacak
     app = Application.builder().token(BOT_TOKEN).build()
+    
+    # Sunucu başlarken arka planda task başlat (Müjdeler için)
+    async def post_init(application: Application):
+        veritabanini_kontrol_et(application)
+        
+    app.post_init = post_init
+    
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
+    app.add_handler(CallbackQueryHandler(buton_tiklama))
+    
     app.run_polling()
