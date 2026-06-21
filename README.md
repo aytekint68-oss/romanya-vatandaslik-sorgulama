@@ -1,4 +1,4 @@
-# Romanya Vatandaşlık Dosya ve Karar (Ordin) Sorgulama Sistemi
+# Romanya Vatandaşlık Dosya (Stadiu Dosar) ve Karar (Ordin) Sorgulama Sistemi
 
 Bu proje, Romanya Adalet Bakanlığı - Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan **Madde 10 ve Madde 11** kapsamındaki vatandaşlık başvuru dosyalarının durumunu ve Karar (Ordin) sonuçlarını **tek bir ekranda birleştirerek** sunan akıllı bir sorgulama motorudur. 
 
