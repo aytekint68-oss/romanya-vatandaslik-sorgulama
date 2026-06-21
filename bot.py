@@ -69,7 +69,7 @@ def max_ordin_hesapla_vektorel(df_k):
     temp_df['Yil'], temp_df['No'] = pd.to_numeric(temp_df['Yil'], errors='coerce'), pd.to_numeric(temp_df['No'], errors='coerce')
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-# 🌟 GİZLİ SİLAH: MÜJDE DAĞITIM MOTORU
+# --- MÜJDE DAĞITIM MOTORU ---
 async def mujdeleri_dagit(app_context):
     df_karar = hafiza['df_karar_birlesik']
     if df_karar.empty: return
@@ -171,6 +171,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context)
     aranan_kelime = update.message.text.strip()
+    chat_id = update.message.chat_id
     df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
     
     if df_dosya.empty:
@@ -196,12 +197,14 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ <b>Bulunamadı:</b> Girdiğiniz kriterlere uygun dosya bulunamadı.", parse_mode='HTML')
         return
 
-    # Mükerrerleri (RD vs) temizle
+    # Mükerrer temizliği
     sonuclar['Tekil_Anahtar'] = sonuclar['Arama_Sutunu'].apply(lambda x: f"{str(x).split('/')[0].strip()}_{str(x).split('/')[-1].strip()}")
     sonuclar = sonuclar.drop_duplicates(subset=['Tekil_Anahtar'])
 
     for index, row in sonuclar.iterrows():
-        ana_no, ana_yil = str(row['Arama_Sutunu']).split('/')[0].strip(), str(row['Arama_Sutunu']).split('/')[-1].strip()
+        ana_no, ana_yil = str(row['Tekil_Anahtar']).split('_')[0], str(row['Tekil_Anahtar']).split('_')[-1]
+        dosya_no_standart = f"{ana_no}/{ana_yil}"
+        
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
         
         if not df_karar.empty:
@@ -231,6 +234,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         buton_ekle = False
+        zaten_takipte = False
 
         if karar_bulundu_mu:
             kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
@@ -260,7 +264,13 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             yanit += f"🎉 <b>TEBRİKLER! Kararınız yayımlandı.</b>\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n{yetiskin_satiri}{cocuk_satiri}📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
-            buton_ekle = True # 🌟 İŞTE BUTON BURADA AKTİFLEŞİYOR
+            # 🌟 YENİ: Karar çıkmadıysa bulut listesini kontrol et
+            takip_listesi = get_takip_listesi()
+            if any(k['chat_id'] == chat_id and k['dosya_no'] == dosya_no_standart for k in takip_listesi):
+                zaten_takipte = True
+            else:
+                buton_ekle = True
+
             is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
             madde_adi = "Madde 10" if is_m10 else "Madde 11"
             
@@ -277,13 +287,16 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 yanit += "❌ 🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır."
 
-        # 🌟 İŞTE KODUN EKSİK KALAN O SİHİRLİ BÖLÜMÜ 
+            # 🌟 YENİ: Eğer takipteyse yasal bilginin hemen üstüne (veya durumun altına) ibareyi ekle
+            if zaten_takipte:
+                yanit += "\n\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde bir gelişme olursa size otomatik mesaj göndereceğim. 🔔"
+
+        # BUTON MANTIĞI
         reply_markup = None
         if buton_ekle:
-            klavye = [[InlineKeyboardButton("🔔 Karar Çıkınca Haberdar Et", callback_data=f"takip_{ilk_numara}_{son_yil}")]]
+            klavye = [[InlineKeyboardButton("🔔 Karar Çıkınca Haberdar Et", callback_data=f"takip_{ana_no}_{ana_yil}")]]
             reply_markup = InlineKeyboardMarkup(klavye)
 
-        # Mesajı yolla (Eğer buton_ekle True ise butonla birlikte yollar)
         await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=reply_markup)
 
 # --- BUTON TIKLAMA (TAKİP SİSTEMİ) ---
