@@ -88,7 +88,7 @@ def tum_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return []
     return df['Kaynak Belge'].dropna().unique().tolist()
 
-# 🌟 BİLDİRİM DAĞITIM MOTORU
+# --- BİLDİRİM DAĞITIM MOTORU ---
 async def bildirimleri_dagit(app_context, degisen_listeler, bekleyenler, yeni_durum):
     df_karar = hafiza['df_karar_birlesik']
     kalan_bekleyenler = []
@@ -198,14 +198,14 @@ veritabanini_kontrol_et()
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
     m10_belgeler, _ = en_guncel_belgeler(hafiza['df_karar_m10'])
-    m11_belgeler, _ = en_guncel_belgeler(hafiza['df_karar_m11'])
+    m11_belge, _ = en_guncel_belgeler(hafiza['df_karar_m11'])
 
     m10_metin = "\n".join([f"🔸 {b}" for b in m10_belgeler]) if m10_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
-    m11_metin = "\n".join([f"🔸 {b}" for b in m11_belgeler]) if m11_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
+    m11_metin = "\n".join([f"🔸 {b}" for b in m11_belge]) if m11_belge[0] != "Veri Yok" else "🔸 Veri Yok"
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) and karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
@@ -262,9 +262,9 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_sonucu = df_karar[temiz_karar_metni.str.contains(rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)", regex=True)].copy()
             
             if not karar_sonucu.empty:
-                # 🌟 AKILLI FİLTRE: Kaynak Belge hariç her şeyi aynı olan mükerrer PDF satırlarını sil.
-                kontrol_sutunlari = [col for col in karar_sonucu.columns if 'kaynak' not in str(col).lower()]
-                karar_sonucu = karar_sonucu.drop_duplicates(subset=kontrol_sutunlari)
+                # 🌟 MÜKEMMEL HİBRİT FİLTRE (MAX FREQUENCY): En çok kayda (satıra) sahip olan asıl PDF dosyasını seçelim
+                en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
+                karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge]
                 
                 karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
@@ -312,6 +312,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 toplam_cocuk += int(float(c_val))
                                 break
 
+            # 👥 Eğer asıl listede birden fazla reşit kayıt varsa tam sayıyı şık bir şekilde gösterir!
             yetiskin_satiri = f"👥 <b>Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi}\n" if onaylanan_kisi_sayisi > 1 else ""
             cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
@@ -376,7 +377,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", parse_mode='HTML')
 
-# --- BOTU BAŞLAT ---
 if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
     
