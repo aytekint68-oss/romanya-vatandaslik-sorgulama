@@ -80,14 +80,52 @@ def veritabanini_kontrol_et_ve_yukle():
         hafiza['son_guncelleme'] = mevcut_saat
         print("✅ Güncelleme tamamlandı.")
 
+# --- EN GÜNCEL BELGE BİLGİSİNİ ÇEKEN FONKSİYON ---
+def en_guncel_belge_bilgisi(df):
+    if df.empty or 'Kaynak Belge' not in df.columns:
+        return "Veri Yok", "Bilinmiyor"
+    
+    unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
+    
+    unique_files['Parsed_Date'] = pd.to_datetime(
+        unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], 
+        format='%d.%m.%Y', 
+        errors='coerce'
+    )
+    
+    isimler_tarihsiz = unique_files['Kaynak Belge'].str.replace(r'\d{2}\.\d{2}\.\d{4}', '', regex=True)
+    
+    unique_files['Karar_No'] = isimler_tarihsiz.str.extract(r'(\d{3,6})')[0]
+    unique_files['Karar_No'] = pd.to_numeric(unique_files['Karar_No'], errors='coerce').fillna(0)
+    
+    valid_files = unique_files.dropna(subset=['Parsed_Date'])
+    
+    if not valid_files.empty:
+        latest_row = valid_files.sort_values(by=['Parsed_Date', 'Karar_No'], ascending=[False, False]).iloc[0]
+        tarih_str = latest_row['Parsed_Date'].strftime('%d.%m.%Y')
+        return latest_row['Kaynak Belge'], tarih_str
+    elif not unique_files.empty:
+        return unique_files.iloc[0]['Kaynak Belge'], "Tarih Bulunamadı"
+    
+    return "Veri Yok", "Bilinmiyor"
+
 # İlk yüklemeyi yap
 veritabanini_kontrol_et_ve_yukle()
 
 # --- TELEGRAM BOT KOMUTLARI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Veritabanı bilgilerini al
+    _, dosya_guncelleme_tarihi = en_guncel_belge_bilgisi(hafiza['df_dosya'])
+    m10_belge, _ = en_guncel_belge_bilgisi(hafiza['df_karar_m10'])
+    m11_belge, _ = en_guncel_belge_bilgisi(hafiza['df_karar_m11'])
+
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
         "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n"
+        f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n"
+        f"<b>Madde 10:</b> {m10_belge}\n"
+        f"<b>Madde 11:</b> {m11_belge}\n\n"
         "💡 <b>Kullanım:</b>\n"
         "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
         "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>"
