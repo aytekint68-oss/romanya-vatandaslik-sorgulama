@@ -245,11 +245,14 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             cocuk = str(int(float(c_val)))
                             break
 
+            # Eğer çocuk bulunamazsa, çocuk satırını komple gizle
+            cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {cocuk}\n" if cocuk != "Bulunamadı" else ""
+
             yanit += (
                 f"🎉 <b>TEBRİKLER! Kararınız yayımlandı.</b>\n\n"
                 f"📜 <b>Karar Numarası:</b> {gosterilecek_karar}\n"
                 f"📅 <b>Karar Tarihi:</b> {karar_tarihi}\n"
-                f"👶 <b>Çocuk (Copii Minori):</b> {cocuk}\n"
+                f"{cocuk_satiri}"
                 f"📂 <b>Kaynak Belge:</b> {kaynak_belge_adi}"
             )
         else:
