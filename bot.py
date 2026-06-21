@@ -103,7 +103,7 @@ def tum_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return []
     return df['Kaynak Belge'].dropna().unique().tolist()
 
-# --- 🌟 HEDEFLİ BİLDİRİM DAĞITIM MOTORU ---
+# --- HEDEFLİ BİLDİRİM DAĞITIM MOTORU ---
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum):
     df_karar = hafiza['df_karar_birlesik']
     df_dosya = hafiza['df_dosya']
@@ -112,7 +112,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
     
     print(f"Sistemdeki {len(bekleyenler)} kişiye hedefli bildirim dağıtılıyor...")
 
-    # Performans için dosya numaralarını topluca aramaya hazır hale getiriyoruz
     arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
 
     for kisi in bekleyenler:
@@ -141,11 +140,9 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 print(f"✅ {dosya_tam} için MÜJDE iletildi.")
             else:
-                # 🌟 KİŞİYE ÖZEL BİLDİRİM FİLTRESİ
                 is_m10 = False
-                is_m11 = True # Aksini görene kadar Romanya genel başvurularını (Madde 11) kabul ediyoruz
+                is_m11 = True 
                 
-                # Kişinin Stadiu Dosar dosyasından Madde tipini öğreniyoruz
                 if not arama_sutunu.empty:
                     arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
                     user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
@@ -160,15 +157,12 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 if dosya_tarih_degisti:
                     kullanici_icin_degisenler.append(f"Stadiu Dosar Durumu (Güncelleme: {dosya_tarih})")
                 
-                # Kişi Madde 10 ise SADECE Madde 10 PDF'lerini listeye ekle
                 if is_m10 and eklenen_m10:
                     for b in eklenen_m10: kullanici_icin_degisenler.append(f"Madde 10: {b}")
                 
-                # Kişi Madde 11 ise SADECE Madde 11 PDF'lerini listeye ekle
                 if is_m11 and eklenen_m11:
                     for b in eklenen_m11: kullanici_icin_degisenler.append(f"Madde 11: {b}")
 
-                # Sadece bu kullanıcıyı ilgilendiren bir değişiklik varsa mesaj at!
                 if kullanici_icin_degisenler:
                     if len(kullanici_icin_degisenler) > 10:
                         degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler[:10]]) + f"\n🔹 <i>...ve {len(kullanici_icin_degisenler)-10} belge daha.</i>"
@@ -180,7 +174,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni veriler yüklenmiştir.\n"
                         f"📂 <b>Sisteme Yeni Eklenenler:</b>\n{degisim_metni}\n\n"
                         f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni listelerde görünmemiştir. "
-                        f"Dosyanızı sizin için takip etmeye devam ediyoruz, lütfen umudunuzu kaybetmeyin! 🙏"
+                        f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
                     )
                     await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 
@@ -247,7 +241,6 @@ def veritabanini_kontrol_et(app_context=None):
                 hafiza['son_durum'] = yeni_durum
                 set_bulut_verisi(hafiza['bekleyenler'], yeni_durum)
             elif eklenen_m10 or eklenen_m11 or dosya_tarih_degisti:
-                # 🌟 Yeni fonksiyona gerekli spesifik listeleri yolluyoruz
                 app_context.create_task(bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum))
 
 # İlk yükleme
@@ -405,14 +398,15 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
                     yanit += f"🚨 <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Sizin kararınız ({user_ordin_no}) geride kalmış. Dosyanız OLUMSUZ sonuçlanmış olabilir. Tebligatı bekleyiniz."
                 elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
-                    yanit += f"ℹ️ <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Numaranız ({user_ordin_no}) sıraya ulaşmamış. Dosyanız büyük ihtimalle OLUMLU sonuçlanmış olabilir, yayımlanması bekleniyor! 🎉"
+                    yanit += f"ℹ️ <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Numaranız ({user_ordin_no}) sıraya ulaşmamış. Dosyanız büyük ihtimalle OLUMLU sonuçlandı, yayımlanması bekleniyor! 🎉"
                 else:
                     yanit += f"⚠️ <b>{p_numarasi}</b>\n\nDosyanız olumlu sonuçlanmış ancak {user_ordin_yil} yılı listeleri yayımlanmamıştır."
             else:
                 yanit += "❌ 🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır."
 
+            # 🌟 GÖRSEL DOKUNUŞ BURAYA EKLENDİ
             if zaten_takipte:
-                yanit += "\n\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğiz. 🔔"
+                yanit += "\n\n━━━━━━━━━━━━━━━━━━\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğiz. 🔔"
 
         reply_markup = None
         if buton_ekle:
@@ -433,14 +427,14 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(dosya_no_temiz) for k in hafiza['bekleyenler']):
             await query.edit_message_reply_markup(reply_markup=None)
-            await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listemizde!")
+            await context.bot.send_message(chat_id=chat_id, text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
             return
             
         hafiza['bekleyenler'].append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
         set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum']) 
         
         await query.edit_message_reply_markup(reply_markup=None)
-        await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no_temiz} numaralı dosyanızı takibe aldık. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğiz.", parse_mode='HTML')
+        await context.bot.send_message(chat_id=chat_id, text=f"🔔 <b>Harika!</b> {dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", parse_mode='HTML')
 
 if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
