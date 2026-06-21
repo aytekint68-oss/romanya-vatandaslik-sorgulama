@@ -198,7 +198,7 @@ veritabanini_kontrol_et()
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
     m10_belgeler, _ = en_guncel_belgeler(hafiza['df_karar_m10'])
-    m11_belge, _ = en_guncel_belgeler(hafiza['df_karar_m11'])
+    m11_belge, _ = en_guncel_belge_bilgisi(hafiza['df_karar_m11'])
 
     m10_metin = "\n".join([f"🔸 {b}" for b in m10_belgeler]) if m10_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
     m11_metin = "\n".join([f"🔸 {b}" for b in m11_belge]) if m11_belge[0] != "Veri Yok" else "🔸 Veri Yok"
@@ -262,7 +262,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_sonucu = df_karar[temiz_karar_metni.str.contains(rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)", regex=True)].copy()
             
             if not karar_sonucu.empty:
-                # 🌟 ULTRA AKILLI GRUPLAMA VE TEMİZLEME MOTORU (Ties and Multi-Document Fix)
                 def kaynak_temizle(kb):
                     kb_clean = str(kb).lower()
                     return re.sub(r'(_anonimizat|_anonim|_anonim_izat|\.pdf|\.csv|\s+|-|_)', '', kb_clean)
@@ -270,10 +269,14 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 karar_sonucu['Temiz_Kaynak'] = karar_sonucu['Kaynak Belge'].apply(kaynak_temizle)
                 
                 korunan_satirlar = []
-                # Her bir farklı ana karar grubu (Örn: ordin-1935 grubu, ordin-1936 grubu vs) için ayrı ayrı asıl dosyayı seçer
                 for tk, grup in karar_sonucu.groupby('Temiz_Kaynak'):
                     en_cok_kayit_iceren_belge = grup['Kaynak Belge'].value_counts().idxmax()
-                    kesin_grup = grup[grup['Kaynak Belge'] == en_cok_kayit_iceren_belge]
+                    kesin_grup = grup[grup['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
+                    
+                    # 🌟 YENİ: Seçilen asıl PDF içindeki tamamen kopyalanmış mükerrer veri satırlarını sil
+                    kontrol_sutunlari = [col for col in kesin_grup.columns if 'kaynak' not in str(col).lower() and col != 'Temiz_Kaynak']
+                    kesin_grup = kesin_grup.drop_duplicates(subset=kontrol_sutunlari)
+                    
                     korunan_satirlar.append(kesin_grup)
                 
                 karar_sonucu = pd.concat(korunan_satirlar, ignore_index=True) if korunan_satirlar else pd.DataFrame()
@@ -304,7 +307,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if karar_bulundu_mu:
             gosterilecek_karar = p_numarasi
-            # Tüm farklı geçerli kaynak dosyaları birleştirerek gösterir
             kaynak_belge_adi = ", ".join(karar_sonucu['Kaynak Belge'].unique())
             
             if not gosterilecek_karar:
@@ -366,7 +368,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=reply_markup)
 
-# --- BUTON TIKLAMA (TAKİP SİSTEMİ) ---
+# --- BUTON TIKLAMA ---
 async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
