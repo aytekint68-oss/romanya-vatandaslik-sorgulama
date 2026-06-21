@@ -34,7 +34,7 @@ def set_bulut_verisi(bekleyenler, son_durum):
     except Exception as e:
         print("Bulut Hafıza güncellenemedi:", e)
 
-# --- CSV YÜKLEME VE HAFIZA ---
+# --- GÜÇLENDİRİLMİŞ CSV YÜKLEME VE KÜRESEL TEMİZLİK ---
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
@@ -46,12 +46,32 @@ def veri_yukle(dosya_adi):
         try:
             df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False)
             if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
-            return df.fillna("")
+            df = df.fillna("")
+            
+            # 🌟 KÜRESEL TEMİZLİK: Otomatik oluşan indeks sütunlarını siler
+            indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
+            if indeks_sutunlari:
+                df = df.drop(columns=indeks_sutunlari)
+                
+            # Tüm metin sütunlarındaki görünmez boşlukları temizler
+            for col in df.select_dtypes(include=['object']).columns:
+                df[col] = df[col].astype(str).str.strip()
+                
+            # Tamamen kopyalanmış mükerrer satırları küresel düzeyde siler
+            df = df.drop_duplicates()
+            return df
         except Exception:
             try:
                 df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False)
                 if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False)
-                return df.fillna("")
+                df = df.fillna("")
+                indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
+                if indeks_sutunlari:
+                    df = df.drop(columns=indeks_sutunlari)
+                for col in df.select_dtypes(include=['object']).columns:
+                    df[col] = df[col].astype(str).str.strip()
+                df = df.drop_duplicates()
+                return df
             except Exception: pass
     return pd.DataFrame()
 
@@ -198,7 +218,7 @@ veritabanini_kontrol_et()
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
     m10_belgeler, _ = en_guncel_belgeler(hafiza['df_karar_m10'])
-    m11_belge, _ = en_guncel_belge_bilgisi(hafiza['df_karar_m11'])
+    m11_belge, _ = en_guncel_belgeler(hafiza['df_karar_m11'])
 
     m10_metin = "\n".join([f"🔸 {b}" for b in m10_belgeler]) if m10_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
     m11_metin = "\n".join([f"🔸 {b}" for b in m11_belge]) if m11_belge[0] != "Veri Yok" else "🔸 Veri Yok"
@@ -262,27 +282,11 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_sonucu = df_karar[temiz_karar_metni.str.contains(rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)", regex=True)].copy()
             
             if not karar_sonucu.empty:
-                def kaynak_temizle(kb):
-                    kb_clean = str(kb).lower()
-                    return re.sub(r'(_anonimizat|_anonim|_anonim_izat|\.pdf|\.csv|\s+|-|_)', '', kb_clean)
+                # 🌟 EN DOĞRU VE SAF PDF FİLTRELEME: En yüksek sıklığa sahip asıl PDF grubunu seçer
+                en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
+                karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge]
                 
-                karar_sonucu['Temiz_Kaynak'] = karar_sonucu['Kaynak Belge'].apply(kaynak_temizle)
-                
-                korunan_satirlar = []
-                for tk, grup in karar_sonucu.groupby('Temiz_Kaynak'):
-                    en_cok_kayit_iceren_belge = grup['Kaynak Belge'].value_counts().idxmax()
-                    kesin_grup = grup[grup['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
-                    
-                    # 🌟 YENİ: Seçilen asıl PDF içindeki tamamen kopyalanmış mükerrer veri satırlarını sil
-                    kontrol_sutunlari = [col for col in kesin_grup.columns if 'kaynak' not in str(col).lower() and col != 'Temiz_Kaynak']
-                    kesin_grup = kesin_grup.drop_duplicates(subset=kontrol_sutunlari)
-                    
-                    korunan_satirlar.append(kesin_grup)
-                
-                karar_sonucu = pd.concat(korunan_satirlar, ignore_index=True) if korunan_satirlar else pd.DataFrame()
-                
-                if not karar_sonucu.empty:
-                    karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
+                karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
         solutie_metni = str(row['SOLUTIE']).strip()
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
@@ -307,7 +311,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if karar_bulundu_mu:
             gosterilecek_karar = p_numarasi
-            kaynak_belge_adi = ", ".join(karar_sonucu['Kaynak Belge'].unique())
+            kaynak_belge_adi = k_row['Kaynak Belge']
             
             if not gosterilecek_karar:
                 pdf_match = re.search(r'(\d+)[^\d]*P[^\d]*.*?(20\d{2})', kaynak_belge_adi, re.IGNORECASE)
@@ -329,6 +333,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 toplam_cocuk += int(float(c_val))
                                 break
 
+            # 👥 Küresel drop_duplicates() sayesinde asıl reşit kişi sayısını hatasız (tam 2 olarak) yazar!
             yetiskin_satiri = f"👥 <b>Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi}\n" if onaylanan_kisi_sayisi > 1 else ""
             cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
