@@ -248,12 +248,23 @@ veritabanini_kontrol_et()
 
 # --- TELEGRAM MESAJLAŞMA MANTIĞI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    veritabanini_kontrol_et(context) # Buluttan RAM'e çekimi garantile
+    chat_id = str(update.message.chat_id)
+
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
     m10_belgeler, _ = en_guncel_belgeler(hafiza['df_karar_m10'])
     m11_belgeler, _ = en_guncel_belgeler(hafiza['df_karar_m11'])
 
     m10_metin = "\n".join([f"🔸 {b}" for b in m10_belgeler]) if m10_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
     m11_metin = "\n".join([f"🔸 {b}" for b in m11_belgeler]) if m11_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
+
+    # 🌟 RAM HAFIZASINDAN KULLANICIYA AİT TAKİP LİSTESİNİ ÇEKME 🌟
+    user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
+    
+    takip_metni = ""
+    if user_takip_listesi:
+        dosyalar_alt_alta = "\n".join([f"💚 <code>{d}</code>" for d in user_takip_listesi])
+        takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>\n{dosyalar_alt_alta}\n"
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
@@ -264,7 +275,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>Madde 11:</b>\n{m11_metin}\n\n"
         "💡 <b>Kullanım:</b>\n"
         "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
-        "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n\n"
+        "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n"
+        f"{takip_metni}" # 🌟 Takip metni yasal bilgilendirmenin hemen üstüne eklenir
         "━━━━━━━━━━━━━━━━━━\n"
         "⚖️ <b>Yasal Bilgilendirme:</b>\n"
         "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
@@ -407,7 +419,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 yanit += "❌ 🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır."
 
             if zaten_takipte:
-                yanit += "\n━━━━━━━━━━━━━━━━━━\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğiz. 🔔"
+                yanit += "\n━━━━━━━━━━━━━━━━━━\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğim. 🔔"
 
         reply_markup = None
         if buton_ekle:
@@ -427,7 +439,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kvkk_metni = (
             "🛡️ <b>KVKK Aydınlatma ve Onay</b>\n\n"
             f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı takibe almak üzeresiniz.\n\n"
-            "Size otomatik bildirim gönderebilmemiz için <b>Telegram ID'niz</b> ve <b>Dosya Numaranız</b> "
+            "Size otomatik bildirim gönderebilmemiz için <b>Telegram ID'niz</b> and <b>Dosya Numaranız</b> "
             "sunucularımızda güvenle saklanacaktır. Bu veriler <u>sadece</u> size haber vermek amacıyla kullanılır "
             "ve asla üçüncü şahıslarla paylaşılmaz.\n\n"
             "Devam etmek için onaylıyor musunuz?"
