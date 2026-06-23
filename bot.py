@@ -377,9 +377,9 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
         yanit = (
-            f"📂 <b>DOSYA BİLGİLERİ</b>\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
+            f"📂 <b>DOSYA BİLGİLERİ</b>\n\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
             f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n"
-            f"📝 <b>Kurum Notu:</b>{kurum_notu}\n📂 <b>Kaynak:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
+            f"📝 <b>Kurum Notu:</b> {kurum_notu}\n📂 <b>Kaynak:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
             f"⚖️ <b>KARAR (ORDIN) DURUMU</b>\n\n"
         )
 
