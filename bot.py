@@ -20,7 +20,7 @@ if not BOT_TOKEN or not JSONBIN_ID or not JSONBIN_KEY:
 
 print("🤖 Akıllı Asistan Başlatılıyor...")
 
-# --- BULUT HAFIZA (JSONBIN) FONKSİYONLARI ---
+# --- BULUT HAFIZA (JSONBIN) FONKSİYON LARI ---
 def get_bulut_verisi():
     headers = {"X-Master-Key": JSONBIN_KEY}
     try:
@@ -292,10 +292,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
     
+    reply_markup = None
     takip_metni = ""
     if user_takip_listesi:
         dosyalar_alt_alta = "\n".join([f"💚 <code>{d}</code>" for d in user_takip_listesi])
         takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>\n{dosyalar_alt_alta}\n"
+        
+        # 🌟 AKTİF TAKİP VARSA "TAKİBİ BIRAK" BUTONUNU ALTTA GÖSTER 🌟
+        klavye = [[InlineKeyboardButton("❌ Dosya Takibini Bırak", callback_data="menu_birak")]]
+        reply_markup = InlineKeyboardMarkup(klavye)
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
@@ -313,7 +318,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
         "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
-    await update.message.reply_text(mesaj, parse_mode='HTML')
+    await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)
 
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context)
@@ -463,17 +468,20 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    chat_id = str(query.message.chat_id)
     
     if query.data.startswith("kvkk_"):
         _, ilk_no, son_yil = query.data.split('_')
         
+        # 🌟 GÜNCELLENMİŞ HUKUKİ VE YASAL KVKK METNİ 🌟
         kvkk_metni = (
-            "🛡️ <b>KVKK Aydınlatma ve Onay</b>\n\n"
-            f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı takibe almak üzeresiniz.\n\n"
-            "Size otomatik bildirim gönderebilmemiz için <b>Telegram ID'niz</b> ve <b>Dosya Numaranız</b> "
-            "sunucularımızda güvenle saklanacaktır. Bu veriler <u>sadece</u> size haber vermek amacıyla kullanılır "
-            "ve asla üçüncü şahıslarla paylaşılmaz.\n\n"
-            "Devam etmek için onaylıyor musunuz?"
+            "🛡️ <b>KVKK Aydınlatma ve Açık Rıza Metni</b>\n\n"
+            f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı otomatik takibe almak üzeresiniz.\n\n"
+            "Romanya Vatandaşlık Sorgulama Platformu olarak, size dosya durumunuz değiştiğinde anlık bildirim gönderebilmemiz amacıyla; "
+            "<b>Telegram Chat ID</b> ve <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.\n\n"
+            "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez ve asla üçüncü şahıslarla paylaşılmaz. "
+            "İstediğiniz an bota /start yazıp takibi bırakarak tüm verilerinizin sistemimizden <b>kalıcı olarak silinmesini</b> sağlayabilirsiniz.\n\n"
+            "Verilerinizin bu amaçlarla işlenmesini onaylıyor musunuz?"
         )
         klavye = [
             [InlineKeyboardButton("✅ Okudum, Onaylıyorum", callback_data=f"takip_{ilk_no}_{son_yil}")],
@@ -496,7 +504,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data.startswith("takip_"):
         _, ilk_no, son_yil = query.data.split('_')
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
-        chat_id = str(query.message.chat_id) 
         
         if any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(dosya_no_temiz) for k in hafiza['bekleyenler']):
             await query.edit_message_text(text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
@@ -509,9 +516,76 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"🔔 <b>Harika! KVKK onayınız alındı.</b>\n\n{dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", 
             parse_mode='HTML'
         )
+        return
+
+    # =========================================================
+    # 🌟 YENİ MODÜL: AKILLI DOSYA TAKİBİNİ BIRAKMA SİSTEMİ 🌟
+    # =========================================================
+    if query.data == "menu_birak":
+        user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
+        
+        if not user_takip_listesi:
+            await query.edit_message_text(text="❌ Takip listenizde aktif dosya bulunamadı.", parse_mode='HTML')
+            return
+            
+        if len(user_takip_listesi) == 1:
+            # Senaryo A: Tek Dosya Takip Ediliyorsa (Doğrudan Onay Sor)
+            dosya_tek = user_takip_listesi[0]
+            ilk_no, son_yil = dosya_tek.split('/')
+            
+            soru_metni = f"⚠️ <b>{dosya_tek}</b> numaralı dosyanızın takibini bırakmak üzeresiniz. Onaylıyor musunuz?"
+            klavye = [
+                [InlineKeyboardButton("✅ Onaylıyorum", callback_data=f"silconfirm_{ilk_no}_{son_yil}")],
+                [InlineKeyboardButton("❌ Vazgeç", callback_data="silvazgec")]
+            ]
+            await query.edit_message_text(text=soru_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
+        else:
+            # Senaryo B: Birden Fazla Dosya Takip Ediliyorsa (Listele)
+            soru_metni = "📂 Birden fazla dosya takip ediyorsunuz. Lütfen takibini bırakmak istediğiniz dosyayı seçiniz:"
+            klavye = []
+            for d in user_takip_listesi:
+                ilk_no, son_yil = d.split('/')
+                klavye.append([InlineKeyboardButton(f"❌ {d}", callback_data=f"silsec_{ilk_no}_{son_yil}")])
+            klavye.append([InlineKeyboardButton("🔙 Vazgeç", callback_data="silvazgec")])
+            await query.edit_message_text(text=soru_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
+        return
+
+    # Çoklu dosyadan bir tanesi seçildiğinde tetiklenen onay ekranı
+    if query.data.startswith("silsec_"):
+        _, ilk_no, son_yil = query.data.split('_')
+        dosya_no_temiz = f"{ilk_no}/{son_yil}"
+        
+        soru_metni = f"⚠️ <b>{dosya_no_temiz}</b> numaralı dosyanızın takibini bırakmak üzeresiniz. Onaylıyor musunuz?"
+        klavye = [
+            [InlineKeyboardButton("✅ Onaylıyorum", callback_data=f"silconfirm_{ilk_no}_{son_yil}")],
+            [InlineKeyboardButton("❌ Vazgeç", callback_data="silvazgec")]
+        ]
+        await query.edit_message_text(text=soru_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
+        return
+
+    # Silme işlemi kesin olarak onaylandığında bulut ve RAM temizliği
+    if query.data.startswith("silconfirm_"):
+        _, ilk_no, son_yil = query.data.split('_')
+        dosya_no_temiz = f"{ilk_no}/{son_yil}"
+        
+        # RAM Canlı Hafızadan Sil
+        hafiza['bekleyenler'] = [k for k in hafiza['bekleyenler'] if not (str(k.get('chat_id')) == chat_id and k.get('dosya_no') == dosya_no_temiz)]
+        
+        # Bulut Veritabanına (JSONBin) Anlık Senkronize Et
+        set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum'])
+        
+        await query.edit_message_text(
+            text=f"✅ <b>{dosya_no_temiz}</b> numaralı dosyanın takibi başarıyla iptal edildi ve verileriniz sistemimizden kalıcı olarak silindi.", 
+            parse_mode='HTML'
+        )
+        return
+
+    if query.data == "silvazgec":
+        await query.edit_message_text(text="❌ Takip iptal işleminden vazgeçildi. Verileriniz korunuyor.", parse_mode='HTML')
+        return
 
 if __name__ == '__main__':
-    # 🌟 BURASI TAMAMEN HİZALANDI AND HATASIZ HALE GETİRİLDİ 🌟
+    # 🌟 BURASI TAMAMEN HİZALANDI VE HATASIZ HALE GETİRİLDİ 🌟
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def post_init(application: Application):
