@@ -311,7 +311,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━\n"
         "⚖️ <b>Yasal Bilgilendirme:</b>\n"
         "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
-        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
+        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML')
 
@@ -511,12 +511,13 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 if __name__ == '__main__':
+    # 🌟 BURASI TAMAMEN HİZALANDI AND HATASIZ HALE GETİRİLDİ 🌟
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def post_init(application: Application):
         veritabanini_kontrol_et(application)
         
-        # 🌟 GÜNLÜK RAPORUN KURULUMU (20:00 TSİ = 17:00 UTC) 🌟
+        # GÜNLÜK RAPORUN KURULUMU (20:00 TSİ = 17:00 UTC)
         hedef_saat = datetime.time(17, 0, 0)
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_saat)
         print("⏰ Günlük saat 20:00 özet raporlama görevi zamanlayıcıya eklendi.")
