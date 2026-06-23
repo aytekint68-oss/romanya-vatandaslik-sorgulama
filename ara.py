@@ -298,9 +298,27 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 else:
                                     st.error("🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır.", icon="❌")
                                 
-                                # YENİ EKLENEN BUTON: Kullanıcının kararı çıkmamışsa Telegram botuna yönlendir
+                                # YENİ EKLENEN BUTON: Daha büyük, kalın ve çekici HTML formatı
                                 st.markdown("<br>", unsafe_allow_html=True)
-                                st.link_button("🔔 Telegram Botu ile beni haberdar et", "https://t.me/vatandaslik_sorgulama_bot", use_container_width=True)
+                                
+                                telegram_button_html = """
+                                <a href="https://t.me/vatandaslik_sorgulama_bot" target="_blank" style="
+                                    display: block;
+                                    width: 100%;
+                                    text-align: center;
+                                    background-color: #2AABEE;
+                                    color: white;
+                                    padding: 15px;
+                                    border-radius: 8px;
+                                    font-weight: 900;
+                                    font-size: 18px;
+                                    text-decoration: none;
+                                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                                ">
+                                    🔔 Telegram Botu İle Beni Haberdar Et
+                                </a>
+                                """
+                                st.markdown(telegram_button_html, unsafe_allow_html=True)
 
                         st.markdown("<br>", unsafe_allow_html=True)
                 else:
