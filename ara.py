@@ -297,6 +297,11 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                         st.warning(f"**{p_numarasi}**\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak **{user_ordin_yil}** yılına ait resmi listeler henüz yayımlanmamıştır.", icon="⚠️")
                                 else:
                                     st.error("🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır.", icon="❌")
+                                
+                                # YENİ EKLENEN BUTON: Kullanıcının kararı çıkmamışsa Telegram botuna yönlendir
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                st.link_button("🔔 Telegram Botu ile beni haberdar et", "https://t.me/vatandaslik_sorgulama_bot", use_container_width=True)
+
                         st.markdown("<br>", unsafe_allow_html=True)
                 else:
                     st.error("❌ Girdiğiniz kriterlere uygun bir dosya bulunamadı. Lütfen dosya numaranızı ve yılını kontrol edip tekrar deneyin.")
