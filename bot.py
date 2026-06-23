@@ -20,7 +20,7 @@ if not BOT_TOKEN or not JSONBIN_ID or not JSONBIN_KEY:
 
 print("🤖 Akıllı Asistan Başlatılıyor...")
 
-# --- BULUT HAFIZA (JSONBIN) FONKSİYONLARI ---
+# --- BULUT HAFIZA (JSONBIN) FONKSİYON LARI ---
 def get_bulut_verisi():
     headers = {"X-Master-Key": JSONBIN_KEY}
     try:
@@ -209,21 +209,50 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 # --- YÖNETİCİYE ÖZEL GÜNLÜK SAATLİK ÖZET RAPOR FONKSİYONU ---
 async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
     if ADMIN_CHAT_ID:
-        total_dosya = len(hafiza['bekleyenler'])
+        bekleyenler = hafiza['bekleyenler']
+        total_dosya = len(bekleyenler)
         
-        # 🌟 GÜNCELLEME: Sunucu UTC saatinden bağımsız olarak dinamik TSİ saati hesaplar 🌟
+        # 🌟 GÜNCELLEME: MADDE KIRILIMLARINI HESAPLAYAN SAYAÇ MOTORU 🌟
+        count_m10 = 0
+        count_m11 = 0
+        
+        df_dosya = hafiza['df_dosya']
+        arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
+        
+        for kisi in bekleyenler:
+            dosya_tam = kisi['dosya_no']
+            try:
+                ana_no, ana_yil = dosya_tam.split('/')
+                is_m10 = False
+                if not arama_sutunu.empty:
+                    arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
+                    user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
+                    if not user_row.empty:
+                        kaynak_dosya_metni = str(user_row.iloc[0].get('Kaynak Belge', ''))
+                        if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
+                            is_m10 = True
+                if is_m10:
+                    count_m10 += 1
+                else:
+                    count_m11 += 1
+            except Exception:
+                count_m11 += 1  # Herhangi bir hata anında güvenli fallback (Madde 11 varsayılır)
+
+        # Dinamik TSİ saati hesaplama
         tsi_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
         saat_metni = tsi_now.strftime("%H:%M")
         
         rapor_msg = (
             f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
-            f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n"
+            f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
             f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
+            f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
+            f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
             f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
         )
         try:
             await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')
-            print(f"✅ Günlük admin özet raporu ({saat_metni}) başarıyla gönderildi.")
+            print(f"✅ Günlük admin özet raporu ({saat_metni}) kırılımlarla birlikte başarıyla gönderildi.")
         except Exception as e:
             print(f"Günlük rapor gönderilirken hata oluştu: {e}")
 
@@ -308,7 +337,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorguyabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
@@ -482,8 +511,8 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı otomatik takibe almak üzeresiniz.\n\n"
             "Romanya Vatandaşlık Sorgulama Platformu olarak, size dosya durumunuz değiştiğinde anlık bildirim gönderebilmemiz amacıyla; "
             "<b>Telegram Chat ID</b> ve <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.\n\n"
-            "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez ve asla üçüncü şahıslarla paylaşılmaz. "
-            "İstediğiniz an bota /start yazıp altta çıkacak olan <b>Dosya Takibini Bırak</b> butonuna tıklayarak seçeceğiniz verilerinizin sistemimizden <b>kalıcı olarak silinmesini</b> sağlayabilirsiniz.\n\n"
+            "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez og asla üçüncü şahıslarla paylaşılmaz. "
+            "İstediğiniz an bota /start yazıp altta çıkacak olan <b>Dosya Takibini Bırak</b> butonuna tıklayarak seçeceğiniz verilerinizin sistemimizden <b>kalıcı olarak siliniyor olmasını</b> sağlayabilirsiniz.\n\n"
             "Verilerinizin bu amaçlarla işlenmesini onaylıyor musunuz?"
         )
         klavye = [
@@ -593,7 +622,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         dosyalar_raporu = "\n".join([f"❌ <code>{d}</code>" for d in secilenler])
         
-        # Seçilen dosya sayısına göre Türkçe dil uyarlaması
         if len(secilenler) == 1:
             baslik = "TAKİP İPTAL ONAYI"
             fiil_cumlesi = f"Seçtiğiniz şu <b>1</b> adet dosyanın takibini bırakmak üzeresiniz:\n"
@@ -641,7 +669,7 @@ if __name__ == '__main__':
     async def post_init(application: Application):
         veritabanini_kontrol_et(application)
         
-        # 🌟 GÜNCELLEME: ÇİFT ZAMANLI RAPOR SİSTEMİ (TSİ -> UTC ÇEVRİMİ İLE) 🌟
+        # 🌟 ÇİFT ZAMANLI RAPOR SİSTEMİ (TSİ -> UTC ÇEVRİMİ İLE) 🌟
         saat_sabah = datetime.time(7, 0, 0)   # 10:00 TSİ
         saat_aksam = datetime.time(17, 0, 0)  # 20:00 TSİ
         
