@@ -1,10 +1,9 @@
-﻿from flask import Flask
-import threading
-import pandas as pd
+﻿import pandas as pd
 import re
 import os
 import requests
 import asyncio
+import datetime # Zamanlama için gerekli
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
@@ -124,10 +123,9 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
         dosya_tam = kisi['dosya_no']
         ana_no, ana_yil = dosya_tam.split('/')
         
-        # 🌟 MADDE TÜRÜ TESPİTİ (Ortak kullanım için yukarı taşındı) 🌟
         is_m10 = False
         is_m11 = True 
-        madde_turu = "Madde 11" # Varsayılan
+        madde_turu = "Madde 11" 
         
         if not arama_sutunu.empty:
             arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
@@ -159,8 +157,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 print(f"✅ {dosya_tam} için MÜJDE iletildi.")
-                
-                # 🌟 ADMİN LİSTESİNE MADDE TÜRÜYLE BİRLİKTE EKLENDİ
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> <i>({madde_turu})</i>") 
             else:
                 kullanici_icin_degisenler = []
@@ -196,22 +192,35 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         await asyncio.sleep(0.05) 
 
-    # 🌟 YÖNETİCİYE (SİZE) ÖZEL TOPLU RAPOR GÖNDERİMİ 🌟
     if admin_onay_listesi and ADMIN_CHAT_ID:
         admin_msg = "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n🎉 Yeni listelerde takipteki şu dosyaların kararı çıkmıştır:\n"
         for d in admin_onay_listesi:
             admin_msg += f"✅ {d}\n"
         admin_msg += "\n<i>İlgili kullanıcılara MÜJDE mesajları otomatik olarak iletilmiştir.</i>"
-        
         try:
             await app_context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, parse_mode='HTML')
-        except Exception as e:
-            print(f"Admin'e bildirim gönderilirken hata oluştu: {e}")
+        except Exception as e: print(f"Admin'e rapor hatası: {e}")
 
     hafiza['bekleyenler'] = kalan_bekleyenler
     hafiza['son_durum'] = yeni_durum
     set_bulut_verisi(kalan_bekleyenler, yeni_durum)
     print("✅ Hedefli bildirim dağıtımı tamamlandı, bulut güncellendi.")
+
+# --- YÖNETİCİYE ÖZEL GÜNLÜK SAATLİK ÖZET RAPOR FONKSİYONU ---
+async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
+    if ADMIN_CHAT_ID:
+        total_dosya = len(hafiza['bekleyenler'])
+        rapor_msg = (
+            f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
+            f"🕒 <b>Saat:</b> 20:00 (TSİ)\n"
+            f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
+            f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
+        )
+        try:
+            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')
+            print("✅ Günlük admin özet raporu başarıyla gönderildi.")
+        except Exception as e:
+            print(f"Günlük rapor gönderilirken hata oluştu: {e}")
 
 def veritabanini_kontrol_et(app_context=None):
     if not hafiza['bulut_yuklendi']:
@@ -292,7 +301,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
         "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
-        f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
+        f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
         f"<b>Madde 11:</b>\n{m11_metin}\n\n"
         "💡 <b>Kullanım:</b>\n"
@@ -300,7 +309,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n"
         f"{takip_metni}" 
         "━━━━━━━━━━━━━━━━━━\n"
-        "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
+        "⚖️ <b>Yasal Bilgilendirme:</b>\n"
         "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
         "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
@@ -379,10 +388,10 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
         yanit = (
-            f"📂 <b>DOSYA BİLGİLERİ</b>\n\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n"
-            f"📝 <b>Kurum Notu:</b> {kurum_notu}\n📂 <b>Kaynak:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
-            f"⚖️ <b>KARAR (ORDIN) DURUMU</b>\n\n"
+            f"📂 <b>DOSYA BİLGİLERİ</b>\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
+            f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n\n"
+            f"📝 <b>Kurum Notu:</b>\n{kurum_notu}\n\n📂 <b>Kaynak:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
+            f"⚖️ <b>KARAR (ORDIN) DURUMU</b>\n"
         )
 
         buton_ekle = False
@@ -502,24 +511,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 if __name__ == '__main__':
-    # --- RENDER PING KAPISI (DUMMY WEB SERVER) ---
-web_app = Flask(__name__)
-
-@web_app.route('/')
-def home():
-    return "🤖 Vatandaşlık Botu 7/24 Çalışıyor ve Uyanık!"
-
-def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    web_app.run(host="0.0.0.0", port=port)
-
-if __name__ == '__main__':
-    # Önce Ping kapısını arka planda sessizce başlatıyoruz
-    t = threading.Thread(target=run_web_server)
-    t.daemon = True
-    t.start()
-    
-    # Sonra asıl Telegram Botumuzu başlatıyoruz
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def post_init(application: Application):
