@@ -479,7 +479,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Romanya Vatandaşlık Sorgulama Platformu olarak, size dosya durumunuz değiştiğinde anlık bildirim gönderebilmemiz amacıyla; "
             "<b>Telegram Chat ID</b> ve <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.\n\n"
             "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez ve asla üçüncü şahıslarla paylaşılmaz. "
-            "İstediğiniz an bota /start yazıp takibi bırakarak tüm verilerinizin sistemimizden <b>kalıcı olarak silinmesini</b> sağlayabilirsiniz.\n\n"
+            "İstediğiniz an bota /start yazıp altta çıkacak olan <b>Dosya Takibini Bırak</b> butonuna tıklayarak seçeceğiniz verilerinizin sistemimizden <b>kalıcı olarak silinmesini</b> sağlayabilirsiniz.\n\n"
             "Verilerinizin bu amaçlarla işlenmesini onaylıyor musunuz?"
         )
         klavye = [
