@@ -470,7 +470,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kvkk_metni = (
             "🛡️ <b>KVKK Aydınlatma ve Onay</b>\n\n"
             f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı takibe almak üzeresiniz.\n\n"
-            "Size otomatik bildirim gönderebilmemiz için <b>Telegram ID'niz</b> and <b>Dosya Numaranız</b> "
+            "Size otomatik bildirim gönderebilmemiz için <b>Telegram ID'niz</b> ve <b>Dosya Numaranız</b> "
             "sunucularımızda güvenle saklanacaktır. Bu veriler <u>sadece</u> size haber vermek amacıyla kullanılır "
             "ve asla üçüncü şahıslarla paylaşılmaz.\n\n"
             "Devam etmek için onaylıyor musunuz?"
