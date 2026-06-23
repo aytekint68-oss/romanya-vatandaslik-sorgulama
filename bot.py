@@ -76,7 +76,7 @@ def veri_yukle(dosya_adi):
 def max_ordin_hesapla_vektorel(df_k):
     if df_k.empty: return {}
     ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-    if not ordinar_sutunlari: return {}
+    if not ordin_sutunlari: return {} # 🌟 YAZIM HATASI BURADA DÜZELTİLDİ (ordinar_sutunlari -> ordin_sutunlari)
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
     if 'Kaynak Belge' in df_k.columns:
@@ -517,9 +517,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # =========================================================================
     # --- ÇOKLU SEÇİMLİ (CHECKLIST) DOSYA TAKİBİNİ BIRAKMA SİSTEMİ ---
-    # =========================================================================
     if query.data == "menu_birak":
         user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
         
@@ -582,7 +580,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(klavye))
         return
 
-    # 🌟 GÜNCELLEME: DİNAMİK TEKİL/ÇOĞUL ONAY EKRANI MOTORU 🌟
+    # --- DİNAMİK TEKİL/ÇOĞUL ONAY EKRANI MOTORU ---
     if query.data == "toplusil_onay":
         secilenler = context.user_data.get('secilenler', [])
         if not secilenler:
