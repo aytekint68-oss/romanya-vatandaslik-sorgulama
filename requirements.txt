@@ -5,4 +5,4 @@ PyMuPDF
 python-telegram-bot
 requests
 python-telegram-bot[job-queue]
-flask
+Flask
