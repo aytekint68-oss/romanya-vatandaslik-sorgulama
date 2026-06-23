@@ -592,10 +592,10 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Seçilen dosya sayısına göre Türkçe dil uyarlaması
         if len(secilenler) == 1:
             baslik = "TAKİP İPTAL ONAYI"
-            fiil_cumlesi = f"Seçtiğiniz şu <b>1</b> adet dosyanın takibini bırakmak üzeresiniz:"
+            fiil_cumlesi = f"Seçtiğiniz şu <b>1</b> adet dosyanın takibini bırakmak üzeresiniz:\n"
         else:
             baslik = "TOPLU SİLME ONAYI"
-            fiil_cumlesi = f"Seçtiğiniz şu <b>{len(secilenler)}</b> adet dosyanın takibini aynı anda bırakmak üzeresiniz:"
+            fiil_cumlesi = f"Seçtiğiniz şu <b>{len(secilenler)}</b> adet dosyanın takibini aynı anda bırakmak üzeresiniz:\n"
             
         soru_metni = (
             f"⚠️ <b>{baslik}</b>\n\n"
