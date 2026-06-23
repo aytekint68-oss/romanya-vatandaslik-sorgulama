@@ -76,7 +76,7 @@ def veri_yukle(dosya_adi):
 def max_ordin_hesapla_vektorel(df_k):
     if df_k.empty: return {}
     ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-    if not ordin_sutunlari: return {} # 🌟 YAZIM HATASI BURADA DÜZELTİLDİ (ordinar_sutunlari -> ordin_sutunlari)
+    if not ordin_sutunlari: return {}
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
     if 'Kaynak Belge' in df_k.columns:
@@ -210,15 +210,20 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
     if ADMIN_CHAT_ID:
         total_dosya = len(hafiza['bekleyenler'])
+        
+        # 🌟 GÜNCELLEME: Sunucu UTC saatinden bağımsız olarak dinamik TSİ saati hesaplar 🌟
+        tsi_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
+        saat_metni = tsi_now.strftime("%H:%M")
+        
         rapor_msg = (
             f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
-            f"🕒 <b>Saat:</b> 20:00 (TSİ)\n"
+            f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n"
             f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
             f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
         )
         try:
             await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')
-            print("✅ Günlük admin özet raporu başarıyla gönderildi.")
+            print(f"✅ Günlük admin özet raporu ({saat_metni}) başarıyla gönderildi.")
         except Exception as e:
             print(f"Günlük rapor gönderilirken hata oluştu: {e}")
 
@@ -296,15 +301,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     takip_metni = ""
     if user_takip_listesi:
         dosyalar_alt_alta = "\n".join([f"💚 <code>{d}</code>" for d in user_takip_listesi])
-        takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>\n{dosyalar_alt_alta}\n"
+        takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>\n\n{dosyalar_alt_alta}\n"
         
-        # 🌟 AKTİF TAKİP VARSA "TAKİBİ BIRAK" BUTONUNU ALTTA GÖSTER 🌟
         klavye = [[InlineKeyboardButton("❌ Dosya Takibini Bırak", callback_data="menu_birak")]]
         reply_markup = InlineKeyboardMarkup(klavye)
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorguyabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
@@ -637,10 +641,13 @@ if __name__ == '__main__':
     async def post_init(application: Application):
         veritabanini_kontrol_et(application)
         
-        # GÜNLÜK RAPORUN KURULUMU (20:00 TSİ = 17:00 UTC)
-        hedef_saat = datetime.time(17, 0, 0)
-        application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_saat)
-        print("⏰ Günlük saat 20:00 özet raporlama görevi zamanlayıcıya eklendi.")
+        # 🌟 GÜNCELLEME: ÇİFT ZAMANLI RAPOR SİSTEMİ (TSİ -> UTC ÇEVRİMİ İLE) 🌟
+        saat_sabah = datetime.time(7, 0, 0)   # 10:00 TSİ
+        saat_aksam = datetime.time(17, 0, 0)  # 20:00 TSİ
+        
+        application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_sabah)
+        application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_aksam)
+        print("⏰ Günlük saat 10:00 ve 20:00 özet raporlama görevleri zamanlayıcıya eklendi.")
         
     app.post_init = post_init
     
