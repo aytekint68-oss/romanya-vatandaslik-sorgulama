@@ -20,7 +20,7 @@ if not BOT_TOKEN or not JSONBIN_ID or not JSONBIN_KEY:
 
 print("🤖 Akıllı Asistan Başlatılıyor...")
 
-# --- BULUT HAFIZA (JSONBIN) FONKSİYON LARI ---
+# --- BULUT HAFIZA (JSONBIN) FONKSİYONLARI ---
 def get_bulut_verisi():
     headers = {"X-Master-Key": JSONBIN_KEY}
     try:
@@ -473,7 +473,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data.startswith("kvkk_"):
         _, ilk_no, son_yil = query.data.split('_')
         
-        # 🌟 GÜNCELLENMİŞ HUKUKİ VE YASAL KVKK METNİ 🌟
         kvkk_metni = (
             "🛡️ <b>KVKK Aydınlatma ve Açık Rıza Metni</b>\n\n"
             f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı otomatik takibe almak üzeresiniz.\n\n"
@@ -519,7 +518,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # =========================================================
-    # 🌟 YENİ MODÜL: AKILLI DOSYA TAKİBİNİ BIRAKMA SİSTEMİ 🌟
+    # --- AKILLI DOSYA TAKİBİNİ BIRAKMA SİSTEMİ ---
     # =========================================================
     if query.data == "menu_birak":
         user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
@@ -558,7 +557,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         soru_metni = f"⚠️ <b>{dosya_no_temiz}</b> numaralı dosyanızın takibini bırakmak üzeresiniz. Onaylıyor musunuz?"
         klavye = [
             [InlineKeyboardButton("✅ Onaylıyorum", callback_data=f"silconfirm_{ilk_no}_{son_yil}")],
-            [InlineKeyboardButton("❌ Vazgeç", callback_data="silvazgec")]
+            [InlineKeyboardButton("❌ Vazgeç", callback_data="menu_birak")] # 🌟 MÜKEMMEL ÇÖZÜM: Vazgeç deyince "menu_birak" ile listeye geri fırlatır!
         ]
         await query.edit_message_text(text=soru_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
         return
@@ -585,7 +584,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 if __name__ == '__main__':
-    # 🌟 BURASI TAMAMEN HİZALANDI VE HATASIZ HALE GETİRİLDİ 🌟
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def post_init(application: Application):
