@@ -517,9 +517,9 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # =========================================================
-    # --- AKILLI DOSYA TAKİBİNİ BIRAKMA SİSTEMİ ---
-    # =========================================================
+    # =========================================================================
+    # 🌟 GÜNCELLEME: ÇOKLU SEÇİMLİ (CHECKLIST) DOSYA TAKİBİNİ BIRAKMA SİSTEMİ 🌟
+    # =========================================================================
     if query.data == "menu_birak":
         user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
         
@@ -527,59 +527,113 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(text="❌ Takip listenizde aktif dosya bulunamadı.", parse_mode='HTML')
             return
             
-        if len(user_takip_listesi) == 1:
-            # Senaryo A: Tek Dosya Takip Ediliyorsa (Doğrudan Onay Sor)
-            dosya_tek = user_takip_listesi[0]
-            ilk_no, son_yil = dosya_tek.split('/')
+        # Kullanıcının oturum seçim listesini kontrol et / oluştur
+        if 'secilenler' not in context.user_data:
+            context.user_data['secilenler'] = []
             
-            soru_metni = f"⚠️ <b>{dosya_tek}</b> numaralı dosyanızın takibini bırakmak üzeresiniz. Onaylıyor musunuz?"
-            klavye = [
-                [InlineKeyboardButton("✅ Onaylıyorum", callback_data=f"silconfirm_{ilk_no}_{son_yil}")],
-                [InlineKeyboardButton("❌ Vazgeç", callback_data="silvazgec")]
-            ]
-            await query.edit_message_text(text=soru_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
-        else:
-            # Senaryo B: Birden Fazla Dosya Takip Ediliyorsa (Listele)
-            soru_metni = "📂 Birden fazla dosya takip ediyorsunuz. Lütfen takibini bırakmak istediğiniz dosyayı seçiniz:"
-            klavye = []
-            for d in user_takip_listesi:
-                ilk_no, son_yil = d.split('/')
-                klavye.append([InlineKeyboardButton(f"❌ {d}", callback_data=f"silsec_{ilk_no}_{son_yil}")])
-            klavye.append([InlineKeyboardButton("🔙 Vazgeç", callback_data="silvazgec")])
-            await query.edit_message_text(text=soru_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
+        # Listeden elenmiş olabilecek eski veya silinmiş seçimleri temizle
+        context.user_data['secilenler'] = [d for d in context.user_data['secilenler'] if d in user_takip_listesi]
+        secilenler = context.user_data['secilenler']
+        
+        soru_metni = (
+            "📋 <b>Dosya Takip Yönetim Paneli (Çoklu Seçim)</b>\n\n"
+            "Takibini iptal etmek istediğiniz dosyaları aşağıdaki listeden işaretleyiniz. "
+            "Seçim bittiğinde en altta çıkacak olan toplu silme butonuna basabilirsiniz:"
+        )
+        
+        klavye = []
+        for d in user_takip_listesi:
+            ilk_no, son_yil = d.split('/')
+            # Seçim durumuna göre emoji atanır (Kutucuk veya Onay işareti)
+            durum_emojisi = "✅" if d in secilenler else "⬜"
+            klavye.append([InlineKeyboardButton(f"{durum_emojisi} {d}", callback_data=f"tsil_{ilk_no}_{son_yil}")])
+            
+        # Eğer en az bir dosya seçildiyse dinamik silme butonunu göster
+        if secilenler:
+            klavye.append([InlineKeyboardButton(f"🗑️ Seçilenleri Sil ({len(secilenler)})", callback_data="toplusil_onay")])
+            
+        klavye.append([InlineKeyboardButton("🔙 Ana Menüye Dön", callback_data="silvazgec")])
+        
+        await query.edit_message_text(text=soru_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
         return
 
-    # Çoklu dosyadan bir tanesi seçildiğinde tetiklenen onay ekranı
-    if query.data.startswith("silsec_"):
+    # Dosya satırına basıldığında tetiklenen işaretleme (Toggle) motoru
+    if query.data.startswith("tsil_"):
         _, ilk_no, son_yil = query.data.split('_')
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
         
-        soru_metni = f"⚠️ <b>{dosya_no_temiz}</b> numaralı dosyanızın takibini bırakmak üzeresiniz. Onaylıyor musunuz?"
+        if 'secilenler' not in context.user_data:
+            context.user_data['secilenler'] = []
+            
+        if dosya_no_temiz in context.user_data['secilenler']:
+            context.user_data['secilenler'].remove(dosya_no_temiz)
+        else:
+            context.user_data['secilenler'].append(dosya_no_temiz)
+            
+        # Ekranın titrememesi and yazının yanıp sönmemesi için SADECE butonları güncelliyoruz!
+        user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
+        secilenler = context.user_data['secilenler']
+        
+        klavye = []
+        for d in user_takip_listesi:
+            i_no, s_yil = d.split('/')
+            durum_emojisi = "✅" if d in secilenler else "⬜"
+            klavye.append([InlineKeyboardButton(f"{durum_emojisi} {d}", callback_data=f"tsil_{i_no}_{s_yil}")])
+            
+        if secilenler:
+            klavye.append([InlineKeyboardButton(f"🗑️ Seçilenleri Sil ({len(secilenler)})", callback_data="toplusil_onay")])
+            
+        klavye.append([InlineKeyboardButton("🔙 Ana Menüye Dön", callback_data="silvazgec")])
+        
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(klavye))
+        return
+
+    # Toplu silme kesin onay ekranı
+    if query.data == "toplusil_onay":
+        secilenler = context.user_data.get('secilenler', [])
+        if not secilenler:
+            await query.answer("Lütfen önce listeden en az bir dosya seçiniz!", show_alert=True)
+            return
+            
+        dosyalar_raporu = "\n".join([f"❌ <code>{d}</code>" for d in secilenler])
+        soru_metni = (
+            f"⚠️ <b>TOPLU SİLME ONAYI</b>\n\n"
+            f"Seçtiğiniz şu <b>{len(secilenler)}</b> adet dosyanın takibini aynı anda bırakmak üzeresiniz:\n{dosyalar_raporu}\n\n"
+            f"Bu işlem sonucunda verileriniz sunucudan tamamen silinecektir. Onaylıyor musunuz?"
+        )
+        
         klavye = [
-            [InlineKeyboardButton("✅ Onaylıyorum", callback_data=f"silconfirm_{ilk_no}_{son_yil}")],
-            [InlineKeyboardButton("❌ Vazgeç", callback_data="menu_birak")] # 🌟 MÜKEMMEL ÇÖZÜM: Vazgeç deyince "menu_birak" ile listeye geri fırlatır!
+            [InlineKeyboardButton("✅ Evet, Hepsini Sil", callback_data="toplusil_confirm")],
+            [InlineKeyboardButton("❌ Hayır, Seçim Menüsüne Dön", callback_data="menu_birak")] # 🌟 Vazgeçerse seçim menüsüne geri döner!
         ]
         await query.edit_message_text(text=soru_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
         return
 
-    # Silme işlemi kesin olarak onaylandığında bulut ve RAM temizliği
-    if query.data.startswith("silconfirm_"):
-        _, ilk_no, son_yil = query.data.split('_')
-        dosya_no_temiz = f"{ilk_no}/{son_yil}"
+    # Toplu silme tetiklendiğinde (Veritabanı and Bulut kazıma aşaması)
+    if query.data == "toplusil_confirm":
+        secilenler = context.user_data.get('secilenler', [])
+        if not secilenler:
+            await query.edit_message_text(text="❌ İptal edilecek veri bulunamadı.", parse_mode='HTML')
+            return
+            
+        # RAM'den (Canlı Hafıza) seçilenlerin hepsini aynı anda sil
+        hafiza['bekleyenler'] = [k for k in hafiza['bekleyenler'] if not (str(k.get('chat_id')) == chat_id and k.get('dosya_no') in secilenler)]
         
-        # RAM Canlı Hafızadan Sil
-        hafiza['bekleyenler'] = [k for k in hafiza['bekleyenler'] if not (str(k.get('chat_id')) == chat_id and k.get('dosya_no') == dosya_no_temiz)]
-        
-        # Bulut Veritabanına (JSONBin) Anlık Senkronize Et
+        # Bulut Veritabanına (JSONBin) Anlık Eşitle
         set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum'])
         
+        # Oturum hafızasını temizle
+        context.user_data['secilenler'] = []
+        
         await query.edit_message_text(
-            text=f"✅ <b>{dosya_no_temiz}</b> numaralı dosyanın takibi başarıyla iptal edildi ve verileriniz sistemimizden kalıcı olarak silindi.", 
+            text=f"🚀 <b>İşlem Başarılı!</b>\n\nSeçmiş olduğunuz {len(secilenler)} adet dosyanın takibi iptal edilmiş and KVKK uyarınca verileriniz kalıcı olarak imha edilmiştir.", 
             parse_mode='HTML'
         )
         return
 
     if query.data == "silvazgec":
+        # Oturumu temizleyip ana ekran uyarısını veriyoruz
+        context.user_data['secilenler'] = []
         await query.edit_message_text(text="❌ Takip iptal işleminden vazgeçildi. Verileriniz korunuyor.", parse_mode='HTML')
         return
 
