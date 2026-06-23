@@ -12,6 +12,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 JSONBIN_ID = os.getenv("JSONBIN_BIN_ID")
 JSONBIN_KEY = os.getenv("JSONBIN_MASTER_KEY")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID") 
 
 if not BOT_TOKEN or not JSONBIN_ID or not JSONBIN_KEY:
     print("❌ HATA: Çevre değişkenleri (Environment Variables) Render üzerinde tanımlanmamış!")
@@ -110,6 +111,8 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
     kalan_bekleyenler = []
     bekleyenler = hafiza['bekleyenler'] 
     
+    admin_onay_listesi = [] 
+    
     print(f"Sistemdeki {len(bekleyenler)} kişiye hedefli bildirim dağıtılıyor...")
 
     arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
@@ -119,6 +122,21 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
         dosya_tam = kisi['dosya_no']
         ana_no, ana_yil = dosya_tam.split('/')
         
+        # 🌟 MADDE TÜRÜ TESPİTİ (Ortak kullanım için yukarı taşındı) 🌟
+        is_m10 = False
+        is_m11 = True 
+        madde_turu = "Madde 11" # Varsayılan
+        
+        if not arama_sutunu.empty:
+            arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
+            user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
+            if not user_row.empty:
+                kaynak_dosya_metni = str(user_row.iloc[0].get('Kaynak Belge', ''))
+                if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
+                    is_m10 = True
+                    is_m11 = False
+                    madde_turu = "Madde 10"
+
         onaylandi_mi = False
         if not df_karar.empty:
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
@@ -139,19 +157,10 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 print(f"✅ {dosya_tam} için MÜJDE iletildi.")
-            else:
-                is_m10 = False
-                is_m11 = True 
                 
-                if not arama_sutunu.empty:
-                    arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
-                    user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
-                    if not user_row.empty:
-                        kaynak_dosya_metni = str(user_row.iloc[0].get('Kaynak Belge', ''))
-                        if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
-                            is_m10 = True
-                            is_m11 = False
-
+                # 🌟 ADMİN LİSTESİNE MADDE TÜRÜYLE BİRLİKTE EKLENDİ
+                admin_onay_listesi.append(f"<code>{dosya_tam}</code> <i>({madde_turu})</i>") 
+            else:
                 kullanici_icin_degisenler = []
                 
                 if dosya_tarih_degisti:
@@ -184,6 +193,18 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
             kalan_bekleyenler.append(kisi)
 
         await asyncio.sleep(0.05) 
+
+    # 🌟 YÖNETİCİYE (SİZE) ÖZEL TOPLU RAPOR GÖNDERİMİ 🌟
+    if admin_onay_listesi and ADMIN_CHAT_ID:
+        admin_msg = "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n🎉 Yeni listelerde takipteki şu dosyaların kararı çıkmıştır:\n"
+        for d in admin_onay_listesi:
+            admin_msg += f"✅ {d}\n"
+        admin_msg += "\n<i>İlgili kullanıcılara MÜJDE mesajları otomatik olarak iletilmiştir.</i>"
+        
+        try:
+            await app_context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, parse_mode='HTML')
+        except Exception as e:
+            print(f"Admin'e bildirim gönderilirken hata oluştu: {e}")
 
     hafiza['bekleyenler'] = kalan_bekleyenler
     hafiza['son_durum'] = yeni_durum
@@ -248,7 +269,7 @@ veritabanini_kontrol_et()
 
 # --- TELEGRAM MESAJLAŞMA MANTIĞI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    veritabanini_kontrol_et(context) # Buluttan RAM'e çekimi garantile
+    veritabanini_kontrol_et(context) 
     chat_id = str(update.message.chat_id)
 
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
@@ -258,7 +279,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     m10_metin = "\n".join([f"🔸 {b}" for b in m10_belgeler]) if m10_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
     m11_metin = "\n".join([f"🔸 {b}" for b in m11_belgeler]) if m11_belgeler[0] != "Veri Yok" else "🔸 Veri Yok"
 
-    # 🌟 RAM HAFIZASINDAN KULLANICIYA AİT TAKİP LİSTESİNİ ÇEKME 🌟
     user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
     
     takip_metni = ""
@@ -276,7 +296,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💡 <b>Kullanım:</b>\n"
         "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
         "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n"
-        f"{takip_metni}" # 🌟 Takip metni yasal bilgilendirmenin hemen üstüne eklenir
+        f"{takip_metni}" 
         "━━━━━━━━━━━━━━━━━━\n"
         "⚖️ <b>Yasal Bilgilendirme:</b>\n"
         "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
