@@ -1,4 +1,6 @@
-﻿import pandas as pd
+﻿from flask import Flask
+import threading
+import pandas as pd
 import re
 import os
 import requests
@@ -500,10 +502,33 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 if __name__ == '__main__':
+    # --- RENDER PING KAPISI (DUMMY WEB SERVER) ---
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def home():
+    return "🤖 Vatandaşlık Botu 7/24 Çalışıyor ve Uyanık!"
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    web_app.run(host="0.0.0.0", port=port)
+
+if __name__ == '__main__':
+    # Önce Ping kapısını arka planda sessizce başlatıyoruz
+    t = threading.Thread(target=run_web_server)
+    t.daemon = True
+    t.start()
+    
+    # Sonra asıl Telegram Botumuzu başlatıyoruz
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def post_init(application: Application):
         veritabanini_kontrol_et(application)
+        
+        # 🌟 GÜNLÜK RAPORUN KURULUMU (20:00 TSİ = 17:00 UTC) 🌟
+        hedef_saat = datetime.time(17, 0, 0)
+        application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_saat)
+        print("⏰ Günlük saat 20:00 özet raporlama görevi zamanlayıcıya eklendi.")
         
     app.post_init = post_init
     
