@@ -3,9 +3,6 @@ pandas
 openpyxl
 PyMuPDF
 python-telegram-bot
-requests
 python-telegram-bot[job-queue]
-curl_cffi
-playwright
 beautifulsoup4==4.12.3
 requests
