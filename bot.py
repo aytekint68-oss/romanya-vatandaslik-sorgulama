@@ -145,12 +145,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
             
             eslesenler = df_karar[temiz_metin.str.contains(regex, regex=True)].copy()
             if not eslesenler.empty:
-                eslesenler['Tam_Eslesme'] = temiz_metin.str.extract(rf"({ana_no}/(?:[A-Z]+/)?{ana_yil})")[0]
-                aranan_harfli = dosya_tam.replace(" ", "").upper()
-                if (eslesenler['Tam_Eslesme'] == aranan_harfli).any():
-                    onaylandi_mi = True
-                elif not eslesenler.empty:
-                    onaylandi_mi = True
+                onaylandi_mi = True
 
         try:
             if onaylandi_mi:
@@ -212,7 +207,6 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         bekleyenler = hafiza['bekleyenler']
         total_dosya = len(bekleyenler)
         
-        # 🌟 GÜNCELLEME: MADDE KIRILIMLARINI HESAPLAYAN SAYAÇ MOTORU 🌟
         count_m10 = 0
         count_m11 = 0
         
@@ -236,9 +230,8 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
                 else:
                     count_m11 += 1
             except Exception:
-                count_m11 += 1  # Herhangi bir hata anında güvenli fallback (Madde 11 varsayılır)
+                count_m11 += 1
 
-        # Dinamik TSİ saati hesaplama
         tsi_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
         saat_metni = tsi_now.strftime("%H:%M")
         
@@ -392,6 +385,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
         
+        # 🌟 GÜNCELLEME: ÇOKLU SATIR VE VARYASYON KORUMA FİLTRELEME MOTORU 🌟
         if not df_karar.empty:
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
             temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
@@ -400,15 +394,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_sonucu = df_karar[temiz_karar_metni.str.contains(regex, regex=True)].copy()
             
             if not karar_sonucu.empty:
-                karar_sonucu['Tam_Eslesme'] = temiz_karar_metni.str.extract(rf"({ana_no}/(?:[A-Z]+/)?{ana_yil})")[0]
-                aranan_dosya_harfli = row['Arama_Sutunu'].replace(" ", "").upper()
-                
-                if (karar_sonucu['Tam_Eslesme'] == aranan_dosya_harfli).any():
-                    karar_sonucu = karar_sonucu[karar_sonucu['Tam_Eslesme'] == aranan_dosya_harfli]
-                else:
-                    en_yaygin = karar_sonucu['Tam_Eslesme'].value_counts().idxmax()
-                    karar_sonucu = karar_sonucu[karar_sonucu['Tam_Eslesme'] == en_yaygin]
-                
+                # Aynı dosyanın girdiği dokümandaki (Kaynak Belge) tüm satırları koru (Harf varyasyonlarına takılma!)
                 en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
                 karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
                 
@@ -446,11 +432,13 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
             if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: karar_tarihi = "Belirtilmemiş"
                 
+            # 🌟 GÜNCELLEME: ÇOKLU SATIRLARDAN ÇOCUK SAYISINI KUSURSUZ SAYAN METİN TARAYICI 🌟
             toplam_cocuk = 0
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
                 copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
-                if copii_match: toplam_cocuk += int(copii_match.group(1))
+                if超_match := copii_match: 
+                    toplam_cocuk += int(超_match.group(1))
                 else:
                     for col in kr.index:
                         if 'copii' in str(col).lower() and str(kr[col]).strip() not in ["nan", "None", ""]:
@@ -459,8 +447,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 toplam_cocuk += int(float(c_val))
                                 break
 
-            yetiskin_satiri = f"👥 <b>Reşit Kişi Sayısı:</b> {onaylanan_kisi_sayisi}\n" if onaylanan_kisi_sayisi > 1 else ""
-            cocuk_satiri = f"👶 <b>Çocuk (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
+            yetiskin_satiri = f"👥 <b>Erişkin Sayısı:</b> {onaylanan_kisi_sayisi}\n"
+            cocuk_satiri = f"👶 <b>Çocuk Sayısı (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
 
             yanit += f"🎉 ✅ <b>TEBRİKLER! Kararınız yayımlandı.</b> 💚\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n{yetiskin_satiri}{cocuk_satiri}📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
@@ -622,6 +610,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         dosyalar_raporu = "\n".join([f"❌ <code>{d}</code>" for d in secilenler])
         
+        # Seçilen dosya sayısına göre Türkçe dil uyarlaması
         if len(secilenler) == 1:
             baslik = "TAKİP İPTAL ONAYI"
             fiil_cumlesi = f"Seçtiğiniz şu <b>1</b> adet dosyanın takibini bırakmak üzeresiniz:\n"
@@ -669,7 +658,7 @@ if __name__ == '__main__':
     async def post_init(application: Application):
         veritabanini_kontrol_et(application)
         
-        # 🌟 ÇİFT ZAMANLI RAPOR SİSTEMİ (TSİ -> UTC ÇEVRİMİ İLE) 🌟
+        # ÇİFT ZAMANLI RAPOR SİSTEMİ (TSİ -> UTC ÇEVRİMİ İLE)
         saat_sabah = datetime.time(7, 0, 0)   # 10:00 TSİ
         saat_aksam = datetime.time(17, 0, 0)  # 20:00 TSİ
         
