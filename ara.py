@@ -2,6 +2,7 @@
 import pandas as pd
 import re
 import os
+import gc
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(
@@ -10,98 +11,28 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- TAM OTOMATİK VERİ YÜKLEME VE ÖNBELLEK (ZIP VE CSV İÇİN OPTİMİZE) ---
-@st.cache_data
-def veri_yukle(dosya_adi, degistirme_zamani):
+# --- ALT FONKSİYONLAR (RAM Dostu - Önbelleksiz Saf İşlem) ---
+def _csv_oku(dosya_adi):
     if os.path.exists(dosya_adi):
         try:
-            # Önce noktalı virgül (Avrupa/TR Excel CSV) formatını dener
             df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False)
-            
-            # Eğer dosya yanlış ayrılmışsa (tek sütun çıkarsa), virgül formatına geçer
             if len(df.columns) < 2:
                 df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
-                
             return df.fillna("")
         except Exception:
             try:
-                # B Planı: Windows Türkçe (cp1254) karakter kodlaması ile dener
                 df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False)
                 if len(df.columns) < 2:
                     df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False)
                 return df.fillna("")
-            except Exception:
-                return pd.DataFrame()
+            except Exception: pass
     return pd.DataFrame()
 
-def akilli_veri_yukle(dosya_adi):
-    if os.path.exists(dosya_adi):
-        guncelleme_saati = os.path.getmtime(dosya_adi)
-        return veri_yukle(dosya_adi, guncelleme_saati)
-    return pd.DataFrame()
-
-# =========================================================
-# DOSYALARI BURADAN YÜKLÜYORUZ (BÜYÜK DOSYA ARTIK .ZIP)
-# =========================================================
-df_dosya = akilli_veri_yukle("dosyadurumu.zip") 
-df_karar_m10 = akilli_veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
-df_karar_m11 = akilli_veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
-
-karar_listesi = []
-if not df_karar_m10.empty:
-    karar_listesi.append(df_karar_m10)
-if not df_karar_m11.empty:
-    karar_listesi.append(df_karar_m11)
-
-df_karar = pd.concat(karar_listesi, ignore_index=True) if karar_listesi else pd.DataFrame()
-
-# --- 🌟 GÜNCELLEME: ÇOKLU BELGE GÖSTEREN YENİ NESİL TARAMA MANTIĞI 🌟 ---
-def en_guncel_belgeleri_getir(df):
-    if df.empty or 'Kaynak Belge' not in df.columns:
-        return ["Veri Yok"], "Bilinmiyor"
-    
-    unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
-    
-    unique_files['Parsed_Date'] = pd.to_datetime(
-        unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], 
-        format='%d.%m.%Y', 
-        errors='coerce'
-    )
-    
-    valid_files = unique_files.dropna(subset=['Parsed_Date'])
-    
-    if not valid_files.empty:
-        # 1. En yeni tarihi bul
-        max_date = valid_files['Parsed_Date'].max()
-        # 2. O tarihe ait TÜM dosyaları listeye çek
-        latest_files_df = valid_files[valid_files['Parsed_Date'] == max_date]
-        dosya_listesi = latest_files_df['Kaynak Belge'].tolist()
-        tarih_str = max_date.strftime('%d.%m.%Y')
-        
-        return dosya_listesi, tarih_str
-    elif not unique_files.empty:
-        return [unique_files.iloc[0]['Kaynak Belge']], "Tarih Bulunamadı"
-    
-    return ["Veri Yok"], "Bilinmiyor"
-
-_, dosya_guncelleme_tarihi = en_guncel_belgeleri_getir(df_dosya)
-m10_belgeler_listesi, m10_tarih = en_guncel_belgeleri_getir(df_karar_m10)
-m11_belgeler_listesi, m11_tarih = en_guncel_belgeleri_getir(df_karar_m11)
-
-# Listeleri Streamlit arayüzü için alt alta güzel görünecek formata sokalım
-m10_belgeler_metni = "<br>".join([f"&nbsp;&nbsp;&nbsp;&nbsp;📄 <code>{b}</code>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "&nbsp;&nbsp;&nbsp;&nbsp;Veri Yok"
-m11_belgeler_metni = "<br>".join([f"&nbsp;&nbsp;&nbsp;&nbsp;📄 <code>{b}</code>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "&nbsp;&nbsp;&nbsp;&nbsp;Veri Yok"
-
-# --- SUNUCU DOSTU ŞİMŞEK HIZINDA (VEKTÖREL) MAKSİMUM ORDİN HESAPLAMA MOTORU ---
-@st.cache_data
 def max_ordin_hesapla_vektorel(df_k):
-    if df_k.empty:
-        return {}
-        
+    if df_k.empty: return {}
     ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-    if not ordin_sutunlari:
-        return {}
-        
+    if not ordin_sutunlari: return {}
+    
     ordin_col = ordin_sutunlari[0]
     temp_df = pd.DataFrame()
     
@@ -112,20 +43,86 @@ def max_ordin_hesapla_vektorel(df_k):
         temp_df['Yil'] = df_k[ordin_col].astype(str).str.extract(r'\b(202\d)\b')[0]
         
     temp_df['No'] = df_k[ordin_col].astype(str).str.extract(r'(\d{1,6})')[0]
-    
     temp_df['Yil'] = pd.to_numeric(temp_df['Yil'], errors='coerce')
     temp_df['No'] = pd.to_numeric(temp_df['No'], errors='coerce')
     
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-max_ordin_m10 = max_ordin_hesapla_vektorel(df_karar_m10)
-max_ordin_m11 = max_ordin_hesapla_vektorel(df_karar_m11)
+def en_guncel_belgeleri_getir(df):
+    if df.empty or 'Kaynak Belge' not in df.columns: return ["Veri Yok"], "Bilinmiyor"
+    
+    unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
+    unique_files['Parsed_Date'] = pd.to_datetime(
+        unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], 
+        format='%d.%m.%Y', 
+        errors='coerce'
+    )
+    valid_files = unique_files.dropna(subset=['Parsed_Date'])
+    
+    if not valid_files.empty:
+        max_date = valid_files['Parsed_Date'].max()
+        latest_files_df = valid_files[valid_files['Parsed_Date'] == max_date]
+        dosya_listesi = latest_files_df['Kaynak Belge'].tolist()
+        tarih_str = max_date.strftime('%d.%m.%Y')
+        return dosya_listesi, tarih_str
+    elif not unique_files.empty:
+        return [unique_files.iloc[0]['Kaynak Belge']], "Tarih Bulunamadı"
+    
+    return ["Veri Yok"], "Bilinmiyor"
+
+# =========================================================
+# 🌟 MERKEZİ VERİTANI YÜKLEYİCİSİ (MAX RAM TASARRUFU İÇİN)
+# =========================================================
+# max_entries=1 sayesinde Streamlit eski dosyaları hafızada tutmaz, çöpe atar.
+@st.cache_data(max_entries=1, show_spinner="Veritabanı senkronize ediliyor, lütfen bekleyin...")
+def veritabanini_hazirla(guncelleme_tetikleyici):
+    # 1. Ham verileri yükle
+    df_d = _csv_oku("dosyadurumu.zip")
+    df_m10 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
+    df_m11 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
+
+    # 2. İstatistikleri ve güncel dosya isimlerini çek
+    _, d_tarih = en_guncel_belgeleri_getir(df_d)
+    m10_list, m10_tarih = en_guncel_belgeleri_getir(df_m10)
+    m11_list, m11_tarih = en_guncel_belgeleri_getir(df_m11)
+    
+    max_m10 = max_ordin_hesapla_vektorel(df_m10)
+    max_m11 = max_ordin_hesapla_vektorel(df_m11)
+
+    # 3. Ana karar tablosunu birleştir
+    k_list = []
+    if not df_m10.empty: k_list.append(df_m10)
+    if not df_m11.empty: k_list.append(df_m11)
+    df_k = pd.concat(k_list, ignore_index=True) if k_list else pd.DataFrame()
+
+    # 4. RAM TEMİZLİĞİ: Alt kopyaları hafızadan derhal sil ve çöp toplayıcıyı çalıştır
+    del df_m10
+    del df_m11
+    del k_list
+    gc.collect()
+
+    return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11
+
+# --- YENİ DOSYA YÜKLENDİĞİNDE ÖNBELLEĞİ KIRMAK İÇİN SENSÖR ---
+def dosya_zaman_damgasi_al():
+    dosyalar = ["dosyadurumu.zip", "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv", "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv"]
+    en_yeni = 0
+    for d in dosyalar:
+        if os.path.exists(d):
+            en_yeni = max(en_yeni, os.path.getmtime(d))
+    return en_yeni
+
+# Sistemi güvenle çalıştır ve verileri al
+df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
+
+# Listeleri Streamlit arayüzü için alt alta güzel görünecek formata sokalım
+m10_belgeler_metni = "<br>".join([f"&nbsp;&nbsp;&nbsp;&nbsp;📄 <code>{b}</code>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "&nbsp;&nbsp;&nbsp;&nbsp;Veri Yok"
+m11_belgeler_metni = "<br>".join([f"&nbsp;&nbsp;&nbsp;&nbsp;📄 <code>{b}</code>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "&nbsp;&nbsp;&nbsp;&nbsp;Veri Yok"
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve karar (**Ordin**) sonucunuzu tek ekranda görüntüleyin.")
 
-# 🌟 ÇOKLU BELGELERİN YER ALDIĞI GÜNCELLENMİŞ BİLGİ KUTUSU 🌟
 st.info(f"""
 🔄 **Dosya Durumu (Stadiu Dosar) Son Güncelleme:** {dosya_guncelleme_tarihi}
 
@@ -204,17 +201,12 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 user_ordin_no = int(p_match.group(1))
                                 user_ordin_yil = int(p_match.group(2))
 
-                        # =========================================================
-                        # --- YENİ PROFESYONEL VE ESTETİK KART TASARIMI ---
-                        # =========================================================
                         with st.container(border=True):
                             
-                            # 1. BÖLÜM: ÜST BAŞLIK (Dosya No)
                             st.markdown(f"<h3 style='text-align: center; color: #4F8BF9; margin-bottom: 0;'>📂 DOSYA BİLGİLERİ</h3>", unsafe_allow_html=True)
                             st.markdown(f"<h4 style='text-align: center; margin-top: 0;'>No: {row['Dosya No']}</h4>", unsafe_allow_html=True)
                             st.divider()
                             
-                            # 2. BÖLÜM: İKİLİ KOLON (Tarih ve Termen)
                             col1, col2 = st.columns(2)
                             with col1:
                                 st.markdown(f"**📅 Başvuru Tarihi:**<br>{row['Başvuru Tarihi']}", unsafe_allow_html=True)
@@ -227,7 +219,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     
                             st.markdown("<br>", unsafe_allow_html=True)
                             
-                            # 3. BÖLÜM: DURUM (SOLUTIE)
                             if solutie_metni:
                                 st.info(f"**📝 Kurum Notu (Solutie):** {solutie_metni}", icon="ℹ️")
                             else:
@@ -240,7 +231,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             st.markdown(f"📂 **Kaynak Belge (Stadiu Dosar):** {kaynak_dosya_metni}")
                             st.divider()
                             
-                            # 4. BÖLÜM: KARAR (ORDIN)
                             st.markdown("<h4 style='text-align: center;'>⚖️ KARAR (ORDIN) DURUMU</h4>", unsafe_allow_html=True)
                             
                             if karar_bulundu_mu:
@@ -250,7 +240,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
                                     gosterilecek_karar = p_numarasi
                                     
-                                    # CSV Sütunlarından kontrol et
                                     if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
                                         k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
                                         if k_ordin_cols:
@@ -258,13 +247,11 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                             if val and val.lower() not in ['nan', 'none', '']:
                                                 gosterilecek_karar = val
 
-                                    # Eğer hâlâ yoksa PDF dosya isminden numarayı ayıkla
                                     if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
                                         pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE)
                                         if pdf_match:
                                             gosterilecek_karar = pdf_match.group(1)
 
-                                    # 🌟 FORMAT STANDARTLAŞTIRICI (XX/P/YYYY) 🌟
                                     if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
                                         clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
                                         if clean_no_match:
