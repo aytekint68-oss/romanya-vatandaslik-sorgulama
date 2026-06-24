@@ -52,18 +52,19 @@ def telegrama_mesaj_gonder(mesaj):
 def main():
     ayarları_kontrol_et()
     suanki_pdfler = []
-    log_mesaji = "🤖 <b>Sistem Tarama Raporu:</b>\n\n"
+    log_mesaji = "🤖 <b>Sistem Tarama Raporu (Sanal Monitör Modu):</b>\n\n"
 
     try:
         with sync_playwright() as p:
-            print("🌐 Tarayıcı Başlatılıyor...")
-            # Cloudflare'ı aşmak için en kritik ayarlar (Stealth Mode)
+            print("🌐 Gerçek Ekranlı Tarayıcı Başlatılıyor...")
+            # HEADLESS=FALSE ile Cloudflare'ı kandırıyoruz!
             browser = p.chromium.launch(
-                headless=True,
+                headless=False, 
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-infobars",
                     "--no-sandbox",
+                    "--disable-dev-shm-usage",
                     "--window-size=1920,1080"
                 ]
             )
@@ -71,16 +72,20 @@ def main():
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
             )
             
-            # Webdriver özelliğini gizle (En büyük Cloudflare tuzağı)
+            # Webdriver özelliğini siliyoruz (Robot olmadığımıza ikna etmek için)
             context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             
             for url in URLS:
                 print(f"🔗 Ziyaret ediliyor: {url}")
                 try:
                     page = context.new_page()
-                    page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                    # Zaman aşımı olsa bile çökmeyi engelle (try/except içinde)
+                    try:
+                        page.goto(url, timeout=45000)
+                    except Exception as goto_err:
+                        print(f"⚠️ Sayfa tam yüklenmedi ama okumaya zorlanıyor: {goto_err}")
                     
-                    print("⏳ JavaScript ve Korumaların Yüklenmesi İçin Bekleniyor (15 sn)...")
+                    print("⏳ JavaScript bulmacasının çözülmesi bekleniyor (15 sn)...")
                     time.sleep(15)
                     
                     html = page.content()
@@ -103,13 +108,14 @@ def main():
                     
                 except Exception as e:
                     isim = "Madde 10" if "10" in url else "Madde 11"
-                    print(f"❌ {isim} taranırken hata: {e}")
+                    print(f"❌ {isim} taranırken iç hata: {e}")
                     log_mesaji += f"❌ {isim}: Hata -> {str(e)[:60]}\n"
                     if 'page' in locals() and not page.is_closed(): page.close()
 
             browser.close()
     except Exception as e:
         print(f"❌ Ana Tarayıcı Çökme Hatası: {e}")
+        log_mesaji += f"❌ Sistem Hatası: {str(e)[:100]}\n"
 
     suanki_pdfler = suanki_pdfler[:30]
     eski_pdfler = hafizadan_pdfleri_getir()
@@ -117,7 +123,7 @@ def main():
 
     if not suanki_pdfler:
         print("⚠️ Site PDF vermedi veya ulaşılamadı.")
-        telegrama_mesaj_gonder(log_mesaji + "\n⚠️ <b>Hata:</b> Güvenlik duvarı aşılamadı veya sayfada PDF yok!")
+        telegrama_mesaj_gonder(log_mesaji + "\n⚠️ <b>Hata:</b> Güvenlik duvarı inat ediyor, IP engellenmiş olabilir!")
     
     elif yeni_pdfler:
         print(f"🚨 {len(yeni_pdfler)} YENİ PDF BULUNDU! Telegram'a bildiriliyor...")
