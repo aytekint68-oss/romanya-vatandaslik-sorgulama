@@ -2,9 +2,8 @@ name: ANC PDF Tarayici
 
 on:
   schedule:
-    # Her 2 saatte bir çalıştırır
     - cron: '0 */2 * * *'
-  workflow_dispatch: # Github üzerinden manuel tetikleme butonu koyar
+  workflow_dispatch: 
 
 jobs:
   tara_ve_bildir:
@@ -12,10 +11,10 @@ jobs:
 
     steps:
     - name: Depoyu Çek
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4 # 🌟 BURASI GÜNCELLENDİ
 
     - name: Python Ortamını Kur
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5 # 🌟 BURASI GÜNCELLENDİ
       with:
         python-version: '3.10'
 
