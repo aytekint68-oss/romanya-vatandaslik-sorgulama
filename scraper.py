@@ -52,12 +52,11 @@ def telegrama_mesaj_gonder(mesaj):
 def main():
     ayarları_kontrol_et()
     suanki_pdfler = []
-    log_mesaji = "🤖 <b>Sistem Tarama Raporu (Sanal Monitör Modu):</b>\n\n"
+    log_mesaji = "🤖 <b>Sistem Tarama Raporu (Radar Modu):</b>\n\n"
 
     try:
         with sync_playwright() as p:
             print("🌐 Gerçek Ekranlı Tarayıcı Başlatılıyor...")
-            # HEADLESS=FALSE ile Cloudflare'ı kandırıyoruz!
             browser = p.chromium.launch(
                 headless=False, 
                 args=[
@@ -71,23 +70,44 @@ def main():
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
             )
-            
-            # Webdriver özelliğini siliyoruz (Robot olmadığımıza ikna etmek için)
             context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             
             for url in URLS:
-                print(f"🔗 Ziyaret ediliyor: {url}")
+                print(f"\n🔗 Ziyaret ediliyor: {url}")
+                isim = "Madde 10" if "10" in url else "Madde 11"
+                page = None
+                
                 try:
                     page = context.new_page()
-                    # Zaman aşımı olsa bile çökmeyi engelle (try/except içinde)
+                    
+                    # Sayfaya git ve yüklenmesini bekle
                     try:
-                        page.goto(url, timeout=45000)
+                        page.goto(url, wait_until="domcontentloaded", timeout=45000)
                     except Exception as goto_err:
-                        print(f"⚠️ Sayfa tam yüklenmedi ama okumaya zorlanıyor: {goto_err}")
+                        print(f"⚠️ Goto Zaman Aşımı (Önemli değil, devam ediliyor): {goto_err}")
                     
-                    print("⏳ JavaScript bulmacasının çözülmesi bekleniyor (15 sn)...")
-                    time.sleep(15)
+                    # RADAR SİSTEMİ: Şu an ekranda ne var?
+                    for _ in range(4): # 20 saniye boyunca sayfayı izle
+                        if page.is_closed():
+                            break
+                        
+                        sayfa_basligi = page.title()
+                        print(f"👀 Şu anki Sayfa Başlığı: '{sayfa_basligi}'")
+                        
+                        if "Just a moment" in sayfa_basligi or "Cloudflare" in sayfa_basligi:
+                            print("⏳ Cloudflare güvenlik ekranındayız, geçmesi bekleniyor...")
+                            time.sleep(5)
+                        else:
+                            print("✅ Güvenlik ekranı yok gibi görünüyor, asıl siteye ulaşıldı.")
+                            time.sleep(3) # İçeriğin oturması için son bir pay
+                            break
                     
+                    # Çökme kontrolü
+                    if page.is_closed():
+                        print("❌ Sayfa sekmesi arka planda çökmüş veya kapanmış!")
+                        log_mesaji += f"❌ {isim}: Tarayıcı sekmesi çöktü (Cloudflare engeli).\n"
+                        continue
+                        
                     html = page.content()
                     soup = BeautifulSoup(html, 'html.parser')
                     
@@ -101,21 +121,20 @@ def main():
                                 suanki_pdfler.append(tam_link)
                                 bulunan_pdf += 1
                                 
-                    isim = "Madde 10" if "10" in url else "Madde 11"
                     print(f"✅ {isim}: {bulunan_pdf} PDF okundu.")
                     log_mesaji += f"✅ {isim}: {bulunan_pdf} adet PDF okundu.\n"
                     page.close()
                     
                 except Exception as e:
-                    isim = "Madde 10" if "10" in url else "Madde 11"
                     print(f"❌ {isim} taranırken iç hata: {e}")
-                    log_mesaji += f"❌ {isim}: Hata -> {str(e)[:60]}\n"
-                    if 'page' in locals() and not page.is_closed(): page.close()
+                    hata_kisa = str(e).split('\n')[0][:50]
+                    log_mesaji += f"❌ {isim}: Hata -> {hata_kisa}\n"
+                    if page and not page.is_closed(): page.close()
 
             browser.close()
     except Exception as e:
         print(f"❌ Ana Tarayıcı Çökme Hatası: {e}")
-        log_mesaji += f"❌ Sistem Hatası: {str(e)[:100]}\n"
+        log_mesaji += f"❌ Sistem Hatası: Tarayıcı başlatılamadı.\n"
 
     suanki_pdfler = suanki_pdfler[:30]
     eski_pdfler = hafizadan_pdfleri_getir()
@@ -123,7 +142,7 @@ def main():
 
     if not suanki_pdfler:
         print("⚠️ Site PDF vermedi veya ulaşılamadı.")
-        telegrama_mesaj_gonder(log_mesaji + "\n⚠️ <b>Hata:</b> Güvenlik duvarı inat ediyor, IP engellenmiş olabilir!")
+        telegrama_mesaj_gonder(log_mesaji + "\n⚠️ <b>Hata:</b> Güvenlik duvarı kırılamadı veya sayfa boş (IP Engeli Olabilir)!")
     
     elif yeni_pdfler:
         print(f"🚨 {len(yeni_pdfler)} YENİ PDF BULUNDU! Telegram'a bildiriliyor...")
@@ -140,7 +159,7 @@ def main():
     
     else:
         print("✅ Sistem güncel, yeni PDF yok.")
-        telegrama_mesaj_gonder(log_mesaji + "\n✅ <b>Sonuç:</b> Korumalar aşıldı, yeni PDF yok. Sistem güncel.")
+        telegrama_mesaj_gonder(log_mesaji + "\n✅ <b>Sonuç:</b> Yeni PDF yok. Sistem güncel.")
 
 if __name__ == "__main__":
     main()
