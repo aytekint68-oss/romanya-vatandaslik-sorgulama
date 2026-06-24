@@ -1,13 +1,14 @@
 ﻿import os
-import requests
+import time
 from bs4 import BeautifulSoup
+import requests
+from DrissionPage import ChromiumPage, ChromiumOptions
 
 # --- GÜVENLİ AYARLAR ---
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 JSONBIN_KEY = os.getenv("JSONBIN_MASTER_KEY")
 SCRAPER_BIN_ID = os.getenv("SCRAPER_BIN_ID")
-SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY") # YENİ GİZLİ SİLAHIMIZ
 
 URLS = [
     "https://cetatenie.just.ro/ordine-articolul-10/",
@@ -37,50 +38,53 @@ def telegrama_mesaj_gonder(mesaj):
     except:
         pass
 
-def vekil_sunucu_ile_baglan(hedef_url):
-    # ScrapingAnt API'si ile Cloudflare'i aşıyoruz
-    api_url = "https://api.scrapingant.com/v2/general"
-    params = {
-        "url": hedef_url,
-        "x-api-key": SCRAPER_API_KEY,
-        "browser": "true" # Gerçek tarayıcı gibi davranıp JS engellerini yıkar
-    }
-    cevap = requests.get(api_url, params=params)
-    if cevap.status_code == 200:
-        return cevap.text
-    else:
-        raise Exception(f"API Engeli (Hata Kodu: {cevap.status_code})")
-
 def main():
-    print("🔍 Vekil Sunucu (Scraping API) Tarama Başlatılıyor...")
+    print("🔍 DrissionPage (Hayalet Mod) Tarama Başlatılıyor...")
     suanki_pdfler = []
-    log_mesaji = "🤖 <b>Sistem Tarama Raporu (API Modu):</b>\n\n"
+    log_mesaji = "🤖 <b>Sistem Tarama Raporu (DrissionPage Modu):</b>\n\n"
 
-    for url in URLS:
-        isim = "Madde 10" if "10" in url else "Madde 11"
-        print(f"🔗 Ziyaret ediliyor: {isim}")
+    try:
+        # Gerçek Chrome'u kılık değiştirerek başlatıyoruz
+        co = ChromiumOptions()
+        co.set_argument('--no-sandbox')
+        co.set_argument('--disable-gpu')
+        co.set_user_agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36')
         
-        try:
-            # Hedef siteyi API üzerinden çek
-            html_icerik = vekil_sunucu_ile_baglan(url)
-            soup = BeautifulSoup(html_icerik, 'html.parser')
+        page = ChromiumPage(co)
+
+        for url in URLS:
+            isim = "Madde 10" if "10" in url else "Madde 11"
+            print(f"\n🔗 Ziyaret ediliyor: {isim}")
             
-            linkler = soup.find_all('a', href=True)
-            bulunan_pdf = 0
-            for link in linkler:
-                href = link['href']
-                if 'pdf' in href.lower():
-                    tam_link = href if href.startswith('http') else f"https://cetatenie.just.ro{href}"
-                    if tam_link not in suanki_pdfler:
-                        suanki_pdfler.append(tam_link)
-                        bulunan_pdf += 1
-                        
-            print(f"✅ {isim}: {bulunan_pdf} PDF okundu.")
-            log_mesaji += f"✅ {isim}: {bulunan_pdf} adet PDF okundu.\n"
-            
-        except Exception as e:
-            print(f"❌ {isim} taranırken hata: {e}")
-            log_mesaji += f"❌ {isim}: Başarısız -> {str(e)[:50]}\n"
+            try:
+                page.get(url)
+                print("⏳ Cloudflare JS Testi için bekleniyor (15 sn)...")
+                time.sleep(15) # Korumanın bizi geçirmesi için bekliyoruz
+                
+                html = page.html
+                soup = BeautifulSoup(html, 'html.parser')
+                
+                linkler = soup.find_all('a', href=True)
+                bulunan_pdf = 0
+                for link in linkler:
+                    href = link.get('href', '')
+                    if 'pdf' in href.lower():
+                        tam_link = href if href.startswith('http') else f"https://cetatenie.just.ro{href}"
+                        if tam_link not in suanki_pdfler:
+                            suanki_pdfler.append(tam_link)
+                            bulunan_pdf += 1
+                            
+                print(f"✅ {isim}: {bulunan_pdf} PDF okundu.")
+                log_mesaji += f"✅ {isim}: {bulunan_pdf} adet PDF okundu.\n"
+                
+            except Exception as e:
+                print(f"❌ {isim} taranırken hata: {e}")
+                log_mesaji += f"❌ {isim}: Başarısız -> {str(e)[:50]}\n"
+
+        page.quit()
+        
+    except Exception as e:
+        log_mesaji += f"❌ Tarayıcı başlatılamadı: {str(e)[:50]}\n"
 
     suanki_pdfler = suanki_pdfler[:30]
     eski_pdfler = hafizadan_pdfleri_getir()
