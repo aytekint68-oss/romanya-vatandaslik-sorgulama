@@ -180,8 +180,8 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         if not df_karar.empty:
                             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
                             temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
-                            karar_icin_regex = rf"(^|\D){ana_no}/([A-Z]+/)?{ana_yil}($|\D)"
-                            karar_sonucu = df_karar[temiz_karar_metni.str.contains(karar_icin_regex, regex=True)]
+                            karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+                            karar_sonucu = df_karar[temiz_karar_metni.str.contains(karar_icin_regex, regex=True, case=False)]
                             
                             if not karar_sonucu.empty:
                                 karar_bulundu_mu = True
@@ -241,64 +241,66 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             if karar_bulundu_mu:
                                 st.success("🎉 **TEBRİKLER! Kararınız yayımlandı.**", icon="✅")
                                 
-                                # Karar detaylarını şık ve sade bir alt kutuya alıyoruz
                                 with st.container(border=True):
-                                    gosterilecek_karar = p_numarasi
                                     kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
+                                    gosterilecek_karar = p_numarasi
                                     
-                                    if not gosterilecek_karar:
-                                        pdf_match = re.search(r'(\d+)[^\d]*P[^\d]*.*?(20\d{2})', kaynak_belge_adi, re.IGNORECASE)
+                                    # CSV Sütunlarından kontrol et
+                                    if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
+                                        k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
+                                        if k_ordin_cols:
+                                            val = str(k_row[k_ordin_cols[0]]).strip()
+                                            if val and val.lower() not in ['nan', 'none', '']:
+                                                gosterilecek_karar = val
+
+                                    # Eğer hâlâ yoksa PDF dosya isminden numarayı ayıkla
+                                    if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
+                                        pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE)
                                         if pdf_match:
-                                            gosterilecek_karar = f"{pdf_match.group(1)}/P/{pdf_match.group(2)}"
+                                            gosterilecek_karar = pdf_match.group(1)
+
+                                    # 🌟 GÜNCELLEME: MUTLAK FORMAT STANDARTLAŞTIRICI (XX/P/YYYY) 🌟
+                                    if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
+                                        clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
+                                        if clean_no_match:
+                                            pure_no = clean_no_match.group(1)
+                                            yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
+                                            if not yil_match:
+                                                yil_match = re.search(r'\b(202\d)\b', str(k_row.get('Tarih', '')))
+                                            pure_year = yil_match.group(1) if yil_match else "2026"
+                                            gosterilecek_karar = f"{pure_no}/P/{pure_year}"
                                         else:
                                             gosterilecek_karar = "Belirtilmemiş"
-                                            
+                                    else:
+                                        gosterilecek_karar = "Belirtilmemiş"
+
                                     st.markdown(f"📜 **Karar Numarası:** {gosterilecek_karar}")
                                     
-                                    if 'Tarih' in k_row and str(k_row['Tarih']).strip() and str(k_row['Tarih']).strip() != "nan":
-                                        st.markdown(f"📅 **Karar Tarihi:** {k_row['Tarih']}")
+                                    karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
+                                    if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
+                                        date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', kaynak_belge_adi)
+                                        karar_tarihi = date_match.group(1) if date_match else "Belirtilmemiş"
                                         
-                                    tum_satir_metni = " ".join([str(val) for val in k_row.values if str(val) != "nan"])
-                                    copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
-                                    
-                                    if copii_match:
-                                        st.markdown(f"👶 **Çocuk (Copii Minori):** {copii_match.group(1)}")
-                                    else:
-                                        for col in k_row.index:
-                                            if 'copii' in str(col).lower() and str(k_row[col]).strip() and str(k_row[col]).strip() not in ["nan", "None", ""]:
-                                                cocuk_sayisi = str(k_row[col]).strip()
-                                                if cocuk_sayisi.replace('.', '', 1).isdigit():
-                                                    st.markdown(f"👶 **Çocuk (Copii Minori):** {int(float(cocuk_sayisi))}")
-                                                break
-                                                
+                                    st.markdown(f"📅 **Karar Tarihi:** {karar_tarihi}")
                                     st.markdown(f"📂 **Kaynak Belge (Ordin):** {kaynak_belge_adi}")
                             else:
-                                # İLGİLİ MADDEYİ TESPİT ET (Madde 10 mu 11 mi?)
                                 is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
                                 madde_adi = "Madde 10" if is_m10 else "Madde 11"
                                 
-                                # --- YENİLENMİŞ HATASIZ TEŞHİS MOTORU ---
                                 if p_numarasi and user_ordin_yil > 0:
                                     max_pub_ordin = max_ordin_m10.get(user_ordin_yil, 0) if is_m10 else max_ordin_m11.get(user_ordin_yil, 0)
                                     
-                                    # KURAL 1: Kullanıcının numarası, sistemdeki son numaraya EŞİT ise
                                     if max_pub_ordin > 0 and user_ordin_no == max_pub_ordin:
                                         st.warning(f"**{p_numarasi}**\n\nDosya durumunuzda bir karar numarası tespit edilmiştir. Sistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en güncel **{madde_adi}** kararı tam olarak sizin numaranız olan **{max_pub_ordin}/{user_ordin_yil}**'dir.\n\nTeknik bir hata sonucu dosya numaranız ordin listesine eklenmemiş olabilir veya onay verilmemiş olup listeden çıkarılmış olabilirsiniz. Resmi tebligat ve ilerleyen duyuruları takip etmenizi öneririz.", icon="⚠️")
-                                    
-                                    # KURAL 2: Kullanıcının numarası, sistemdeki son numaradan KÜÇÜK ise (Potansiyel RED)
                                     elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
                                         st.error(f"**{p_numarasi}**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) bu yayımlanan kararların gerisinde kalmıştır veya listelere dahil edilmemiştir. Bu durum, dosyanızın maalesef **OLUMSUZ (RED)** sonuçlanmış olabileceğini göstermektedir. Lütfen kesin ve nihai sonuç için adresinize gelecek resmi tebligatı bekleyiniz.", icon="🚨")
-                                    
-                                    # KURAL 3: Kullanıcının numarası, sistemdeki son numaradan BÜYÜK ise (Sırada bekleyen ONAY)
                                     elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
                                         st.info(f"**{p_numarasi}**\n\nSistem verilerine göre, **{user_ordin_yil}** yılı için yayımlanan en son **{madde_adi}** kararı **{max_pub_ordin}/{user_ordin_yil}** numarasıdır.\n\nSizin karar numaranız ({user_ordin_no}) henüz bu sıraya ulaşmamıştır. Bu durum, dosyanızın büyük ihtimalle **OLUMLU (ONAY)** sonuçlandığını ve sıradaki listelerde yayımlanmak üzere beklediğini müjdelemektedir. Gelecek listeleri heyecanla takip edebilirsiniz! 🎉", icon="ℹ️")
-                                    
                                     else:
                                         st.warning(f"**{p_numarasi}**\n\nDosyanız olumlu sonuçlanmış görünmektedir, ancak **{user_ordin_yil}** yılına ait resmi listeler henüz yayımlanmamıştır.", icon="⚠️")
                                 else:
                                     st.error("🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır.", icon="❌")
                                 
-                                # YENİ EKLENEN BUTON: Daha büyük, kalın ve çekici HTML formatı
                                 st.markdown("<br>", unsafe_allow_html=True)
                                 
                                 telegram_button_html = """
