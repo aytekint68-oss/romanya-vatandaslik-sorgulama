@@ -73,7 +73,6 @@ def en_guncel_belgeleri_getir(df):
 # =========================================================
 # 🌟 MERKEZİ VERİTANI YÜKLEYİCİSİ (MAX RAM TASARRUFU İÇİN)
 # =========================================================
-# max_entries=1 sayesinde Streamlit eski dosyaları hafızada tutmaz, çöpe atar.
 @st.cache_data(max_entries=1, show_spinner="Veritabanı senkronize ediliyor, lütfen bekleyin...")
 def veritabanini_hazirla(guncelleme_tetikleyici):
     # 1. Ham verileri yükle
@@ -95,7 +94,7 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     if not df_m11.empty: k_list.append(df_m11)
     df_k = pd.concat(k_list, ignore_index=True) if k_list else pd.DataFrame()
 
-    # 4. RAM TEMİZLİĞİ: Alt kopyaları hafızadan derhal sil ve çöp toplayıcıyı çalıştır
+    # 4. RAM TEMİZLİĞİ
     del df_m10
     del df_m11
     del k_list
@@ -115,9 +114,9 @@ def dosya_zaman_damgasi_al():
 # Sistemi güvenle çalıştır ve verileri al
 df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
-# Listeleri Streamlit arayüzü için alt alta güzel görünecek formata sokalım
-m10_belgeler_metni = "<br>".join([f"&nbsp;&nbsp;&nbsp;&nbsp;📄 <code>{b}</code>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "&nbsp;&nbsp;&nbsp;&nbsp;Veri Yok"
-m11_belgeler_metni = "<br>".join([f"&nbsp;&nbsp;&nbsp;&nbsp;📄 <code>{b}</code>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "&nbsp;&nbsp;&nbsp;&nbsp;Veri Yok"
+# 🌟 MARKDOWN İLE GÖRÜNÜM DÜZELTİLDİ (HTML Etiketleri Kaldırıldı) 🌟
+m10_belgeler_metni = "\n".join([f"🔹 `{b}`" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "🔹 Veri Yok"
+m11_belgeler_metni = "\n".join([f"🔹 `{b}`" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "🔹 Veri Yok"
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
@@ -126,9 +125,13 @@ st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve ka
 st.info(f"""
 🔄 **Dosya Durumu (Stadiu Dosar) Son Güncelleme:** {dosya_guncelleme_tarihi}
 
-📑 **Sisteme Eklenen Son Kararlar:**<br>
-**Madde 10:**<br>{m10_belgeler_metni}<br><br>
-**Madde 11:**<br>{m11_belgeler_metni}
+📑 **Sisteme Eklenen Son Kararlar:**
+
+**Madde 10:**
+{m10_belgeler_metni}
+
+**Madde 11:**
+{m11_belgeler_metni}
 """, icon="ℹ️")
 
 st.markdown("---")
