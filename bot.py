@@ -139,11 +139,11 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         onaylandi_mi = False
         if not df_karar.empty:
-            karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
-            temiz_metin = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
+            # 🌟 BİLDİRİM MOTORU İÇİN DE SATIR BAZLI BAĞIMSIZ TARAMA AKTİF 🌟
+            satir_bazli_metin = df_karar.astype(str).apply(lambda x: " ".join(x), axis=1).str.replace(" ", "").str.upper()
             regex = rf"(?:^|\D){ana_no}/(?:[A-Z]+/)?{ana_yil}(?:$|\D)"
             
-            eslesenler = df_karar[temiz_metin.str.contains(regex, regex=True)].copy()
+            eslesenler = df_karar[satir_bazli_metin.str.contains(regex, regex=True)].copy()
             if not eslesenler.empty:
                 onaylandi_mi = True
 
@@ -238,7 +238,7 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         rapor_msg = (
             f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
             f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
-            f"👥 Bot veritabanında anlık olarak takip edilen og karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
+            f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
             f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
             f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
             f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
@@ -330,19 +330,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
         f"<b>Madde 11:</b>\n{m11_metin}\n\n"
         "💡 <b>Kullanım:</b>\n"
-        "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
+        "Sadece dosya numaranızı og yılını yazıp gönderin.\n"
         "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n"
         f"{takip_metni}" 
         "━━━━━━━━━━━━━━━━━━\n"
         "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
         "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
-        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır og hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
+        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)
 
@@ -385,12 +385,12 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
         
+        # 🌟 GÜNCELLEME: ÇOKLU SATIRLARI SÜTUN BAĞIMSIZ YAKALAYAN SATIR BAZLI MOTOR 🌟
         if not df_karar.empty:
-            karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
-            temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
-            
+            satir_bazli_metin = df_karar.astype(str).apply(lambda x: " ".join(x), axis=1).str.replace(" ", "").str.upper()
             regex = rf"(?:^|\D){ana_no}/(?:[A-Z]+/)?{ana_yil}(?:$|\D)"
-            karar_sonucu = df_karar[temiz_karar_metni.str.contains(regex, regex=True)].copy()
+            
+            karar_sonucu = df_karar[satir_bazli_metin.str.contains(regex, regex=True)].copy()
             
             if not karar_sonucu.empty:
                 en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
@@ -434,7 +434,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
                 copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
-                # 🌟 SEBAP HATASI BURADA DÜZELTİLDİ: "if超_match" kalıntısı kaldırıldı, temiz python söz dizimi yazıldı!
                 if copii_match: 
                     toplam_cocuk += int(copii_match.group(1))
                 else:
@@ -608,7 +607,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         dosyalar_raporu = "\n".join([f"❌ <code>{d}</code>" for d in secilenler])
         
-        # Seçilen dosya sayısına göre Türkçe dil uyarlaması
         if len(secilenler) == 1:
             baslik = "TAKİP İPTAL ONAYI"
             fiil_cumlesi = f"Seçtiğiniz şu <b>1</b> adet dosyanın takibini bırakmak üzeresiniz:\n"
@@ -662,7 +660,7 @@ if __name__ == '__main__':
         
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_sabah)
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_aksam)
-        print("⏰ Günlük saat 10:00 og 20:00 özet raporlama görevleri zamanlayıcıya eklendi.")
+        print("⏰ Günlük saat 10:00 ve 20:00 özet raporlama görevleri zamanlayıcıya eklendi.")
         
     app.post_init = post_init
     
