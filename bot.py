@@ -150,7 +150,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         try:
             if onaylandi_mi:
-                msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı og resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
+                msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 print(f"✅ {dosya_tam} için MÜJDE iletildi.")
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> <i>({madde_turu})</i>") 
@@ -322,7 +322,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
     
     df_k = hafiza['df_karar_birlesik']
-    if not df_k.empty nudge 'Kaynak Belge' in df_k.columns:
+    if not df_k.empty and 'Kaynak Belge' in df_k.columns: # 🌟 HATA BURADA TEMİZLENDİ!
         m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains('art-10|m10|madde10', case=False, regex=True)])
         m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains('art-11|m11|madde11', case=False, regex=True)])
     else:
@@ -344,7 +344,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) og karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
@@ -398,47 +398,24 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bulut_takip_formati = f"{ana_no}/{ana_yil}"
         
         karar_bulundu_mu, k_row = False, None
-        karar_sonucu = pd.DataFrame()
         
-        solutie_metni = str(row['SOLUTIE']).strip()
-        p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
-        if solutie_metni:
-            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
-            if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
-
-        # --- TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ ---
         if not df_karar.empty:
             regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
-            
             mask_initial = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
                     mask_initial |= df_karar[col].astype(str).str.contains(regex_find, case=False, regex=True)
             
             final_matches = df_karar[mask_initial]
-            
             if not final_matches.empty:
-                target_pdf = None
-                if p_numarasi:
-                    ordin_num_str = str(user_ordin_no)
-                    for pdf in final_matches['Kaynak Belge'].unique():
-                        if ordin_num_str in str(pdf):
-                            target_pdf = pdf
-                            break
-                
-                if not target_pdf:
-                    target_pdf = final_matches['Kaynak Belge'].value_counts().idxmax()
-                
-                df_target_ordin = df_karar[df_karar['Kaynak Belge'] == target_pdf]
-                
-                mask_final = pd.Series(False, index=df_target_ordin.index)
-                for col in df_target_ordin.columns:
-                    if col != 'Kaynak Belge':
-                        mask_final |= df_target_ordin[col].astype(str).str.contains(regex_find, case=False, regex=True)
-                
-                karar_sonucu = df_target_ordin[mask_final]
-                karar_bulundu_mu = not karar_sonucu.empty
-                k_row = karar_sonucu.iloc[0] if karar_bulundu_mu else final_matches.iloc[0]
+                karar_bulundu_mu = True
+                k_row = final_matches.iloc[0]
+
+        solutie_metni = str(row['SOLUTIE']).strip()
+        p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
+        if solutie_metni:
+            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
+            if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
 
         kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
         termen_metni = str(row.get('TERMEN', '')).strip()
@@ -456,16 +433,14 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         zaten_takipte = False
 
         if karar_bulundu_mu:
-            gosterilecek_karar = p_numarasi
             kaynak_belge_adi = k_row['Kaynak Belge']
+            gosterilecek_karar = p_numarasi
             
-            # 🌟 GÜNCELLEME: ÇİFT AŞAMALI DETEKTÖR - ÖNCE CSV SÜTUNLARINI GÖZDEN GEÇİR
             if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
                 k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
                 if k_ordin_cols:
                     val = str(k_row[k_ordin_cols[0]]).strip()
                     if val and val.lower() not in ['nan', 'none', '']:
-                        # Eğer ham sayı geldiyse yanına kurumsal P/Yıl ekini iliştir
                         if val.isdigit() and len(val) <= 4:
                             date_year_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
                             year_suffix = date_year_match.group(1) if date_year_match else "2026"
@@ -473,7 +448,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         else:
                             gosterilecek_karar = val
 
-            # 🌟 EĞER CSV BOMBOŞSA DOSYA ADINDAN TAM FORMATLI OLUŞTUR (P Harfi Şartı Kaldırıldı!)
             if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
                 pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE)
                 yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
@@ -541,7 +515,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı otomatik takibe almak üzeresiniz.\n\n"
             "Romanya Vatandaşlık Sorgulama Platformu olarak, size dosya durumunuz değiştiğinde anlık bildirim gönderebilmemiz amacıyla; "
             "<b>Telegram Chat ID</b> ve <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.\n\n"
-            "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez og asla üçüncü şahıslarla paylaşılmaz. "
+            "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez ve asla üçüncü şahıslarla paylaşılmaz. "
             "İstediğiniz an bota /start yazıp altta çıkacak olan <b>Dosya Takibini Bırak</b> butonuna tıklayarak seçeceğiniz verilerinizin sistemimizden <b>kalıcı olarak siliniyor olmasını</b> sağlayabilirsiniz.\n\n"
             "Verilerinizin bu amaçlarla işlenmesini onaylıyor musunuz?"
         )
