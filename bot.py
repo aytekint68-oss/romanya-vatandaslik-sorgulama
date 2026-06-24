@@ -106,7 +106,7 @@ def tum_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return []
     return df['Kaynak Belge'].dropna().unique().tolist()
 
-# --- HEDEFLİ Bİ LAŞTIRILMIŞ BİLDİRİM DAĞITIM MOTORU ---
+# --- HEDEFLİ BİLDİRİM DAĞITIM MOTORU ---
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum):
     df_karar = hafiza['df_karar_birlesik']
     df_dosya = hafiza['df_dosya']
@@ -140,10 +140,12 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         onaylandi_mi = False
         if not df_karar.empty:
+            # 🌟 BİLDİRİM MOTORU İÇİN DE KURŞUN GEÇİRMEZ REGEX ENTEGRASYONU 🌟
+            regex_find = rf"(?<!\d){ana_no}\s*(?:/[A-Z]+)?\s*/\s*{ana_yil}(?!\d)"
             mask = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
-                    mask |= df_karar[col].astype(str).str.contains(str(ana_no), case=False, regex=False)
+                    mask |= df_karar[col].astype(str).str.contains(regex_find, case=False, regex=True)
             if mask.any():
                 onaylandi_mi = True
 
@@ -310,9 +312,6 @@ def veritabanini_kontrol_et(app_context=None):
             elif eklenen_m10 or eklenen_m11 or dosya_tarih_degisti:
                 app_context.create_task(bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum))
 
-# İlk yükleme
-veritabanini_kontrol_et()
-
 # --- TELEGRAM MESAJLAŞMA MANTIĞI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context) 
@@ -343,7 +342,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) og karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
@@ -407,22 +406,17 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # --- TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ ---
         if not df_karar.empty:
+            # 🌟 HÜCRE İÇİ SIKI BAĞLI REGEX AYARI (Başka sütunlardan sahte veri çeken sızıntı kapatıldı) 🌟
+            regex_find = rf"(?<!\d){ana_no}\s*(?:/[A-Z]+)?\s*/\s*{ana_yil}(?!\d)"
+            
             mask_initial = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
-                    mask_initial |= df_karar[col].astype(str).str.contains(str(ana_no), case=False, regex=False)
+                    mask_initial |= df_karar[col].astype(str).str.contains(regex_find, case=False, regex=True)
             
-            initial_matches = df_karar[mask_initial]
+            final_matches = df_karar[mask_initial]
             
-            if not initial_matches.empty:
-                mask_year = pd.Series(False, index=initial_matches.index)
-                for col in initial_matches.columns:
-                    if col != 'Kaynak Belge':
-                        mask_year |= initial_matches[col].astype(str).str.contains(str(ana_yil), case=False, regex=False)
-                
-                year_matches = initial_matches[mask_year]
-                final_matches = year_matches if not year_matches.empty else initial_matches
-                
+            if not final_matches.empty:
                 target_pdf = None
                 if p_numarasi:
                     ordin_num_str = str(user_ordin_no)
@@ -439,7 +433,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 mask_final = pd.Series(False, index=df_target_ordin.index)
                 for col in df_target_ordin.columns:
                     if col != 'Kaynak Belge':
-                        mask_final |= df_target_ordin[col].astype(str).str.contains(str(ana_no), case=False, regex=False)
+                        mask_final |= df_target_ordin[col].astype(str).str.contains(regex_find, case=False, regex=True)
                 
                 karar_sonucu = df_target_ordin[mask_final]
                 onaylanan_kisi_sayisi = len(karar_sonucu)
@@ -470,13 +464,14 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 gosterilecek_karar = f"{pdf_match.group(1)}/P/{pdf_match.group(2)}" if pdf_match else "Belirtilmemiş"
             
             karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
-            if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: karar_tarihi = "Belirtilmemiş"
+            if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
+                date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', kaynak_belge_adi)
+                karar_tarihi = date_match.group(1) if date_match else "Belirtilmemiş"
                 
             toplam_cocuk = 0
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
                 copii_match = re.search(r'copii\s*minori\s*[:\-]?\s*(\d+)', tum_satir_metni, re.IGNORECASE)
-                # 🌟 SÖZ DİZİMİ HATASI BURADA KESİN OLARAK DÜZELTİLDİ (if초_match tamamen kaldırıldı)
                 if copii_match: 
                     toplam_cocuk += int(copii_match.group(1))
                 else:
