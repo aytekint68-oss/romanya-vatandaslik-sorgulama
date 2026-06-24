@@ -106,7 +106,7 @@ def tum_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return []
     return df['Kaynak Belge'].dropna().unique().tolist()
 
-# --- HEDEFLİ BİLDİRİM DAĞITIM MOTORU ---
+# --- HEDEFLİ Bİ LAŞTIRILMIŞ BİLDİRİM DAĞITIM MOTORU ---
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum):
     df_karar = hafiza['df_karar_birlesik']
     df_dosya = hafiza['df_dosya']
@@ -343,7 +343,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) og karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
@@ -405,9 +405,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
             if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
 
-        # 🌟 GÜNCELLEME: TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ 🌟
+        # --- TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ ---
         if not df_karar.empty:
-            # 1. Adım: Tüm veritabanında dosya numarasının geçtiği satırları hızlıca ön tarafa getir
             mask_initial = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
@@ -416,7 +415,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             initial_matches = df_karar[mask_initial]
             
             if not initial_matches.empty:
-                # Başvuru yılı kontrolü ile tam filtreleme yap
                 mask_year = pd.Series(False, index=initial_matches.index)
                 for col in initial_matches.columns:
                     if col != 'Kaynak Belge':
@@ -425,7 +423,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 year_matches = initial_matches[mask_year]
                 final_matches = year_matches if not year_matches.empty else initial_matches
                 
-                # 2. Adım: Tam olarak doğru Ordin PDF listesini (Kaynak Belge) tespit et
                 target_pdf = None
                 if p_numarasi:
                     ordin_num_str = str(user_ordin_no)
@@ -437,10 +434,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if not target_pdf:
                     target_pdf = final_matches['Kaynak Belge'].value_counts().idxmax()
                 
-                # 3. Adım: Tüm verileri unutup SADECE bu Ordin PDF listesini izole et!
                 df_target_ordin = df_karar[df_karar['Kaynak Belge'] == target_pdf]
                 
-                # 4. Adım: İzole edilen bu tek listedeki eşleşen satır sayısını bul (Erişkin Sayısı)
                 mask_final = pd.Series(False, index=df_target_ordin.index)
                 for col in df_target_ordin.columns:
                     if col != 'Kaynak Belge':
@@ -481,7 +476,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
                 copii_match = re.search(r'copii\s*minori\s*[:\-]?\s*(\d+)', tum_satir_metni, re.IGNORECASE)
-                if超_match := copii_match: 
+                # 🌟 SÖZ DİZİMİ HATASI BURADA KESİN OLARAK DÜZELTİLDİ (if초_match tamamen kaldırıldı)
+                if copii_match: 
                     toplam_cocuk += int(copii_match.group(1))
                 else:
                     for col in kr.index:
