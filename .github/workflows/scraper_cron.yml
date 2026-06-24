@@ -18,16 +18,21 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Sanal Monitör Kur (Cloudflare Bypass İçin)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb
+
     - name: Kütüphaneleri ve Tarayıcıyı Yükle
       run: |
         pip install -r requirements.txt
         playwright install --with-deps chromium
 
-    - name: Tarayıcı Scriptini Çalıştır
+    - name: Tarayıcı Scriptini Çalıştır (Sanal Ekran İle)
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
         JSONBIN_MASTER_KEY: ${{ secrets.JSONBIN_MASTER_KEY }}
         SCRAPER_BIN_ID: ${{ secrets.SCRAPER_BIN_ID }}
       run: |
-        python scraper.py
+        xvfb-run --auto-servernum python scraper.py
