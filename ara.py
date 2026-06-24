@@ -75,12 +75,10 @@ def en_guncel_belgeleri_getir(df):
 # =========================================================
 @st.cache_data(max_entries=1, show_spinner="Veritabanı senkronize ediliyor, lütfen bekleyin...")
 def veritabanini_hazirla(guncelleme_tetikleyici):
-    # 1. Ham verileri yükle
     df_d = _csv_oku("dosyadurumu.zip")
     df_m10 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
     df_m11 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
 
-    # 2. İstatistikleri ve güncel dosya isimlerini çek
     _, d_tarih = en_guncel_belgeleri_getir(df_d)
     m10_list, m10_tarih = en_guncel_belgeleri_getir(df_m10)
     m11_list, m11_tarih = en_guncel_belgeleri_getir(df_m11)
@@ -88,13 +86,11 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     max_m10 = max_ordin_hesapla_vektorel(df_m10)
     max_m11 = max_ordin_hesapla_vektorel(df_m11)
 
-    # 3. Ana karar tablosunu birleştir
     k_list = []
     if not df_m10.empty: k_list.append(df_m10)
     if not df_m11.empty: k_list.append(df_m11)
     df_k = pd.concat(k_list, ignore_index=True) if k_list else pd.DataFrame()
 
-    # 4. RAM TEMİZLİĞİ
     del df_m10
     del df_m11
     del k_list
@@ -102,7 +98,6 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
 
     return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11
 
-# --- YENİ DOSYA YÜKLENDİĞİNDE ÖNBELLEĞİ KIRMAK İÇİN SENSÖR ---
 def dosya_zaman_damgasi_al():
     dosyalar = ["dosyadurumu.zip", "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv", "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv"]
     en_yeni = 0
@@ -111,7 +106,6 @@ def dosya_zaman_damgasi_al():
             en_yeni = max(en_yeni, os.path.getmtime(d))
     return en_yeni
 
-# Sistemi güvenle çalıştır ve verileri al
 df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
 # --- ARAYÜZ TASARIMI ---
@@ -121,26 +115,28 @@ st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve ka
 # =========================================================
 # 🌟 ÖZEL HTML İLE KESİN HİZALAMA VE BÜYÜTÜLMÜŞ PUNTO 🌟
 # =========================================================
-m10_items = "".join([f"<li style='margin-bottom: 8px;'><span style='font-size: 1.15em;'>🔹 <code>{b}</code></span></li>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "<li style='margin-bottom: 8px;'><span style='font-size: 1.15em;'>🔹 <i>Veri Yok</i></span></li>"
-m11_items = "".join([f"<li style='margin-bottom: 8px;'><span style='font-size: 1.15em;'>🔹 <code>{b}</code></span></li>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "<li style='margin-bottom: 8px;'><span style='font-size: 1.15em;'>🔹 <i>Veri Yok</i></span></li>"
+m10_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 <code>{b}</code></li>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
+m11_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 <code>{b}</code></li>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
 
 info_box_html = f"""
-<div style="background-color: rgba(79, 139, 249, 0.1); border-radius: 10px; padding: 20px; border-left: 5px solid #4F8BF9;">
-    <p style="font-size: 1.1em; margin-bottom: 10px;">🔄 <b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}</p>
-    <p style="font-size: 1.1em; margin-bottom: 5px;">📑 <b>Sisteme Eklenen Son Kararlar:</b></p>
+<div style="background-color: rgba(42, 171, 238, 0.1); border-left: 5px solid #2aabee; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <div style="font-size: 1.1em; margin-bottom: 10px;">🔄 <strong>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</strong> {dosya_guncelleme_tarihi}</div>
+    <div style="font-size: 1.1em; margin-bottom: 10px;">📑 <strong>Sisteme Eklenen Son Kararlar:</strong></div>
     
-    <p style="font-size: 1.15em; margin-bottom: 5px; margin-top: 15px;"><b>Madde 10:</b></p>
-    <ul style="list-style-type: none; padding-left: 15px; margin-top: 0;">
+    <div style="font-size: 1.1em; margin-bottom: 5px;"><strong>Madde 10:</strong></div>
+    <ul style="list-style-type: none; padding-left: 20px; font-size: 1.1em; margin-top: 0;">
         {m10_items}
     </ul>
     
-    <p style="font-size: 1.15em; margin-bottom: 5px; margin-top: 15px;"><b>Madde 11:</b></p>
-    <ul style="list-style-type: none; padding-left: 15px; margin-top: 0;">
+    <div style="font-size: 1.1em; margin-bottom: 5px; margin-top: 10px;"><strong>Madde 11:</strong></div>
+    <ul style="list-style-type: none; padding-left: 20px; font-size: 1.1em; margin-top: 0;">
         {m11_items}
     </ul>
 </div>
 """
+# HTML KODLARINI DERLEMESİ İÇİN UNSAFE_ALLOW_HTML AKTİF EDİLDİ
 st.markdown(info_box_html, unsafe_allow_html=True)
+
 st.markdown("---")
 
 st.markdown("💡 **Örnek Arama Formatı:** 1234/2017 veya 37064/2023")
