@@ -139,12 +139,11 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                     madde_turu = "Madde 10"
 
         onaylandi_mi = False
-        # 🌟 BELGE GÜNCELLEMESİNDE RAM-DOSTU SÜTUN SÜZGEÇİ
         if not df_karar.empty:
             mask = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
-                mask |= df_karar[col].astype(str).str.contains(rf"\b{ana_no}\b", case=False, regex=True) & \
-                        df_karar[col].astype(str).str.contains(rf"\b{ana_yil}\b", case=False, regex=True)
+                if col != 'Kaynak Belge':
+                    mask |= df_karar[col].astype(str).str.contains(str(ana_no), case=False, regex=False)
             if mask.any():
                 onaylandi_mi = True
 
@@ -265,7 +264,6 @@ def veritabanini_kontrol_et(app_context=None):
         print("🔄 Yeni dosya tespit edildi. Veritabanı Telegram için güncelleniyor...")
         hafiza['df_dosya'] = veri_yukle("dosyadurumu.zip")
         
-        # 🌟 RAM GÜVENLİĞİ: Ham CSV dosyalarını RAM kopyası oluşturmadan yükleyip işleme
         df_m10 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
         df_m11 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
         
@@ -280,12 +278,11 @@ def veritabanini_kontrol_et(app_context=None):
         if not df_m11.empty: karar_listesi.append(df_m11)
         hafiza['df_karar_birlesik'] = pd.concat(karar_listesi, ignore_index=True) if karar_listesi else pd.DataFrame()
         
-        # 🌟 RAM BOŞALTMA: Geçici DataFrame nesnelerini bellekten kazıyıp çöpe atıyoruz
         del df_m10
         del df_m11
         hafiza['df_karar_m10'] = pd.DataFrame()
         hafiza['df_karar_m11'] = pd.DataFrame()
-        gc.collect() # Çöp toplayıcıyı zorla çalıştır
+        gc.collect() 
         
         hafiza['son_guncelleme'] = mevcut_saat
         
@@ -323,7 +320,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
     
-    # Birleşik tablodan anlık belge çekimi (RAM korumalı)
     df_k = hafiza['df_karar_birlesik']
     if not df_k.empty and 'Kaynak Belge' in df_k.columns:
         m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains('art-10|m10|madde10', case=False, regex=True)])
@@ -358,8 +354,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{takip_metni}" 
         "━━━━━━━━━━━━━━━━━━\n"
         "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
-        "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) og karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
-        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai og kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
+        "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
+        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)
 
@@ -401,29 +397,59 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bulut_takip_formati = f"{ana_no}/{ana_yil}"
         
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
+        karar_sonucu = pd.DataFrame()
         
-        # 🌟 ULTRA HIZLI VE RAM DOSTU VEKTÖREL SÜTUN SEÇİCİ MOTORU 🌟
-        if not df_karar.empty:
-            mask = pd.Series(False, index=df_karar.index)
-            # Tüm hücreleri satır satır birleştirmek yerine sütun sütun vektörel süzgeç uyguluyoruz
-            for col in df_karar.columns:
-                mask |= df_karar[col].astype(str).str.contains(rf"\b{ana_no}\b", case=False, regex=True) & \
-                        df_karar[col].astype(str).str.contains(rf"\b{ana_yil}\b", case=False, regex=True)
-            
-            karar_sonucu = df_karar[mask].copy()
-            
-            if not karar_sonucu.empty:
-                en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
-                karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
-                
-                # 🌟 KURAL: Karar listesindeki aynı dosya numarası sayısının toplamı erişkin sayısıdır
-                karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
-
         solutie_metni = str(row['SOLUTIE']).strip()
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
         if solutie_metni:
             p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
             if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
+
+        # 🌟 GÜNCELLEME: TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ 🌟
+        if not df_karar.empty:
+            # 1. Adım: Tüm veritabanında dosya numarasının geçtiği satırları hızlıca ön tarafa getir
+            mask_initial = pd.Series(False, index=df_karar.index)
+            for col in df_karar.columns:
+                if col != 'Kaynak Belge':
+                    mask_initial |= df_karar[col].astype(str).str.contains(str(ana_no), case=False, regex=False)
+            
+            initial_matches = df_karar[mask_initial]
+            
+            if not initial_matches.empty:
+                # Başvuru yılı kontrolü ile tam filtreleme yap
+                mask_year = pd.Series(False, index=initial_matches.index)
+                for col in initial_matches.columns:
+                    if col != 'Kaynak Belge':
+                        mask_year |= initial_matches[col].astype(str).str.contains(str(ana_yil), case=False, regex=False)
+                
+                year_matches = initial_matches[mask_year]
+                final_matches = year_matches if not year_matches.empty else initial_matches
+                
+                # 2. Adım: Tam olarak doğru Ordin PDF listesini (Kaynak Belge) tespit et
+                target_pdf = None
+                if p_numarasi:
+                    ordin_num_str = str(user_ordin_no)
+                    for pdf in final_matches['Kaynak Belge'].unique():
+                        if ordin_num_str in str(pdf):
+                            target_pdf = pdf
+                            break
+                
+                if not target_pdf:
+                    target_pdf = final_matches['Kaynak Belge'].value_counts().idxmax()
+                
+                # 3. Adım: Tüm verileri unutup SADECE bu Ordin PDF listesini izole et!
+                df_target_ordin = df_karar[df_karar['Kaynak Belge'] == target_pdf]
+                
+                # 4. Adım: İzole edilen bu tek listedeki eşleşen satır sayısını bul (Erişkin Sayısı)
+                mask_final = pd.Series(False, index=df_target_ordin.index)
+                for col in df_target_ordin.columns:
+                    if col != 'Kaynak Belge':
+                        mask_final |= df_target_ordin[col].astype(str).str.contains(str(ana_no), case=False, regex=False)
+                
+                karar_sonucu = df_target_ordin[mask_final]
+                onaylanan_kisi_sayisi = len(karar_sonucu)
+                karar_bulundu_mu = True if onaylanan_kisi_sayisi > 0 else False
+                k_row = karar_sonucu.iloc[0] if karar_bulundu_mu else final_matches.iloc[0]
 
         kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
         termen_metni = str(row.get('TERMEN', '')).strip()
@@ -451,12 +477,11 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
             if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: karar_tarihi = "Belirtilmemiş"
                 
-            # 🌟 KURAL: copii minori yanında yazan sayı ise çocuk sayısıdır
             toplam_cocuk = 0
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
                 copii_match = re.search(r'copii\s*minori\s*[:\-]?\s*(\d+)', tum_satir_metni, re.IGNORECASE)
-                if copii_match: 
+                if超_match := copii_match: 
                     toplam_cocuk += int(copii_match.group(1))
                 else:
                     for col in kr.index:
