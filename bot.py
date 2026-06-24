@@ -43,6 +43,7 @@ def set_bulut_verisi(bekleyenler, son_durum):
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
+    'karar_arama_metinleri': pd.Series(dtype=str), # 🌟 HIZ İÇİN YENİ ARAMA ÖNBELLEĞİ
     'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0,
     'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False 
 }
@@ -107,7 +108,6 @@ def tum_belgeler(df):
 
 # --- HEDEFLİ BİLDİRİM DAĞITIM MOTORU ---
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum):
-    df_karar = hafiza['df_karar_birlesik']
     df_dosya = hafiza['df_dosya']
     kalan_bekleyenler = []
     bekleyenler = hafiza['bekleyenler'] 
@@ -117,6 +117,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
     print(f"Sistemdeki {len(bekleyenler)} kişiye hedefli bildirim dağıtılıyor...")
 
     arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
+    satir_bazli_metin = hafiza['karar_arama_metinleri']
 
     for kisi in bekleyenler:
         chat_id = kisi['chat_id']
@@ -138,17 +139,15 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                     madde_turu = "Madde 10"
 
         onaylandi_mi = False
-        if not df_karar.empty:
-            satir_bazli_metin = df_karar.astype(str).apply(lambda x: " ".join(x), axis=1).str.replace(" ", "").str.upper()
-            regex = rf"(?:^|\D){ana_no}(?:/[A-Z]+)?/{ana_yil}(?:$|\D)"
-            
-            eslesenler = df_karar[satir_bazli_metin.str.contains(regex, regex=True)].copy()
-            if not eslesenler.empty:
+        if not satir_bazli_metin.empty:
+            # 🌟 YENİ NESİL KELİME SINIRLI BATCH BİLDİRİM ARAMASI
+            regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+            if satir_bazli_metin.str.contains(regex, regex=True, case=False).any():
                 onaylandi_mi = True
 
         try:
             if onaylandi_mi:
-                msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
+                msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı og resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 print(f"✅ {dosya_tam} için MÜJDE iletildi.")
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> <i>({madde_turu})</i>") 
@@ -237,7 +236,7 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         rapor_msg = (
             f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
             f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
-            f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
+            f"👥 Bot veritabanında anlık olarak takip edilen og karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
             f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
             f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
             f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
@@ -270,6 +269,12 @@ def veritabanini_kontrol_et(app_context=None):
         if not hafiza['df_karar_m11'].empty: karar_listesi.append(hafiza['df_karar_m11'])
         hafiza['df_karar_birlesik'] = pd.concat(karar_listesi, ignore_index=True) if karar_listesi else pd.DataFrame()
         
+        # 🌟 ONAY ALINAN DETAYLARIN SÜPER HIZLI ÇALIŞMASI İÇİN ARKA PLAN İNDEKSLENMESİ
+        if not hafiza['df_karar_birlesik'].empty:
+            hafiza['karar_arama_metinleri'] = hafiza['df_karar_birlesik'].astype(str).agg(' '.join, axis=1).str.upper()
+        else:
+            hafiza['karar_arama_metinleri'] = pd.Series(dtype=str)
+            
         hafiza['max_m10'] = max_ordin_hesapla_vektorel(hafiza['df_karar_m10'])
         hafiza['max_m11'] = max_ordin_hesapla_vektorel(hafiza['df_karar_m11'])
         hafiza['son_guncelleme'] = mevcut_saat
@@ -329,7 +334,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) og karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
         f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
@@ -377,6 +382,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sonuclar['Tekil_Anahtar'] = sonuclar['Arama_Sutunu'].apply(lambda x: f"{str(x).split('/')[0].strip()}_{str(x).split('/')[-1].strip()}")
     sonuclar = sonuclar.drop_duplicates(subset=['Tekil_Anahtar'])
 
+    satir_bazli_metin = hafiza['karar_arama_metinleri']
+
     for index, row in sonuclar.iterrows():
         ana_no, ana_yil = str(row['Tekil_Anahtar']).split('_')[0], str(row['Tekil_Anahtar']).split('_')[-1]
         dosya_no_standart = f"{ana_no}/{ana_yil}"
@@ -384,18 +391,16 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
         
-        # --- SATIR BAZLI ÇOKLU VARYASYON TARAMA MOTORU ---
-        if not df_karar.empty:
-            satir_bazli_metin = df_karar.astype(str).apply(lambda x: " ".join(x), axis=1).str.replace(" ", "").str.upper()
-            regex = rf"(?:^|\D){ana_no}(?:/[A-Z]+)?/{ana_yil}(?:$|\D)"
-            
-            karar_sonucu = df_karar[satir_bazli_metin.str.contains(regex, regex=True)].copy()
+        # 🚀 ULTRA HIZLI VE KUSURSUZ SATIR BAZLI NESİL TARAMA
+        if not df_karar.empty and not satir_bazli_metin.empty:
+            regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+            karar_sonucu = df_karar[satir_bazli_metin.str.contains(regex, regex=True, case=False)].copy()
             
             if not karar_sonucu.empty:
                 en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
                 karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
                 
-                # 🌟 KULLANICININ YENİ TANIMI: Karar listesindeki aynı numaralı satırların toplam sayısı erişkin sayısıdır
+                # 🌟 YENİ KURAL: Eşleşen toplam satır sayısı doğrudan erişkin sayısıdır
                 karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = True, karar_sonucu.iloc[0], len(karar_sonucu)
 
         solutie_metni = str(row['SOLUTIE']).strip()
@@ -430,7 +435,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
             if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: karar_tarihi = "Belirtilmemiş"
                 
-            # 🌟 KULLANICININ YENİ TANIMI: Copii minori yanında yazan sayı çocuk sayısıdır
+            # 🌟 YENİ KURAL: Copii minori ifadesinin yanındaki sayı çocuk sayısıdır
             toplam_cocuk = 0
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
@@ -493,10 +498,10 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _, ilk_no, son_yil = query.data.split('_')
         
         kvkk_metni = (
-            "🛡️ <b>KVKK Aydınlatma ve Açık Rıza Metni</b>\n\n"
+            "🛡️ <b>KVKK Aydınlatma og Açık Rıza Metni</b>\n\n"
             f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı otomatik takibe almak üzeresiniz.\n\n"
             "Romanya Vatandaşlık Sorgulama Platformu olarak, size dosya durumunuz değiştiğinde anlık bildirim gönderebilmemiz amacıyla; "
-            "<b>Telegram Chat ID</b> ve <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.\n\n"
+            "<b>Telegram Chat ID</b> og <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.\n\n"
             "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez og asla üçüncü şahıslarla paylaşılmaz. "
             "İstediğiniz an bota /start yazıp altta çıkacak olan <b>Dosya Takibini Bırak</b> butonuna tıklayarak seçeceğiniz verilerinizin sistemimizden <b>kalıcı olarak siliniyor olmasını</b> sağlayabilirsiniz.\n\n"
             "Verilerinizin bu amaçlarla işlenmesini onaylıyor musunuz?"
@@ -640,7 +645,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['secilenler'] = []
         
         await query.edit_message_text(
-            text=f"🚀 <b>İşlem Başarılı!</b>\n\nSeçmiş olduğunuz {len(secilenler)} adet dosyanın takibi iptal edilmiş ve KVKK uyarınca verileriniz kalıcı olarak imha edilmiştir.", 
+            text=f"🚀 <b>İşlem Başarılı!</b>\n\nSeçmiş olduğunuz {len(secilenler)} adet dosyanın takibi iptal edilmiş og KVKK uyarınca verileriniz kalıcı olarak imha edilmiştir.", 
             parse_mode='HTML'
         )
         return
