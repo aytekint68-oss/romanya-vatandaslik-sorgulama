@@ -140,8 +140,8 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         onaylandi_mi = False
         if not df_karar.empty:
-            # 🌟 BİLDİRİM MOTORU İÇİN DE KURŞUN GEÇİRMEZ REGEX ENTEGRASYONU 🌟
-            regex_find = rf"(?<!\d){ana_no}\s*(?:/[A-Z]+)?\s*/\s*{ana_yil}(?!\d)"
+            # 🌟 ESNEK BİLDİRİM MOTURU ENTEGRASYONU
+            regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
             mask = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
@@ -312,6 +312,9 @@ def veritabanini_kontrol_et(app_context=None):
             elif eklenen_m10 or eklenen_m11 or dosya_tarih_degisti:
                 app_context.create_task(bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum))
 
+# İlk yükleme
+veritabanini_kontrol_et()
+
 # --- TELEGRAM MESAJLAŞMA MANTIĞI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context) 
@@ -406,8 +409,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # --- TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ ---
         if not df_karar.empty:
-            # 🌟 HÜCRE İÇİ SIKI BAĞLI REGEX AYARI (Başka sütunlardan sahte veri çeken sızıntı kapatıldı) 🌟
-            regex_find = rf"(?<!\d){ana_no}\s*(?:/[A-Z]+)?\s*/\s*{ana_yil}(?!\d)"
+            # 🌟 YENİ NESİL KURSUN GEÇİRMEZ TOKEN VE REGEX AYARI 🌟
+            regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
             
             mask_initial = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
