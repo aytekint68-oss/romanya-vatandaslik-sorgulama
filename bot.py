@@ -140,7 +140,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         onaylandi_mi = False
         if not df_karar.empty:
-            # 🌟 ESNEK BİLDİRİM MOTURU ENTEGRASYONU
             regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
             mask = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
@@ -398,8 +397,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         dosya_no_standart = f"{ana_no}/{ana_yil}"
         bulut_takip_formati = f"{ana_no}/{ana_yil}"
         
-        karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
-        karar_sonucu = pd.DataFrame()
+        karar_bulundu_mu, k_row = False, None
         
         solutie_metni = str(row['SOLUTIE']).strip()
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
@@ -409,7 +407,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # --- TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ ---
         if not df_karar.empty:
-            # 🌟 YENİ NESİL KURSUN GEÇİRMEZ TOKEN VE REGEX AYARI 🌟
             regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
             
             mask_initial = pd.Series(False, index=df_karar.index)
@@ -439,8 +436,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         mask_final |= df_target_ordin[col].astype(str).str.contains(regex_find, case=False, regex=True)
                 
                 karar_sonucu = df_target_ordin[mask_final]
-                onaylanan_kisi_sayisi = len(karar_sonucu)
-                karar_bulundu_mu = True if onaylanan_kisi_sayisi > 0 else False
+                karar_bulundu_mu = not karar_sonucu.empty
                 k_row = karar_sonucu.iloc[0] if karar_bulundu_mu else final_matches.iloc[0]
 
         kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
@@ -470,25 +466,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
                 date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', kaynak_belge_adi)
                 karar_tarihi = date_match.group(1) if date_match else "Belirtilmemiş"
-                
-            toplam_cocuk = 0
-            for _, kr in karar_sonucu.iterrows():
-                tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
-                copii_match = re.search(r'copii\s*minori\s*[:\-]?\s*(\d+)', tum_satir_metni, re.IGNORECASE)
-                if copii_match: 
-                    toplam_cocuk += int(copii_match.group(1))
-                else:
-                    for col in kr.index:
-                        if 'copii' in str(col).lower() and str(kr[col]).strip() not in ["nan", "None", ""]:
-                            c_val = str(kr[col]).strip()
-                            if c_val.replace('.', '', 1).isdigit():
-                                toplam_cocuk += int(float(c_val))
-                                break
 
-            yetiskin_satiri = f"👥 <b>Erişkin Sayısı:</b> {onaylanan_kisi_sayisi}\n"
-            cocuk_satiri = f"👶 <b>Çocuk Sayısı (Copii Minori):</b> {toplam_cocuk}\n" if toplam_cocuk > 0 else ""
-
-            yanit += f"🎉 ✅ <b>TEBRİKLER! Kararınız yayımlandı.</b> 💚\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n{yetiskin_satiri}{cocuk_satiri}📂 <b>Kaynak:</b> {kaynak_belge_adi}"
+            yanit += f"🎉 ✅ <b>TEBRİKLER! Kararınız yayımlandı.</b> 💚\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
             takip_listesi = hafiza['bekleyenler']
             
