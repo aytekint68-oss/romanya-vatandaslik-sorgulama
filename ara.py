@@ -94,7 +94,7 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     if not df_m11.empty: k_list.append(df_m11)
     df_k = pd.concat(k_list, ignore_index=True) if k_list else pd.DataFrame()
 
-    # 4. RAM TEMİZLİĞİ
+    # 4. RAM TEMİZLİĞİ: Alt kopyaları hafızadan derhal sil ve çöp toplayıcıyı çalıştır
     del df_m10
     del df_m11
     del k_list
@@ -114,9 +114,9 @@ def dosya_zaman_damgasi_al():
 # Sistemi güvenle çalıştır ve verileri al
 df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
-# 🌟 MARKDOWN İLE GÖRÜNÜM DÜZELTİLDİ (HTML Etiketleri Kaldırıldı) 🌟
-m10_belgeler_metni = "\n".join([f"🔹 `{b}`" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "🔹 Veri Yok"
-m11_belgeler_metni = "\n".join([f"🔹 `{b}`" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "🔹 Veri Yok"
+# 🌟 MARKDOWN DÜZELTMESİ: Liste elemanlarının kesin olarak alt alta inmesi için ÇİFT SATIR (\n\n) eklendi 🌟
+m10_belgeler_metni = "\n\n".join([f"🔹 `{b}`" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "🔹 Veri Yok"
+m11_belgeler_metni = "\n\n".join([f"🔹 `{b}`" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "🔹 Veri Yok"
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
