@@ -113,28 +113,25 @@ st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve karar (**Ordin**) sonucunuzu tek ekranda görüntüleyin.")
 
 # =========================================================
-# 🌟 ÖZEL HTML İLE KESİN HİZALAMA VE BÜYÜTÜLMÜŞ PUNTO 🌟
+# 🌟 ÖZEL HTML İLE KESİN HİZALAMA (Sola Dayalı Hata Çözümü) 🌟
 # =========================================================
 m10_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 <code>{b}</code></li>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
 m11_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 <code>{b}</code></li>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
 
-info_box_html = f"""
-<div style="background-color: rgba(42, 171, 238, 0.1); border-left: 5px solid #2aabee; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-    <div style="font-size: 1.1em; margin-bottom: 10px;">🔄 <strong>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</strong> {dosya_guncelleme_tarihi}</div>
-    <div style="font-size: 1.1em; margin-bottom: 10px;">📑 <strong>Sisteme Eklenen Son Kararlar:</strong></div>
-    
-    <div style="font-size: 1.1em; margin-bottom: 5px;"><strong>Madde 10:</strong></div>
-    <ul style="list-style-type: none; padding-left: 20px; font-size: 1.1em; margin-top: 0;">
-        {m10_items}
-    </ul>
-    
-    <div style="font-size: 1.1em; margin-bottom: 5px; margin-top: 10px;"><strong>Madde 11:</strong></div>
-    <ul style="list-style-type: none; padding-left: 20px; font-size: 1.1em; margin-top: 0;">
-        {m11_items}
-    </ul>
-</div>
-"""
-# HTML KODLARINI DERLEMESİ İÇİN UNSAFE_ALLOW_HTML AKTİF EDİLDİ
+# DİKKAT: Streamlit Markdown algılamasın diye HTML kodu sıfır boşlukla sola dayandı.
+info_box_html = f"""<div style="background-color: rgba(42, 171, 238, 0.1); border-left: 5px solid #2aabee; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+<div style="font-size: 1.1em; margin-bottom: 10px;">🔄 <strong>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</strong> {dosya_guncelleme_tarihi}</div>
+<div style="font-size: 1.1em; margin-bottom: 10px;">📑 <strong>Sisteme Eklenen Son Kararlar:</strong></div>
+<div style="font-size: 1.1em; margin-bottom: 5px;"><strong>Madde 10:</strong></div>
+<ul style="list-style-type: none; padding-left: 20px; font-size: 1.1em; margin-top: 0;">
+{m10_items}
+</ul>
+<div style="font-size: 1.1em; margin-bottom: 5px; margin-top: 10px;"><strong>Madde 11:</strong></div>
+<ul style="list-style-type: none; padding-left: 20px; font-size: 1.1em; margin-top: 0;">
+{m11_items}
+</ul>
+</div>"""
+
 st.markdown(info_box_html, unsafe_allow_html=True)
 
 st.markdown("---")
