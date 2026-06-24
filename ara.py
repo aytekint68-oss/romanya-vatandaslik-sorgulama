@@ -94,7 +94,7 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     if not df_m11.empty: k_list.append(df_m11)
     df_k = pd.concat(k_list, ignore_index=True) if k_list else pd.DataFrame()
 
-    # 4. RAM TEMİZLİĞİ: Alt kopyaları hafızadan derhal sil ve çöp toplayıcıyı çalıştır
+    # 4. RAM TEMİZLİĞİ
     del df_m10
     del df_m11
     del k_list
@@ -114,29 +114,33 @@ def dosya_zaman_damgasi_al():
 # Sistemi güvenle çalıştır ve verileri al
 df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
-# 🌟 MARKDOWN DÜZELTMESİ: Liste elemanlarının kesin olarak alt alta inmesi ve başlığın yanına yapışmaması sağlandı
-m10_belgeler_metni = "\n".join([f"🔹 `{b}`" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "🔹 `Veri Yok`"
-m11_belgeler_metni = "\n".join([f"🔹 `{b}`" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "🔹 `Veri Yok`"
-
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve karar (**Ordin**) sonucunuzu tek ekranda görüntüleyin.")
 
-# Burada eklenen \n\n (çift satır atlama) başlık ile dosya listesini kesin olarak birbirinden ayırır.
-st.info(f"""
-🔄 **Dosya Durumu (Stadiu Dosar) Son Güncelleme:** {dosya_guncelleme_tarihi}
+# =========================================================
+# 🌟 ÖZEL HTML İLE KESİN HİZALAMA VE BÜYÜTÜLMÜŞ PUNTO 🌟
+# =========================================================
+m10_items = "".join([f"<li style='margin-bottom: 8px;'><span style='font-size: 1.15em;'>🔹 <code>{b}</code></span></li>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "<li style='margin-bottom: 8px;'><span style='font-size: 1.15em;'>🔹 <i>Veri Yok</i></span></li>"
+m11_items = "".join([f"<li style='margin-bottom: 8px;'><span style='font-size: 1.15em;'>🔹 <code>{b}</code></span></li>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "<li style='margin-bottom: 8px;'><span style='font-size: 1.15em;'>🔹 <i>Veri Yok</i></span></li>"
 
-📑 **Sisteme Eklenen Son Kararlar:**
-
-**Madde 10:**
-
-{m10_belgeler_metni}
-
-**Madde 11:**
-
-{m11_belgeler_metni}
-""", icon="ℹ️")
-
+info_box_html = f"""
+<div style="background-color: rgba(79, 139, 249, 0.1); border-radius: 10px; padding: 20px; border-left: 5px solid #4F8BF9;">
+    <p style="font-size: 1.1em; margin-bottom: 10px;">🔄 <b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}</p>
+    <p style="font-size: 1.1em; margin-bottom: 5px;">📑 <b>Sisteme Eklenen Son Kararlar:</b></p>
+    
+    <p style="font-size: 1.15em; margin-bottom: 5px; margin-top: 15px;"><b>Madde 10:</b></p>
+    <ul style="list-style-type: none; padding-left: 15px; margin-top: 0;">
+        {m10_items}
+    </ul>
+    
+    <p style="font-size: 1.15em; margin-bottom: 5px; margin-top: 15px;"><b>Madde 11:</b></p>
+    <ul style="list-style-type: none; padding-left: 15px; margin-top: 0;">
+        {m11_items}
+    </ul>
+</div>
+"""
+st.markdown(info_box_html, unsafe_allow_html=True)
 st.markdown("---")
 
 st.markdown("💡 **Örnek Arama Formatı:** 1234/2017 veya 37064/2023")
