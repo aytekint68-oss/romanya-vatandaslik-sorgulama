@@ -114,23 +114,26 @@ def dosya_zaman_damgasi_al():
 # Sistemi güvenle çalıştır ve verileri al
 df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
-# 🌟 MARKDOWN DÜZELTMESİ: Liste elemanlarının kesin olarak alt alta inmesi için ÇİFT SATIR (\n\n) eklendi 🌟
-m10_belgeler_metni = "\n\n".join([f"🔹 `{b}`" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "🔹 Veri Yok"
-m11_belgeler_metni = "\n\n".join([f"🔹 `{b}`" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "🔹 Veri Yok"
+# 🌟 MARKDOWN DÜZELTMESİ: Liste elemanlarının kesin olarak alt alta inmesi ve başlığın yanına yapışmaması sağlandı
+m10_belgeler_metni = "\n".join([f"🔹 `{b}`" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "🔹 `Veri Yok`"
+m11_belgeler_metni = "\n".join([f"🔹 `{b}`" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "🔹 `Veri Yok`"
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve karar (**Ordin**) sonucunuzu tek ekranda görüntüleyin.")
 
+# Burada eklenen \n\n (çift satır atlama) başlık ile dosya listesini kesin olarak birbirinden ayırır.
 st.info(f"""
 🔄 **Dosya Durumu (Stadiu Dosar) Son Güncelleme:** {dosya_guncelleme_tarihi}
 
 📑 **Sisteme Eklenen Son Kararlar:**
 
 **Madde 10:**
+
 {m10_belgeler_metni}
 
 **Madde 11:**
+
 {m11_belgeler_metni}
 """, icon="ℹ️")
 
