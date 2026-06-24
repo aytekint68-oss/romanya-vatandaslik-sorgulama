@@ -322,7 +322,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
     
     df_k = hafiza['df_karar_birlesik']
-    if not df_k.empty and 'Kaynak Belge' in df_k.columns: # 🌟 HATA BURADA TEMİZLENDİ!
+    if not df_k.empty and 'Kaynak Belge' in df_k.columns:
         m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains('art-10|m10|madde10', case=False, regex=True)])
         m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains('art-11|m11|madde11', case=False, regex=True)])
     else:
@@ -399,6 +399,13 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         karar_bulundu_mu, k_row = False, None
         
+        solutie_metni = str(row['SOLUTIE']).strip()
+        p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
+        if solutie_metni:
+            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
+            if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
+
+        # --- TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ ---
         if not df_karar.empty:
             regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
             mask_initial = pd.Series(False, index=df_karar.index)
@@ -410,12 +417,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not final_matches.empty:
                 karar_bulundu_mu = True
                 k_row = final_matches.iloc[0]
-
-        solutie_metni = str(row['SOLUTIE']).strip()
-        p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
-        if solutie_metni:
-            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
-            if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
 
         kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
         termen_metni = str(row.get('TERMEN', '')).strip()
@@ -441,25 +442,28 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if k_ordin_cols:
                     val = str(k_row[k_ordin_cols[0]]).strip()
                     if val and val.lower() not in ['nan', 'none', '']:
-                        if val.isdigit() and len(val) <= 4:
-                            date_year_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
-                            year_suffix = date_year_match.group(1) if date_year_match else "2026"
-                            gosterilecek_karar = f"{val}/P/{year_suffix}"
-                        else:
-                            gosterilecek_karar = val
+                        gosterilecek_karar = val
 
             if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
                 pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE)
-                yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
-                if not yil_match:
-                    yil_match = re.search(r'\b(202\d)\b', str(k_row.get('Tarih', '')))
-                
                 if pdf_match:
-                    dec_no = pdf_match.group(1)
-                    dec_yil = yil_match.group(1) if yil_match else "2026"
-                    gosterilecek_karar = f"{dec_no}/P/{dec_yil}"
+                    gosterilecek_karar = pdf_match.group(1)
+
+            # 🌟 FORMAT STANDARTLAŞTIRMA MOTORU (Ne gelirse gelsin XX/P/YYYY formatına çevirir) 🌟
+            if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
+                clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
+                if clean_no_match:
+                    pure_no = clean_no_match.group(1)
+                    # Belgeden veya listeden yılı bul
+                    yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
+                    if not yil_match:
+                        yil_match = re.search(r'\b(202\d)\b', str(k_row.get('Tarih', '')))
+                    pure_year = yil_match.group(1) if yil_match else "2026"
+                    gosterilecek_karar = f"{pure_no}/P/{pure_year}"
                 else:
                     gosterilecek_karar = "Belirtilmemiş"
+            else:
+                gosterilecek_karar = "Belirtilmemiş"
             
             karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
             if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
@@ -517,7 +521,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>Telegram Chat ID</b> ve <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.\n\n"
             "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez ve asla üçüncü şahıslarla paylaşılmaz. "
             "İstediğiniz an bota /start yazıp altta çıkacak olan <b>Dosya Takibini Bırak</b> butonuna tıklayarak seçeceğiniz verilerinizin sistemimizden <b>kalıcı olarak siliniyor olmasını</b> sağlayabilirsiniz.\n\n"
-            "Verilerinizin bu amaçlarla işlenmesini onaylıyor musunuz?"
+            "Verilerinizin bu amaçlarla işlenmesini onayloyor musunuz?"
         )
         klavye = [
             [InlineKeyboardButton("✅ Okudum, Onaylıyorum", callback_data=f"takip_{ilk_no}_{son_yil}")],
