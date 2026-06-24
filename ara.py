@@ -55,10 +55,10 @@ if not df_karar_m11.empty:
 
 df_karar = pd.concat(karar_listesi, ignore_index=True) if karar_listesi else pd.DataFrame()
 
-# --- GÜNCELLEME BİLGİLERİNİ PDF İSİMLERİNDEN ÇEKME MANTIĞI ---
-def en_guncel_belge_bilgisi(df):
+# --- 🌟 GÜNCELLEME: ÇOKLU BELGE GÖSTEREN YENİ NESİL TARAMA MANTIĞI 🌟 ---
+def en_guncel_belgeleri_getir(df):
     if df.empty or 'Kaynak Belge' not in df.columns:
-        return "Veri Yok", "Bilinmiyor"
+        return ["Veri Yok"], "Bilinmiyor"
     
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
     
@@ -68,25 +68,29 @@ def en_guncel_belge_bilgisi(df):
         errors='coerce'
     )
     
-    isimler_tarihsiz = unique_files['Kaynak Belge'].str.replace(r'\d{2}\.\d{2}\.\d{4}', '', regex=True)
-    
-    unique_files['Karar_No'] = isimler_tarihsiz.str.extract(r'(\d{3,6})')[0]
-    unique_files['Karar_No'] = pd.to_numeric(unique_files['Karar_No'], errors='coerce').fillna(0)
-    
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
     
     if not valid_files.empty:
-        latest_row = valid_files.sort_values(by=['Parsed_Date', 'Karar_No'], ascending=[False, False]).iloc[0]
-        tarih_str = latest_row['Parsed_Date'].strftime('%d.%m.%Y')
-        return latest_row['Kaynak Belge'], tarih_str
+        # 1. En yeni tarihi bul
+        max_date = valid_files['Parsed_Date'].max()
+        # 2. O tarihe ait TÜM dosyaları listeye çek
+        latest_files_df = valid_files[valid_files['Parsed_Date'] == max_date]
+        dosya_listesi = latest_files_df['Kaynak Belge'].tolist()
+        tarih_str = max_date.strftime('%d.%m.%Y')
+        
+        return dosya_listesi, tarih_str
     elif not unique_files.empty:
-        return unique_files.iloc[0]['Kaynak Belge'], "Tarih Bulunamadı"
+        return [unique_files.iloc[0]['Kaynak Belge']], "Tarih Bulunamadı"
     
-    return "Veri Yok", "Bilinmiyor"
+    return ["Veri Yok"], "Bilinmiyor"
 
-_, dosya_guncelleme_tarihi = en_guncel_belge_bilgisi(df_dosya)
-m10_belge, m10_tarih = en_guncel_belge_bilgisi(df_karar_m10)
-m11_belge, m11_tarih = en_guncel_belge_bilgisi(df_karar_m11)
+_, dosya_guncelleme_tarihi = en_guncel_belgeleri_getir(df_dosya)
+m10_belgeler_listesi, m10_tarih = en_guncel_belgeleri_getir(df_karar_m10)
+m11_belgeler_listesi, m11_tarih = en_guncel_belgeleri_getir(df_karar_m11)
+
+# Listeleri Streamlit arayüzü için alt alta güzel görünecek formata sokalım
+m10_belgeler_metni = "<br>".join([f"&nbsp;&nbsp;&nbsp;&nbsp;📄 <code>{b}</code>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "&nbsp;&nbsp;&nbsp;&nbsp;Veri Yok"
+m11_belgeler_metni = "<br>".join([f"&nbsp;&nbsp;&nbsp;&nbsp;📄 <code>{b}</code>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "&nbsp;&nbsp;&nbsp;&nbsp;Veri Yok"
 
 # --- SUNUCU DOSTU ŞİMŞEK HIZINDA (VEKTÖREL) MAKSİMUM ORDİN HESAPLAMA MOTORU ---
 @st.cache_data
@@ -121,13 +125,14 @@ max_ordin_m11 = max_ordin_hesapla_vektorel(df_karar_m11)
 st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve karar (**Ordin**) sonucunuzu tek ekranda görüntüleyin.")
 
+# 🌟 ÇOKLU BELGELERİN YER ALDIĞI GÜNCELLENMİŞ BİLGİ KUTUSU 🌟
 st.info(f"""
 🔄 **Dosya Durumu (Stadiu Dosar) Son Güncelleme:** {dosya_guncelleme_tarihi}
 
-📄 **Sisteme Eklenen Son Kararlar:**
-- **Madde 10:** {m10_belge} 
-- **Madde 11:** {m11_belge} 
-""")
+📑 **Sisteme Eklenen Son Kararlar:**<br>
+**Madde 10:**<br>{m10_belgeler_metni}<br><br>
+**Madde 11:**<br>{m11_belgeler_metni}
+""", icon="ℹ️")
 
 st.markdown("---")
 
@@ -259,7 +264,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                         if pdf_match:
                                             gosterilecek_karar = pdf_match.group(1)
 
-                                    # 🌟 GÜNCELLEME: MUTLAK FORMAT STANDARTLAŞTIRICI (XX/P/YYYY) 🌟
+                                    # 🌟 FORMAT STANDARTLAŞTIRICI (XX/P/YYYY) 🌟
                                     if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
                                         clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
                                         if clean_no_match:
