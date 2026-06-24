@@ -20,7 +20,7 @@ if not BOT_TOKEN or not JSONBIN_ID or not JSONBIN_KEY:
 
 print("🤖 Akıllı Asistan Başlatılıyor...")
 
-# --- BULUT HAFIZA (JSONBIN) FONKSİYON LARI ---
+# --- BULUT HAFIZA (JSONBIN) FONKSİYONLARI ---
 def get_bulut_verisi():
     headers = {"X-Master-Key": JSONBIN_KEY}
     try:
@@ -238,7 +238,7 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         rapor_msg = (
             f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
             f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
-            f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
+            f"👥 Bot veritabanında anlık olarak takip edilen og karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
             f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
             f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
             f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
@@ -342,7 +342,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━\n"
         "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
         "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
-        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
+        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır og hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)
 
@@ -385,7 +385,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         karar_bulundu_mu, k_row, onaylanan_kisi_sayisi = False, None, 0
         
-        # 🌟 GÜNCELLEME: ÇOKLU SATIR VE VARYASYON KORUMA FİLTRELEME MOTORU 🌟
         if not df_karar.empty:
             karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
             temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
@@ -394,7 +393,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_sonucu = df_karar[temiz_karar_metni.str.contains(regex, regex=True)].copy()
             
             if not karar_sonucu.empty:
-                # Aynı dosyanın girdiği dokümandaki (Kaynak Belge) tüm satırları koru (Harf varyasyonlarına takılma!)
                 en_cok_kayit_iceren_belge = karar_sonucu['Kaynak Belge'].value_counts().idxmax()
                 karar_sonucu = karar_sonucu[karar_sonucu['Kaynak Belge'] == en_cok_kayit_iceren_belge].copy()
                 
@@ -432,13 +430,13 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
             if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: karar_tarihi = "Belirtilmemiş"
                 
-            # 🌟 GÜNCELLEME: ÇOKLU SATIRLARDAN ÇOCUK SAYISINI KUSURSUZ SAYAN METİN TARAYICI 🌟
             toplam_cocuk = 0
             for _, kr in karar_sonucu.iterrows():
                 tum_satir_metni = " ".join([str(val) for val in kr.values if str(val) not in ["nan", "None", ""]])
                 copii_match = re.search(r'Copii\s*minori[^\d]*(\d+)', tum_satir_metni, re.IGNORECASE)
-                if超_match := copii_match: 
-                    toplam_cocuk += int(超_match.group(1))
+                # 🌟 SEBAP HATASI BURADA DÜZELTİLDİ: "if超_match" kalıntısı kaldırıldı, temiz python söz dizimi yazıldı!
+                if copii_match: 
+                    toplam_cocuk += int(copii_match.group(1))
                 else:
                     for col in kr.index:
                         if 'copii' in str(col).lower() and str(kr[col]).strip() not in ["nan", "None", ""]:
@@ -664,7 +662,7 @@ if __name__ == '__main__':
         
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_sabah)
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_aksam)
-        print("⏰ Günlük saat 10:00 ve 20:00 özet raporlama görevleri zamanlayıcıya eklendi.")
+        print("⏰ Günlük saat 10:00 og 20:00 özet raporlama görevleri zamanlayıcıya eklendi.")
         
     app.post_init = post_init
     
