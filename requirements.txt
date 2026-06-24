@@ -8,3 +8,5 @@ python-telegram-bot[job-queue]
 cloudscraper==1.2.71
 beautifulsoup4==4.12.3
 curl_cffi
+playwright
+playwright-stealth
