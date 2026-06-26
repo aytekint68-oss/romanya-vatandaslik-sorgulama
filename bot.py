@@ -323,8 +323,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     df_k = hafiza['df_karar_birlesik']
     if not df_k.empty and 'Kaynak Belge' in df_k.columns:
-        m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains('art-10|m10|madde10', case=False, regex=True)])
-        m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains('art-11|m11|madde11', case=False, regex=True)])
+        # 🌟 DEĞİŞTİRİLEN VE ESNETİLEN REGEX SATIRLARI BURASI 🌟
+        m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*10|m10|madde10', case=False, regex=True)])
+        m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*11|m11|madde11', case=False, regex=True)])
     else:
         m10_files, m11_files = ["Veri Yok"], ["Veri Yok"]
 
