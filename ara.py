@@ -71,9 +71,10 @@ def en_guncel_belgeleri_getir(df):
     return ["Veri Yok"], "Bilinmiyor"
 
 # =========================================================
-# 🌟 MERKEZİ VERİTANI YÜKLEYİCİSİ (MAX RAM TASARRUFU İÇİN)
+# 🌟 MERKEZİ VERİTANI YÜKLEYİCİSİ (KURŞUN GEÇİRMEZ ÖNBELLEK)
 # =========================================================
-@st.cache_data(max_entries=1, show_spinner="Veritabanı senkronize ediliyor, lütfen bekleyin...")
+# ttl=3600 eklendi: Saatlik otomatik yenileme (her ihtimale karşı).
+@st.cache_data(max_entries=1, ttl=3600, show_spinner="Yeni veriler senkronize ediliyor, lütfen bekleyin...")
 def veritabanini_hazirla(guncelleme_tetikleyici):
     df_d = _csv_oku("dosyadurumu.zip")
     df_m10 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
@@ -98,14 +99,19 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
 
     return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11
 
+# Sadece tarihe değil, DOSYA BOYUTUNA (Byte) da bakan tetikleyici
 def dosya_zaman_damgasi_al():
     dosyalar = ["dosyadurumu.zip", "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv", "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv"]
-    en_yeni = 0
+    tetikleyici_kod = ""
     for d in dosyalar:
         if os.path.exists(d):
-            en_yeni = max(en_yeni, os.path.getmtime(d))
-    return en_yeni
+            # Dosyanın değişim saati ve byte cinsinden boyutu birleştirilir
+            mtime = os.path.getmtime(d)
+            size = os.path.getsize(d)
+            tetikleyici_kod += f"{mtime}_{size}_"
+    return tetikleyici_kod
 
+# Yeni tetikleyici kodu fonksiyona gönderiyoruz
 df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
 # --- ARAYÜZ TASARIMI ---
