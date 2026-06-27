@@ -680,12 +680,11 @@ if __name__ == '__main__':
         veritabanini_kontrol_et(application)
         
         # ÇİFT ZAMANLI RAPOR SİSTEMİ (TSİ -> UTC ÇEVRİMİ İLE)
-        saat_sabah = datetime.time(7, 0, 0)   # 10:00 TSİ
-        saat_aksam = datetime.time(17, 0, 0)  # 20:00 TSİ
         
-        application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_sabah)
+        saat_aksam = datetime.time(17, 0, 0)  # 20:00 TSİ        
+        
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_aksam)
-        print("⏰ Günlük saat 10:00 ve 20:00 özet raporlama görevleri zamanlayıcıya eklendi.")
+        print("⏰ Günlük saat 20:00 özet raporlama görevleri zamanlayıcıya eklendi.")
         
     app.post_init = post_init
     
