@@ -155,31 +155,33 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 print(f"✅ {dosya_tam} için MÜJDE iletildi.")
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> <i>({madde_turu})</i>") 
             else:
-                kullanici_icin_degisenler = []
-                
-                if dosya_tarih_degisti:
-                    kullanici_icin_degisenler.append(f"Stadiu Dosar Durumu (Güncelleme: {dosya_tarih})")
-                
-                if is_m10 and eklenen_m10:
-                    for b in eklenen_m10: kullanici_icin_degisenler.append(f"Madde 10: {b}")
-                
-                if is_m11 and eklenen_m11:
-                    for b in eklenen_m11: kullanici_icin_degisenler.append(f"Madde 11: {b}")
+                # 🌟 YENİ SESSİZ TARAMA MANTIĞI: Sadece yeni bir dosya eklenmişse "Maalesef" yolla
+                if eklenen_m10 or eklenen_m11 or dosya_tarih_degisti:
+                    kullanici_icin_degisenler = []
+                    
+                    if dosya_tarih_degisti:
+                        kullanici_icin_degisenler.append(f"Stadiu Dosar Durumu (Güncelleme: {dosya_tarih})")
+                    
+                    if is_m10 and eklenen_m10:
+                        for b in eklenen_m10: kullanici_icin_degisenler.append(f"Madde 10: {b}")
+                    
+                    if is_m11 and eklenen_m11:
+                        for b in eklenen_m11: kullanici_icin_degisenler.append(f"Madde 11: {b}")
 
-                if kullanici_icin_degisenler:
-                    if len(kullanici_icin_degisenler) > 10:
-                        degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler[:10]]) + f"\n🔹 <i>...ve {len(kullanici_icin_degisenler)-10} belge daha.</i>"
-                    else:
-                        degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler])
-                        
-                    msg = (
-                        f"🔔 <b>Sistem Güncellemesi:</b>\n\n"
-                        f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni veriler yüklenmiştir.\n"
-                        f"📂 <b>Sisteme Yeni Eklenenler:</b>\n{degisim_metni}\n\n"
-                        f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni listelerde görünmemiştir. "
-                        f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
-                    )
-                    await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
+                    if kullanici_icin_degisenler:
+                        if len(kullanici_icin_degisenler) > 10:
+                            degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler[:10]]) + f"\n🔹 <i>...ve {len(kullanici_icin_degisenler)-10} belge daha.</i>"
+                        else:
+                            degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler])
+                            
+                        msg = (
+                            f"🔔 <b>Sistem Güncellemesi:</b>\n\n"
+                            f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni veriler yüklenmiştir.\n"
+                            f"📂 <b>Sisteme Yeni Eklenenler:</b>\n{degisim_metni}\n\n"
+                            f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni listelerde görünmemiştir. "
+                            f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
+                        )
+                        await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 
                 kalan_bekleyenler.append(kisi) 
         except Exception as e:
@@ -305,10 +307,11 @@ def veritabanini_kontrol_et(app_context=None):
                 "m11_belgeler": yeni_m11_belgeler
             }
             
-            if not eski_m10 and not eski_m11:
+            # 🌟 YENİ TETİKLEME MANTIĞI: İlk çalıştırma hariç HER ZAMAN Müjde taraması yap!
+            if not eski_durum: 
                 hafiza['son_durum'] = yeni_durum
                 set_bulut_verisi(hafiza['bekleyenler'], yeni_durum)
-            elif eklenen_m10 or eklenen_m11 or dosya_tarih_degisti:
+            else:
                 app_context.create_task(bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum))
 
 # İlk yükleme
@@ -323,7 +326,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     df_k = hafiza['df_karar_birlesik']
     if not df_k.empty and 'Kaynak Belge' in df_k.columns:
-        # 🌟 DEĞİŞTİRİLEN VE ESNETİLEN REGEX SATIRLARI BURASI 🌟
         m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*10|m10|madde10', case=False, regex=True)])
         m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*11|m11|madde11', case=False, regex=True)])
     else:
