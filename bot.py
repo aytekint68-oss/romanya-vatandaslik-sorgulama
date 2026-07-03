@@ -127,6 +127,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
         is_m10 = False
         is_m11 = True 
         madde_turu = "Madde 11" 
+        p_numarasi = None
         
         if not arama_sutunu.empty:
             arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
@@ -137,23 +138,74 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                     is_m10 = True
                     is_m11 = False
                     madde_turu = "Madde 10"
+                
+                solutie_metni = str(user_row.iloc[0].get('SOLUTIE', '')).strip()
+                if solutie_metni:
+                    p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
+                    if p_match: 
+                        p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
 
         onaylandi_mi = False
+        k_row = None
         if not df_karar.empty:
             regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
-            mask = pd.Series(False, index=df_karar.index)
+            mask_initial = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
                     temiz_sutun = df_karar[col].astype(str).str.replace(r'\s+', '', regex=True)
-                    mask |= temiz_sutun.str.contains(regex_find, case=False, regex=True)
-            if mask.any():
+                    mask_initial |= temiz_sutun.str.contains(regex_find, case=False, regex=True)
+            
+            final_matches = df_karar[mask_initial]
+            if not final_matches.empty:
                 onaylandi_mi = True
+                k_row = final_matches.iloc[0]
 
         try:
             if onaylandi_mi:
-                msg = f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı!\n\nDetayları görmek için bana dosya numaranızı tekrar yazabilirsiniz."
+                # 🌟 MÜJDE DETAYLARI İÇİN FORMATLAMA 🌟
+                kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
+                gosterilecek_karar = p_numarasi
+                
+                if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
+                    k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
+                    if k_ordin_cols:
+                        val = str(k_row[k_ordin_cols[0]]).strip()
+                        if val and val.lower() not in ['nan', 'none', '']:
+                            gosterilecek_karar = val
+
+                if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
+                    pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE)
+                    if pdf_match:
+                        gosterilecek_karar = pdf_match.group(1)
+
+                if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
+                    clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
+                    if clean_no_match:
+                        pure_no = clean_no_match.group(1)
+                        yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
+                        if not yil_match:
+                            yil_match = re.search(r'\b(202\d)\b', str(k_row.get('Tarih', '')))
+                        pure_year = yil_match.group(1) if yil_match else "2026"
+                        gosterilecek_karar = f"{pure_no}/P/{pure_year}"
+                    else:
+                        gosterilecek_karar = "Belirtilmemiş"
+                else:
+                    gosterilecek_karar = "Belirtilmemiş"
+                
+                karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
+                if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
+                    date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', kaynak_belge_adi)
+                    karar_tarihi = date_match.group(1) if date_match else "Belirtilmemiş"
+
+                # 🌟 KULLANICIYA GİDECEK YENİ VE DETAYLI MÜJDE MESAJI 🌟
+                msg = (
+                    f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı! 💚\n\n"
+                    f"📜 <b>Karar No:</b> {gosterilecek_karar}\n"
+                    f"📅 <b>Tarih:</b> {karar_tarihi}\n"
+                    f"📂 <b>Kaynak:</b> {kaynak_belge_adi}"
+                )
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
-                print(f"✅ {dosya_tam} için MÜJDE iletildi.")
+                print(f"✅ {dosya_tam} için detaylı MÜJDE iletildi.")
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> <i>({madde_turu})</i>") 
             else:
                 if not ilk_calistirma and (eklenen_m10 or eklenen_m11 or dosya_tarih_degisti):
@@ -310,7 +362,6 @@ def veritabanini_kontrol_et(app_context=None):
             ilk_calistirma = not bool(eski_durum)
             app_context.create_task(bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, ilk_calistirma))
 
-
 # --- TELEGRAM MESAJLAŞMA MANTIĞI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context) 
@@ -361,7 +412,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context)
     aranan_kelime = update.message.text.strip()
     chat_id = str(update.message.chat_id) 
-    df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
+    df_dosya, df_karar = hafiza['df_dosya'], df_karar_birlesik = hafiza['df_karar_birlesik']
     
     if df_dosya.empty:
         await update.message.reply_text("❌ Sistemde veri bulunmuyor.")
