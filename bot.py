@@ -144,7 +144,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
             mask = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
-                    # GÜVENLİK GÜNCELLEMESİ: Listelerdeki olası boşluk hatalarını (1234 / 2024) temizleyerek ara
                     temiz_sutun = df_karar[col].astype(str).str.replace(r'\s+', '', regex=True)
                     mask |= temiz_sutun.str.contains(regex_find, case=False, regex=True)
             if mask.any():
@@ -157,7 +156,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 print(f"✅ {dosya_tam} için MÜJDE iletildi.")
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> <i>({madde_turu})</i>") 
             else:
-                # 🌟 YENİ MANTIK: MÜJDE her zaman kontrol edilir ancak "Maalesef" sadece yeni eklenen varsa ve ilk kurulum değilse atılır.
                 if not ilk_calistirma and (eklenen_m10 or eklenen_m11 or dosya_tarih_degisti):
                     kullanici_icin_degisenler = []
                     
@@ -309,12 +307,9 @@ def veritabanini_kontrol_et(app_context=None):
                 "m11_belgeler": yeni_m11_belgeler
             }
             
-            # 🌟 YENİ TETİKLEME MANTIĞI: MÜJDE taraması HER KOŞULDA çağrılır. 
             ilk_calistirma = not bool(eski_durum)
             app_context.create_task(bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, ilk_calistirma))
 
-# İlk yükleme
-veritabanini_kontrol_et()
 
 # --- TELEGRAM MESAJLAŞMA MANTIĞI ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
