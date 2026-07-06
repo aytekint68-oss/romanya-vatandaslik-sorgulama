@@ -1,4 +1,4 @@
-import pandas as pd
+﻿pandas as pd
 import re
 import os
 import requests
@@ -725,10 +725,13 @@ if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def post_init(application: Application):
-        veritabanini_kontrol_et(application)
+        # 🌟 UYARIYI ÇÖZEN KISIM: Bot tam uyandıktan 2 saniye sonra taramayı başlatır
+        async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
+            veritabanini_kontrol_et(context.application)
+            
+        application.job_queue.run_once(baslangic_taramasi, 2)
         
         # ÇİFT ZAMANLI RAPOR SİSTEMİ (TSİ -> UTC ÇEVRİMİ İLE)
-        
         saat_aksam = datetime.time(17, 0, 0)  # 20:00 TSİ        
         
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_aksam)
