@@ -1,4 +1,4 @@
-﻿import pandas as pd
+﻿﻿import pandas as pd
 import re
 import os
 import requests
@@ -412,7 +412,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context)
     aranan_kelime = update.message.text.strip()
     chat_id = str(update.message.chat_id) 
-    df_dosya, df_karar = hafiza['df_dosya'], df_karar_birlesik = hafiza['df_karar_birlesik']
+    df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
     
     if df_dosya.empty:
         await update.message.reply_text("❌ Sistemde veri bulunmuyor.")
