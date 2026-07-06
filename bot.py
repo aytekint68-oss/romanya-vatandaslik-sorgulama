@@ -1,4 +1,4 @@
-﻿﻿import pandas as pd
+pandas as pd
 import re
 import os
 import requests
