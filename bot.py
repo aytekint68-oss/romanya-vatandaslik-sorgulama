@@ -25,7 +25,9 @@ print("🤖 Akıllı Asistan Başlatılıyor...")
 def get_bulut_verisi():
     headers = {"X-Master-Key": JSONBIN_KEY}
     try:
-        res = requests.get(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}/latest", headers=headers)
+        # 🌟 JSONBin önbelleğini (cache) kırmak için zaman damgası eklendi!
+        url = f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}/latest?t={datetime.datetime.now().timestamp()}"
+        res = requests.get(url, headers=headers)
         if res.status_code == 200:
             return res.json().get("record", {"bekleyenler": [], "son_durum": {}})
     except Exception as e:
@@ -36,7 +38,9 @@ def set_bulut_verisi(bekleyenler, son_durum):
     headers = {"X-Master-Key": JSONBIN_KEY, "Content-Type": "application/json"}
     payload = {"bekleyenler": bekleyenler, "son_durum": son_durum}
     try:
-        requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers)
+        res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers)
+        if res.status_code != 200:
+            print(f"JSONBin Kayıt Hatası ({res.status_code}):", res.text)
     except Exception as e:
         print("Bulut Hafıza güncellenemedi:", e)
 
@@ -162,7 +166,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         try:
             if onaylandi_mi:
-                # 🌟 MÜJDE DETAYLARI İÇİN FORMATLAMA 🌟
                 kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
                 gosterilecek_karar = p_numarasi
                 
@@ -197,7 +200,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                     date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', kaynak_belge_adi)
                     karar_tarihi = date_match.group(1) if date_match else "Belirtilmemiş"
 
-                # 🌟 KULLANICIYA GİDECEK YENİ VE DETAYLI MÜJDE MESAJI 🌟
                 msg = (
                     f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı! 💚\n\n"
                     f"📜 <b>Karar No:</b> {gosterilecek_karar}\n"
@@ -404,7 +406,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━\n"
         "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
         "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
-        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
+        "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform somut tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)
 
@@ -453,7 +455,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
             if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
 
-        # --- TEK ORDIN PDF LİSTESİNİ İZOLE EDEN AKILLI SAYAÇ SİSTEMİ ---
         if not df_karar.empty:
             regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
             mask_initial = pd.Series(False, index=df_karar.index)
@@ -498,12 +499,10 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if pdf_match:
                     gosterilecek_karar = pdf_match.group(1)
 
-            # 🌟 FORMAT STANDARTLAŞTIRMA MOTORU (Ne gelirse gelsin XX/P/YYYY formatına çevirir) 🌟
             if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
                 clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
                 if clean_no_match:
                     pure_no = clean_no_match.group(1)
-                    # Belgeden veya listeden yılı bul
                     yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
                     if not yil_match:
                         yil_match = re.search(r'\b(202\d)\b', str(k_row.get('Tarih', '')))
@@ -725,7 +724,6 @@ if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def post_init(application: Application):
-        # 🌟 UYARIYI ÇÖZEN KISIM: Bot tam uyandıktan 2 saniye sonra taramayı başlatır
         async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
             veritabanini_kontrol_et(context.application)
             
