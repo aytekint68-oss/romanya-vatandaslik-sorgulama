@@ -3,6 +3,7 @@ import pandas as pd
 import re
 import os
 import gc
+import datetime # B Planı (Dosya tarihi) için eklendi
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(
@@ -15,15 +16,21 @@ st.set_page_config(
 def _csv_oku(dosya_adi):
     if os.path.exists(dosya_adi):
         try:
-            df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False)
+            # ANC'nin hatalı satırlarını atlamak için on_bad_lines eklendi
+            df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
             if len(df.columns) < 2:
-                df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
+                df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+            
+            # Sütun isimlerindeki görünmez boşlukları temizle
+            df.columns = df.columns.astype(str).str.strip()
             return df.fillna("")
         except Exception:
             try:
-                df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False)
+                df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False, on_bad_lines='skip')
                 if len(df.columns) < 2:
-                    df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False)
+                    df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False, on_bad_lines='skip')
+                
+                df.columns = df.columns.astype(str).str.strip()
                 return df.fillna("")
             except Exception: pass
     return pd.DataFrame()
@@ -48,8 +55,14 @@ def max_ordin_hesapla_vektorel(df_k):
     
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-def en_guncel_belgeleri_getir(df):
-    if df.empty or 'Kaynak Belge' not in df.columns: return ["Veri Yok"], "Bilinmiyor"
+def en_guncel_belgeleri_getir(df, dosya_yolu=None):
+    # Eğer tablo boşsa veya sütun yoksa, B PLANINA geç (Dosyanın sistemdeki değiştirilme tarihini al)
+    if df.empty or 'Kaynak Belge' not in df.columns: 
+        if dosya_yolu and os.path.exists(dosya_yolu):
+            mtime = os.path.getmtime(dosya_yolu)
+            dt_str = datetime.datetime.fromtimestamp(mtime).strftime('%d.%m.%Y')
+            return ["Veri/Belge Yok"], dt_str
+        return ["Veri Yok"], "Bilinmiyor"
     
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
     unique_files['Parsed_Date'] = pd.to_datetime(
@@ -66,6 +79,11 @@ def en_guncel_belgeleri_getir(df):
         tarih_str = max_date.strftime('%d.%m.%Y')
         return dosya_listesi, tarih_str
     elif not unique_files.empty:
+        # Eğer regex ile tarih bulunamazsa yine B Planı sistem saatine dön
+        if dosya_yolu and os.path.exists(dosya_yolu):
+            mtime = os.path.getmtime(dosya_yolu)
+            dt_str = datetime.datetime.fromtimestamp(mtime).strftime('%d.%m.%Y')
+            return [unique_files.iloc[0]['Kaynak Belge']], dt_str
         return [unique_files.iloc[0]['Kaynak Belge']], "Tarih Bulunamadı"
     
     return ["Veri Yok"], "Bilinmiyor"
@@ -73,16 +91,16 @@ def en_guncel_belgeleri_getir(df):
 # =========================================================
 # 🌟 MERKEZİ VERİTANI YÜKLEYİCİSİ (KURŞUN GEÇİRMEZ ÖNBELLEK)
 # =========================================================
-# ttl=3600 eklendi: Saatlik otomatik yenileme (her ihtimale karşı).
 @st.cache_data(max_entries=1, ttl=3600, show_spinner="Yeni veriler senkronize ediliyor, lütfen bekleyin...")
 def veritabanini_hazirla(guncelleme_tetikleyici):
     df_d = _csv_oku("dosyadurumu.zip")
     df_m10 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
     df_m11 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
 
-    _, d_tarih = en_guncel_belgeleri_getir(df_d)
-    m10_list, m10_tarih = en_guncel_belgeleri_getir(df_m10)
-    m11_list, m11_tarih = en_guncel_belgeleri_getir(df_m11)
+    # Dosya yollarını da göndererek B planı güvencesini açıyoruz
+    _, d_tarih = en_guncel_belgeleri_getir(df_d, "dosyadurumu.zip")
+    m10_list, m10_tarih = en_guncel_belgeleri_getir(df_m10, "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
+    m11_list, m11_tarih = en_guncel_belgeleri_getir(df_m11, "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
     
     max_m10 = max_ordin_hesapla_vektorel(df_m10)
     max_m11 = max_ordin_hesapla_vektorel(df_m11)
@@ -99,19 +117,16 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
 
     return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11
 
-# Sadece tarihe değil, DOSYA BOYUTUNA (Byte) da bakan tetikleyici
 def dosya_zaman_damgasi_al():
     dosyalar = ["dosyadurumu.zip", "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv", "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv"]
     tetikleyici_kod = ""
     for d in dosyalar:
         if os.path.exists(d):
-            # Dosyanın değişim saati ve byte cinsinden boyutu birleştirilir
             mtime = os.path.getmtime(d)
             size = os.path.getsize(d)
             tetikleyici_kod += f"{mtime}_{size}_"
     return tetikleyici_kod
 
-# Yeni tetikleyici kodu fonksiyona gönderiyoruz
 df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
 # --- ARAYÜZ TASARIMI ---
@@ -119,12 +134,11 @@ st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve karar (**Ordin**) sonucunuzu tek ekranda görüntüleyin.")
 
 # =========================================================
-# 🌟 ÖZEL HTML İLE KESİN HİZALAMA VE DÜZ METİN (CODE KALDIRILDI) 🌟
+# 🌟 ÖZEL HTML İLE KESİN HİZALAMA VE DÜZ METİN 🌟
 # =========================================================
-m10_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 {b}</li>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
-m11_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 {b}</li>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
+m10_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 {b}</li>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi and m10_belgeler_listesi[0] != "Veri Yok" else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
+m11_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 {b}</li>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi and m11_belgeler_listesi[0] != "Veri Yok" else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
 
-# DİKKAT: Streamlit Markdown algılamasın diye HTML kodu sıfır boşlukla sola dayandı.
 info_box_html = f"""<div style="background-color: rgba(42, 171, 238, 0.1); border-left: 5px solid #2aabee; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
 <div style="font-size: 1.1em; margin-bottom: 10px;">🔄 <strong>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</strong> {dosya_guncelleme_tarihi}</div>
 <div style="font-size: 1.1em; margin-bottom: 10px;">📑 <strong>Sisteme Eklenen Son Kararlar:</strong></div>
@@ -218,9 +232,9 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.markdown(f"**📅 Başvuru Tarihi:**<br>{row['Başvuru Tarihi']}", unsafe_allow_html=True)
+                                st.markdown(f"**📅 Başvuru Tarihi:**<br>{row.get('Başvuru Tarihi', '')}", unsafe_allow_html=True)
                             with col2:
-                                termen_metni = str(row['TERMEN']).strip()
+                                termen_metni = str(row.get('TERMEN', '')).strip()
                                 if termen_metni and termen_metni != "-":
                                     st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>{termen_metni}", unsafe_allow_html=True)
                                 else:
