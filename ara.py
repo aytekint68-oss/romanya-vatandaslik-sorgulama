@@ -3,7 +3,7 @@ import pandas as pd
 import re
 import os
 import gc
-import datetime # B Planı (Dosya tarihi) için eklendi
+import datetime
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(
@@ -12,27 +12,41 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ALT FONKSİYONLAR (RAM Dostu - Önbelleksiz Saf İşlem) ---
-def _csv_oku(dosya_adi):
-    if os.path.exists(dosya_adi):
-        try:
-            # ANC'nin hatalı satırlarını atlamak için on_bad_lines eklendi
+# --- ALT FONKSİYONLAR (Esnek Uzantı Okuyucu) ---
+def gercek_dosya_yolu(taban_adi):
+    """Dosyanın .xlsx, .zip veya .csv uzantılı halini bulur"""
+    for uzanti in ['.xlsx', '.zip', '.csv']:
+        if os.path.exists(taban_adi + uzanti):
+            return taban_adi + uzanti
+    return None
+
+def _esnek_veri_oku(taban_adi):
+    """Bulunan dosyayı uzantısına göre en uygun yöntemle okur"""
+    dosya_adi = gercek_dosya_yolu(taban_adi)
+    if not dosya_adi:
+        return pd.DataFrame()
+        
+    try:
+        if dosya_adi.endswith('.xlsx'):
+            df = pd.read_excel(dosya_adi)
+            df.columns = df.columns.astype(str).str.strip()
+            return df.fillna("")
+        else:
             df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
             if len(df.columns) < 2:
                 df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
-            
-            # Sütun isimlerindeki görünmez boşlukları temizle
             df.columns = df.columns.astype(str).str.strip()
             return df.fillna("")
-        except Exception:
-            try:
+    except Exception:
+        try:
+            if not dosya_adi.endswith('.xlsx'):
                 df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False, on_bad_lines='skip')
                 if len(df.columns) < 2:
                     df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False, on_bad_lines='skip')
-                
                 df.columns = df.columns.astype(str).str.strip()
                 return df.fillna("")
-            except Exception: pass
+        except Exception: pass
+        
     return pd.DataFrame()
 
 def max_ordin_hesapla_vektorel(df_k):
@@ -56,7 +70,6 @@ def max_ordin_hesapla_vektorel(df_k):
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
 def en_guncel_belgeleri_getir(df, dosya_yolu=None):
-    # Eğer tablo boşsa veya sütun yoksa, B PLANINA geç (Dosyanın sistemdeki değiştirilme tarihini al)
     if df.empty or 'Kaynak Belge' not in df.columns: 
         if dosya_yolu and os.path.exists(dosya_yolu):
             mtime = os.path.getmtime(dosya_yolu)
@@ -79,7 +92,6 @@ def en_guncel_belgeleri_getir(df, dosya_yolu=None):
         tarih_str = max_date.strftime('%d.%m.%Y')
         return dosya_listesi, tarih_str
     elif not unique_files.empty:
-        # Eğer regex ile tarih bulunamazsa yine B Planı sistem saatine dön
         if dosya_yolu and os.path.exists(dosya_yolu):
             mtime = os.path.getmtime(dosya_yolu)
             dt_str = datetime.datetime.fromtimestamp(mtime).strftime('%d.%m.%Y')
@@ -89,18 +101,21 @@ def en_guncel_belgeleri_getir(df, dosya_yolu=None):
     return ["Veri Yok"], "Bilinmiyor"
 
 # =========================================================
-# 🌟 MERKEZİ VERİTANI YÜKLEYİCİSİ (KURŞUN GEÇİRMEZ ÖNBELLEK)
+# 🌟 MERKEZİ VERİTANI YÜKLEYİCİSİ
 # =========================================================
 @st.cache_data(max_entries=1, ttl=3600, show_spinner="Yeni veriler senkronize ediliyor, lütfen bekleyin...")
 def veritabanini_hazirla(guncelleme_tetikleyici):
-    df_d = _csv_oku("dosyadurumu.zip")
-    df_m10 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
-    df_m11 = _csv_oku("Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
+    df_d = _esnek_veri_oku("dosyadurumu")
+    df_m10 = _esnek_veri_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10")
+    df_m11 = _esnek_veri_oku("Romanya_Vatandaslik_Tum_Veriler_Madde11")
 
-    # Dosya yollarını da göndererek B planı güvencesini açıyoruz
-    _, d_tarih = en_guncel_belgeleri_getir(df_d, "dosyadurumu.zip")
-    m10_list, m10_tarih = en_guncel_belgeleri_getir(df_m10, "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
-    m11_list, m11_tarih = en_guncel_belgeleri_getir(df_m11, "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
+    yol_d = gercek_dosya_yolu("dosyadurumu")
+    yol_m10 = gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde10")
+    yol_m11 = gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde11")
+
+    _, d_tarih = en_guncel_belgeleri_getir(df_d, yol_d)
+    m10_list, m10_tarih = en_guncel_belgeleri_getir(df_m10, yol_m10)
+    m11_list, m11_tarih = en_guncel_belgeleri_getir(df_m11, yol_m11)
     
     max_m10 = max_ordin_hesapla_vektorel(df_m10)
     max_m11 = max_ordin_hesapla_vektorel(df_m11)
@@ -118,13 +133,17 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11
 
 def dosya_zaman_damgasi_al():
-    dosyalar = ["dosyadurumu.zip", "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv", "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv"]
+    tabanlar = ["dosyadurumu", "Romanya_Vatandaslik_Tum_Veriler_Madde10", "Romanya_Vatandaslik_Tum_Veriler_Madde11"]
+    uzantilar = ['.xlsx', '.zip', '.csv']
     tetikleyici_kod = ""
-    for d in dosyalar:
-        if os.path.exists(d):
-            mtime = os.path.getmtime(d)
-            size = os.path.getsize(d)
-            tetikleyici_kod += f"{mtime}_{size}_"
+    for taban in tabanlar:
+        for uzanti in uzantilar:
+            d = taban + uzanti
+            if os.path.exists(d):
+                mtime = os.path.getmtime(d)
+                size = os.path.getsize(d)
+                tetikleyici_kod += f"{mtime}_{size}_"
+                break
     return tetikleyici_kod
 
 df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
@@ -134,7 +153,7 @@ st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Madde 10/11 kapsamındaki dosya durumunuzu (**Stadiu Dosar**) ve karar (**Ordin**) sonucunuzu tek ekranda görüntüleyin.")
 
 # =========================================================
-# 🌟 ÖZEL HTML İLE KESİN HİZALAMA VE DÜZ METİN 🌟
+# 🌟 BİLGİ KUTUSU 🌟
 # =========================================================
 m10_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 {b}</li>" for b in m10_belgeler_listesi]) if m10_belgeler_listesi and m10_belgeler_listesi[0] != "Veri Yok" else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
 m11_items = "".join([f"<li style='margin-bottom: 5px;'>🔹 {b}</li>" for b in m11_belgeler_listesi]) if m11_belgeler_listesi and m11_belgeler_listesi[0] != "Veri Yok" else "<li style='margin-bottom: 5px;'>🔹 <i>Veri Yok</i></li>"
@@ -153,11 +172,10 @@ info_box_html = f"""<div style="background-color: rgba(42, 171, 238, 0.1); borde
 </div>"""
 
 st.markdown(info_box_html, unsafe_allow_html=True)
-
 st.markdown("---")
 
-st.markdown("💡 **Örnek Arama Formatı:** 1234/2017 veya 37064/2023")
-aranan_kelime = st.text_input("Dosya Numaranız (No/Yıl):", placeholder="Örn: 37064/2023")
+st.markdown("💡 **Örnek Arama Formatı:** 1234/2017 veya 9402/RD/2024")
+aranan_kelime = st.text_input("Dosya Numaranız (No/Yıl):", placeholder="Örn: 9402/RD/2024")
 
 if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
     if not aranan_kelime:
@@ -165,25 +183,22 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
     elif df_dosya.empty:
         st.error("Sistemde şu an 'Dosya Durumu' verisi bulunmuyor.")
     else:
-        temiz_arama = aranan_kelime.strip()
+        temiz_arama = aranan_kelime.strip().replace(" ", "")
         
-        # --- KONTROLLER ---
-        if not re.fullmatch(r'[0-9/]+', temiz_arama):
-            st.warning("⚠️ Hatalı giriş yaptınız. Lütfen SADECE rakam ve '/' işareti kullanınız. Örn: 1234/2023")
-        elif temiz_arama.count("/") != 1:
-            st.warning("⚠️ Hatalı format. Lütfen araya sadece BİR adet '/' işareti koyunuz. Örn: 1234/2023")
+        # --- YENİ AKILLI ARAMA KONTROLLERİ ---
+        if not re.fullmatch(r'[a-zA-Z0-9/]+', temiz_arama):
+            st.warning("⚠️ Hatalı giriş yaptınız. Lütfen SADECE rakam, harf ve '/' işareti kullanınız. Örn: 1234/2023 veya 9402/RD/2024")
+        elif "/" not in temiz_arama:
+            st.warning("⚠️ Hatalı format. Lütfen araya '/' işareti koyunuz. Örn: 1234/2023")
         else:
             parcalar = temiz_arama.split("/")
-            ilk_numara = parcalar[0]
-            son_yil = parcalar[1]
+            # Harfleri (RD) görmezden gel, sadece sayıları çek
+            ilk_numara = "".join(filter(str.isdigit, parcalar[0]))
+            son_yil = "".join(filter(str.isdigit, parcalar[-1]))
             
-            if len(ilk_numara) == 0:
-                st.warning("⚠️ Lütfen '/' işaretinden önce dosya numaranızı yazınız. Örn: 1234/2023")
-            elif int(ilk_numara) == 0:
-                st.warning("⚠️ Hatalı giriş yaptınız. Dosya numarası '0' olamaz.")
-            elif len(son_yil) != 4:
-                st.warning("⚠️ Hatalı giriş yaptınız. Yıl kısmı KESİNLİKLE 4 basamaklı olmalıdır.")
-            elif not (2017 <= int(son_yil) <= 2026):
+            if len(ilk_numara) == 0 or int(ilk_numara) == 0:
+                st.warning("⚠️ Hatalı giriş yaptınız. Dosya numarası geçersiz.")
+            elif len(son_yil) != 4 or not (2017 <= int(son_yil) <= 2026):
                 st.warning("⚠️ Sistem uyarısı: Dosya yılı yalnızca 2017 ile 2026 yılları arasında olabilir.")
             else:
                 arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
@@ -194,7 +209,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     st.success(f"✅ Dosyanız bulundu! Durum ve Karar bilgileri aşağıdadır:")
                     
                     for index, row in sonuclar.iterrows():
-                        
                         dosya_no_parcalar = str(row['Dosya No']).split('/')
                         ana_no = dosya_no_parcalar[0].strip()
                         ana_yil = dosya_no_parcalar[-1].strip()
