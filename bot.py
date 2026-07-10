@@ -55,8 +55,12 @@ hafiza = {
 def veri_yukle(dosya_adi):
     if os.path.exists(dosya_adi):
         try:
-            df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False)
-            if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False)
+            # 🌟 Hatalı satırlarda çökmemesi için on_bad_lines='skip' entegre edildi
+            df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+            if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+            
+            # 🌟 Sütun adlarındaki gizli ANC boşluklarını otomatik temizle!
+            df.columns = df.columns.astype(str).str.strip()
             df = df.fillna("")
             indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
             if indeks_sutunlari:
@@ -66,8 +70,10 @@ def veri_yukle(dosya_adi):
             return df
         except Exception:
             try:
-                df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False)
-                if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False)
+                df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False, on_bad_lines='skip')
+                if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False, on_bad_lines='skip')
+                
+                df.columns = df.columns.astype(str).str.strip()
                 df = df.fillna("")
                 indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
                 if indeks_sutunlari:
@@ -93,8 +99,15 @@ def max_ordin_hesapla_vektorel(df_k):
     temp_df['Yil'], temp_df['No'] = pd.to_numeric(temp_df['Yil'], errors='coerce'), pd.to_numeric(temp_df['No'], errors='coerce')
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-def en_guncel_belgeler(df):
-    if df.empty or 'Kaynak Belge' not in df.columns: return ["Veri Yok"], "Bilinmiyor"
+def en_guncel_belgeler(df, dosya_yolu=None):
+    # 🌟 B PLANINA GÜVENCE: Tablo boşsa veya bozuksa dosyanın sisteme yüklenme tarihini kurtar!
+    if df.empty or 'Kaynak Belge' not in df.columns: 
+        if dosya_yolu and os.path.exists(dosya_yolu):
+            mtime = os.path.getmtime(dosya_yolu)
+            dt_str = datetime.datetime.fromtimestamp(mtime).strftime('%d.%m.%Y')
+            return ["Veri/Belge Yok"], dt_str
+        return ["Veri Yok"], "Bilinmiyor"
+        
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
     unique_files['Parsed_Date'] = pd.to_datetime(unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], format='%d.%m.%Y', errors='coerce')
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
@@ -103,6 +116,10 @@ def en_guncel_belgeler(df):
         latest_files = valid_files[valid_files['Parsed_Date'] == max_date]['Kaynak Belge'].tolist()
         return latest_files, max_date.strftime('%d.%m.%Y')
     elif not unique_files.empty:
+        if dosya_yolu and os.path.exists(dosya_yolu):
+            mtime = os.path.getmtime(dosya_yolu)
+            dt_str = datetime.datetime.fromtimestamp(mtime).strftime('%d.%m.%Y')
+            return [unique_files.iloc[0]['Kaynak Belge']], dt_str
         return [unique_files.iloc[0]['Kaynak Belge']], "Tarih Bulunamadı"
     return ["Veri Yok"], "Bilinmiyor"
 
@@ -344,7 +361,8 @@ def veritabanini_kontrol_et(app_context=None):
         hafiza['son_guncelleme'] = mevcut_saat
         
         if app_context:
-            _, dosya_tarih = en_guncel_belgeler(hafiza['df_dosya'])
+            # 🌟 Buradaki okumalara da tam güvence (Plan B) eklendi!
+            _, dosya_tarih = en_guncel_belgeler(hafiza['df_dosya'], "dosyadurumu.zip")
             eski_durum = hafiza['son_durum']
             eski_m10 = eski_durum.get("m10_belgeler", [])
             eski_m11 = eski_durum.get("m11_belgeler", [])
@@ -369,12 +387,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context) 
     chat_id = str(update.message.chat_id)
 
-    _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'])
+    # 🌟 /start komutuna da dosya güvencesi eklendi!
+    _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'], "dosyadurumu.zip")
     
     df_k = hafiza['df_karar_birlesik']
     if not df_k.empty and 'Kaynak Belge' in df_k.columns:
-        m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*10|m10|madde10', case=False, regex=True)])
-        m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*11|m11|madde11', case=False, regex=True)])
+        m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*10|m10|madde10', case=False, regex=True)], "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
+        m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*11|m11|madde11', case=False, regex=True)], "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
     else:
         m10_files, m11_files = ["Veri Yok"], ["Veri Yok"]
 
