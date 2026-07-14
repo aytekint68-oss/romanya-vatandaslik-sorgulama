@@ -333,7 +333,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 st.markdown("<br>", unsafe_allow_html=True)
                                 
                                 telegram_button_html = """
-                                <a href="https://t.me/vatandaslik_sorgulama_bot" target="_blank" style="
+                                <a href="https://telegram.me/vatandaslik_sorgulama_bot" target="_blank" style="
                                     display: block;
                                     width: 100%;
                                     text-align: center;
