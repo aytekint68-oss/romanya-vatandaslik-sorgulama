@@ -34,25 +34,23 @@ def get_bulut_verisi():
     except Exception as e:
         print("Bulut Hafıza okunamadı:", e)
     return {"bekleyenler": [], "son_durum": {}}
-
+    
 def set_bulut_verisi(bekleyenler, son_durum):
     headers = {"X-Master-Key": JSONBIN_KEY, "Content-Type": "application/json"}
     payload = {"bekleyenler": bekleyenler, "son_durum": son_durum}
     
-    # 🌟 İNATÇI KAYIT MOTORU: JSONBin meşgulse pes etme, 3 kez daha dene!
     for deneme in range(3):
         try:
-            # timeout=15 ile sunucunun cevap vermesi için 15 saniye bekler
             res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers, timeout=15)
             
             if res.status_code == 200:
                 return  # Kayıt başarılı, fonksiyondan çık
             else:
-                print(f"⚠️ JSONBin Kayıt Hatası ({res.status_code}) - Deneme {deneme+1}: {res.text}")
+                # Gelen hata koca bir HTML sayfasıysa logu kirletmemek için sadece durum kodunu yazdır
+                print(f"⚠️ JSONBin Kayıt Hatası (Kod: {res.status_code}) - Deneme {deneme+1}")
         except Exception as e:
             print(f"⚠️ Bulut Hafıza bağlantı sorunu (Zaman Aşımı) - Deneme {deneme+1}")
         
-        # Eğer hata verdiyse 2 saniye nefes al ve döngüye devam edip tekrar dene
         time.sleep(2)
         
     print("❌ 3 denemeye rağmen JSONBin'e kayıt yapılamadı!")
