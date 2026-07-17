@@ -5,6 +5,7 @@ import requests
 import asyncio
 import datetime # Zamanlama için gerekli
 import gc # RAM temizliği için çöp toplayıcı
+import time  # 🌟 BUNU EKLİYORUZ (İnatçı deneme sistemi için)
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
@@ -37,13 +38,25 @@ def get_bulut_verisi():
 def set_bulut_verisi(bekleyenler, son_durum):
     headers = {"X-Master-Key": JSONBIN_KEY, "Content-Type": "application/json"}
     payload = {"bekleyenler": bekleyenler, "son_durum": son_durum}
-    try:
-        res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers)
-        if res.status_code != 200:
-            print(f"JSONBin Kayıt Hatası ({res.status_code}):", res.text)
-    except Exception as e:
-        print("Bulut Hafıza güncellenemedi:", e)
-
+    
+    # 🌟 İNATÇI KAYIT MOTORU: JSONBin meşgulse pes etme, 3 kez daha dene!
+    for deneme in range(3):
+        try:
+            # timeout=15 ile sunucunun cevap vermesi için 15 saniye bekler
+            res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers, timeout=15)
+            
+            if res.status_code == 200:
+                return  # Kayıt başarılı, fonksiyondan çık
+            else:
+                print(f"⚠️ JSONBin Kayıt Hatası ({res.status_code}) - Deneme {deneme+1}: {res.text}")
+        except Exception as e:
+            print(f"⚠️ Bulut Hafıza bağlantı sorunu (Zaman Aşımı) - Deneme {deneme+1}")
+        
+        # Eğer hata verdiyse 2 saniye nefes al ve döngüye devam edip tekrar dene
+        time.sleep(2)
+        
+    print("❌ 3 denemeye rağmen JSONBin'e kayıt yapılamadı!")
+    
 # --- CANLI HAFIZA (RAM) VE CSV YÜKLEME ---
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
