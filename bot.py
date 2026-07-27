@@ -36,17 +36,23 @@ def get_bulut_verisi():
     return {"bekleyenler": [], "son_durum": {}}
     
 def set_bulut_verisi(bekleyenler, son_durum):
+    
+    # 🛡️ ÇELİK ZIRH KORUMASI: Eğer listede 10 kişiden az kayıt varsa üzerine yazmayı reddet!
+    # (Bu sayı sizin belirleyeceğiniz bir güvenlik barajıdır)
+    if len(bekleyenler) < 10:
+        print(f"⚠️ GÜVENLİK KİLİDİ DEVREDE! Listede sadece {len(bekleyenler)} kişi var. Verilerin silinme riskine karşı buluta kayıt YAPILMADI!")
+        return  # Fonksiyonu burada keser, JSONBin'e hiçbir şey göndermez.
+
     headers = {"X-Master-Key": JSONBIN_KEY, "Content-Type": "application/json"}
     payload = {"bekleyenler": bekleyenler, "son_durum": son_durum}
     
     for deneme in range(3):
         try:
-            res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers, timeout=15)
+            res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers, timeout=45)
             
             if res.status_code == 200:
-                return  # Kayıt başarılı, fonksiyondan çık
+                return
             else:
-                # Gelen hata koca bir HTML sayfasıysa logu kirletmemek için sadece durum kodunu yazdır
                 print(f"⚠️ JSONBin Kayıt Hatası (Kod: {res.status_code}) - Deneme {deneme+1}")
         except Exception as e:
             print(f"⚠️ Bulut Hafıza bağlantı sorunu (Zaman Aşımı) - Deneme {deneme+1}")
