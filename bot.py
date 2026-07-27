@@ -56,8 +56,8 @@ def set_bulut_verisi(bekleyenler, son_durum):
     # 🌟 İŞTE VERSİYONLAMAYI (YEDEKLEMEYİ) AÇAN SİHİRLİ KOMUT BURADA:
     headers = {
         "X-Master-Key": JSONBIN_KEY, 
-        "Content-Type": "application/json",
-        "X-Bin-Versioning": "true"  # <--- BU SATIRI EKLEDİK
+        "Content-Type": "application/json"
+        # <--- BU SATIRI EKLEDİK
     }
     payload = {"bekleyenler": bekleyenler, "son_durum": son_durum}
     
