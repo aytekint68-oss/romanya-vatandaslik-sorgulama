@@ -5,7 +5,7 @@ import requests
 import asyncio
 import datetime # Zamanlama için gerekli
 import gc # RAM temizliği için çöp toplayıcı
-import time  # 🌟 İnatçı deneme sistemi için
+import time  # İnatçı deneme sistemi için
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
@@ -22,19 +22,18 @@ if not BOT_TOKEN or not JSONBIN_ID or not JSONBIN_KEY:
 
 print("🤖 Akıllı Asistan Başlatılıyor...")
 
-
-# --- ☁️ BULUT HAFIZA (JSONBIN) FONKSİYONLARI ---
-
+# ==========================================
+# ☁️ BULUT HAFIZA (JSONBIN) FONKSİYONLARI
+# ==========================================
 def get_bulut_verisi():
     headers = {"X-Master-Key": JSONBIN_KEY}
     
     # 🌟 İNATÇI OKUMA MOTORU: 3 Kez Dene
     for deneme in range(3):
         try:
-            # JSONBin önbelleğini kırmak için zaman damgası t="..." eklidir
+            # JSONBin önbelleğini kırmak için zaman damgası eklendi
             url = f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}/latest?t={datetime.datetime.now().timestamp()}"
             res = requests.get(url, headers=headers, timeout=15)
-            
             if res.status_code == 200:
                 return res.json().get("record", {"bekleyenler": [], "son_durum": {}})
             else:
@@ -44,25 +43,25 @@ def get_bulut_verisi():
         
         time.sleep(2) # Hata varsa 2 saniye bekle tekrar dene
         
-    print("❌ 3 denemeye rağmen buluttan veri çekilemedi! Sistem verileri ezmemek için duraklatılıyor.")
+    print("❌ 3 denemeye rağmen buluttan veri çekilemedi! Verileri ezmemek için sistem duraklatılıyor.")
     return None # 🛡️ KÖRLÜK KORUMASI: Başarısız olursa boş liste([]) YERİNE None döndür.
 
 def set_bulut_verisi(bekleyenler, son_durum):
-    # 🛡️ ÇELİK ZIRH KORUMASI: Şu an alımlar için "0" (Sıfır). Sistem dolunca (Örn: 50 kişi) burayı 10 yapın.
+    
+    # 🛡️ ÇELİK ZIRH KORUMASI: Şu an 0 (Açık). Sistem 50 kişiye ulaştığında 10 yapın.
     if len(bekleyenler) < 0:
         print(f"⚠️ GÜVENLİK KİLİDİ DEVREDE! Listede sadece {len(bekleyenler)} kişi var. Veri ezilme riskine karşı kayıt YAPILMADI!")
-        return
+        return False
 
     headers = {"X-Master-Key": JSONBIN_KEY, "Content-Type": "application/json"}
     payload = {"bekleyenler": bekleyenler, "son_durum": son_durum}
     
     for deneme in range(3):
         try:
-            # timeout'u 45 yaptık. Cloudflare meşgulse sabırla bekler.
             res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers, timeout=45)
             
             if res.status_code == 200:
-                return
+                return True # ✅ Kayıt Başarılı
             else:
                 print(f"⚠️ JSONBin Kayıt Hatası (Kod: {res.status_code}) - Deneme {deneme+1}")
         except Exception as e:
@@ -71,9 +70,11 @@ def set_bulut_verisi(bekleyenler, son_durum):
         time.sleep(2)
         
     print("❌ 3 denemeye rağmen JSONBin'e kayıt yapılamadı!")
-    
+    return False # ❌ Kayıt Başarısız
 
-# --- 🧠 CANLI HAFIZA (RAM) VE CSV YÜKLEME ---
+# ==========================================
+# 🧠 CANLI HAFIZA (RAM) VE CSV YÜKLEME
+# ==========================================
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
@@ -86,6 +87,7 @@ def veri_yukle(dosya_adi):
         try:
             df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
             if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+            
             df.columns = df.columns.astype(str).str.strip()
             df = df.fillna("")
             indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
@@ -98,6 +100,7 @@ def veri_yukle(dosya_adi):
             try:
                 df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False, on_bad_lines='skip')
                 if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False, on_bad_lines='skip')
+                
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.fillna("")
                 indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
@@ -152,7 +155,9 @@ def tum_belgeler(df):
     return df['Kaynak Belge'].dropna().unique().tolist()
 
 
-# --- 🎯 HEDEFLİ BİLDİRİM DAĞITIM MOTORU ---
+# ==========================================
+# 🎯 HEDEFLİ BİLDİRİM DAĞITIM MOTORU
+# ==========================================
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, ilk_calistirma=False):
     df_karar = hafiza['df_karar_birlesik']
     df_dosya = hafiza['df_dosya']
@@ -300,8 +305,9 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
     set_bulut_verisi(kalan_bekleyenler, yeni_durum)
     print("✅ Hedefli bildirim dağıtımı tamamlandı, bulut güncellendi.")
 
-
-# --- 📈 YÖNETİCİYE ÖZEL GÜNLÜK SAATLİK ÖZET RAPOR FONKSİYONU ---
+# ==========================================
+# 📈 YÖNETİCİYE ÖZEL GÜNLÜK ÖZET RAPOR
+# ==========================================
 async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
     if ADMIN_CHAT_ID:
         bekleyenler = hafiza['bekleyenler']
@@ -349,7 +355,9 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             print(f"Günlük rapor gönderilirken hata oluştu: {e}")
 
-# --- 🔍 VERİTABANI KONTROL MERKEZİ ---
+# ==========================================
+# 🔍 VERİTABANI KONTROL MERKEZİ
+# ==========================================
 def veritabanini_kontrol_et(app_context=None):
     if not hafiza['bulut_yuklendi']:
         bulut = get_bulut_verisi()
@@ -414,8 +422,9 @@ def veritabanini_kontrol_et(app_context=None):
             ilk_calistirma = not bool(eski_durum)
             app_context.create_task(bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, ilk_calistirma))
 
-
-# --- 💬 TELEGRAM MESAJLAŞMA MANTIĞI ---
+# ==========================================
+# 💬 TELEGRAM MESAJLAŞMA MANTIĞI
+# ==========================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context) 
     chat_id = str(update.message.chat_id)
@@ -604,7 +613,9 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=reply_markup)
 
-# --- 🔘 BUTON TIKLAMA VE KVKK SÜRECİ ---
+# ==========================================
+# 🔘 BUTON TIKLAMA VE KVKK SÜRECİ
+# ==========================================
 async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -640,17 +651,17 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text="❌ Takip işlemi iptal edildi. Verileriniz kaydedilmedi.", parse_mode='HTML')
         return
 
+    # --- 🌟 YENİ KAYIT İŞLEMİ (BİLDİRİM VE HATA YAKALAMA) ---
     if query.data.startswith("takip_"):
         _, ilk_no, son_yil = query.data.split('_')
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
         
-        # 🛡️ YENİ KAYITLAR İÇİN KÖRLÜK KORUMASI VE BULUT KONTROLÜ
+        # 1. Okuma (Get) Kontrolü
         bulut_verisi = get_bulut_verisi()
         if bulut_verisi is None:
-            await query.edit_message_text(text="⚠️ Sistemde geçici bir sunucu yoğunluğu var. Eski verilerin güvenliği için kayıt işlemi duraklatıldı. Lütfen 5 dakika sonra tekrar deneyin.")
+            await query.edit_message_text(text="⚠️ Sistemde geçici bir sunucu yoğunluğu var. Lütfen 5-10 dakika sonra tekrar deneyin.")
             return
             
-        # Buluttaki güncel listeyi alıp RAM'e yazıyoruz
         hafiza['bekleyenler'] = bulut_verisi.get("bekleyenler", [])
         hafiza['son_durum'] = bulut_verisi.get("son_durum", {})
 
@@ -658,13 +669,24 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
             return
             
+        # Kullanıcıyı hafızaya al
         hafiza['bekleyenler'].append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
-        set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum']) 
         
-        await query.edit_message_text(
-            text=f"🔔 <b>Harika! KVKK onayınız alındı.</b>\n\n{dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", 
-            parse_mode='HTML'
-        )
+        # 2. Yazma (Put) Kontrolü
+        kayit_basarili = set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum']) 
+        
+        if kayit_basarili:
+            await query.edit_message_text(
+                text=f"🔔 <b>Harika! KVKK onayınız alındı.</b>\n\n{dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", 
+                parse_mode='HTML'
+            )
+        else:
+            # Bulut çöktüyse kullanıcıyı RAM'den geri çıkar
+            hafiza['bekleyenler'].pop() 
+            await query.edit_message_text(
+                text="⚠️ <b>Bulut Kayıt Hatası!</b>\n\nSunucularda anlık bir yoğunluk yaşandığı için kaydınız tamamlanamadı. Lütfen daha sonra bota dosya numaranızı tekrar yazarak şansınızı deneyin.", 
+                parse_mode='HTML'
+            )
         return
 
     # --- ÇOKLU SEÇİMLİ (CHECKLIST) DOSYA TAKİBİNİ BIRAKMA SİSTEMİ ---
@@ -730,6 +752,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(klavye))
         return
 
+    # --- 🌟 SİLME İŞLEMİ (BİLDİRİM VE HATA YAKALAMA) ---
     if query.data == "toplusil_onay":
         secilenler = context.user_data.get('secilenler', [])
         if not secilenler:
@@ -764,14 +787,34 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(text="❌ İptal edilecek veri bulunamadı.", parse_mode='HTML')
             return
             
-        hafiza['bekleyenler'] = [k for k in hafiza['bekleyenler'] if not (str(k.get('chat_id')) == chat_id and k.get('dosya_no') in secilenler)]
-        set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum'])
-        context.user_data['secilenler'] = []
+        # Silmeden önce güncel bulutu okuyoruz (Başkasının verisi ezilmesin diye)
+        bulut_verisi = get_bulut_verisi()
+        if bulut_verisi is None:
+            await query.edit_message_text(text="⚠️ Sistemde geçici bir sunucu yoğunluğu var. Silme işlemi yapılamadı, lütfen daha sonra tekrar deneyin.")
+            return
+            
+        hafiza['bekleyenler'] = bulut_verisi.get("bekleyenler", [])
+        hafiza['son_durum'] = bulut_verisi.get("son_durum", {})
         
-        await query.edit_message_text(
-            text=f"🚀 <b>İşlem Başarılı!</b>\n\nSeçmiş olduğunuz {len(secilenler)} adet dosyanın takibi iptal edilmiş ve KVKK uyarınca verileriniz kalıcı olarak imha edilmiştir.", 
-            parse_mode='HTML'
-        )
+        eski_liste = list(hafiza['bekleyenler']) # Hata durumunda geri yüklemek için yedek
+        
+        hafiza['bekleyenler'] = [k for k in hafiza['bekleyenler'] if not (str(k.get('chat_id')) == chat_id and k.get('dosya_no') in secilenler)]
+        
+        # Buluta yazmayı dene
+        kayit_basarili = set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum'])
+        
+        if kayit_basarili:
+            context.user_data['secilenler'] = []
+            await query.edit_message_text(
+                text=f"🚀 <b>İşlem Başarılı!</b>\n\nSeçmiş olduğunuz {len(secilenler)} adet dosyanın takibi iptal edilmiş ve KVKK uyarınca verileriniz kalıcı olarak imha edilmiştir.", 
+                parse_mode='HTML'
+            )
+        else:
+            hafiza['bekleyenler'] = eski_liste # Sunucu hatası varsa silmeyi geri al
+            await query.edit_message_text(
+                text="⚠️ <b>Bulut Güncelleme Hatası!</b>\n\nSunucularda anlık bir yoğunluk yaşandığı için silme işlemi tamamlanamadı. Lütfen daha sonra tekrar deneyin.", 
+                parse_mode='HTML'
+            )
         return
 
     if query.data == "silvazgec":
