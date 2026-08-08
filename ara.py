@@ -247,30 +247,53 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 user_ordin_no = int(p_match.group(1))
                                 user_ordin_yil = int(p_match.group(2))
 
-                        # --- KİŞİ LİSTEDEYSE TABLODAKİ DETAYLARIYLA UYARIYI GÖSTER ---
+                        # --- KİŞİ LİSTEDEYSE 40 GÜN HESAPLAMASI VE UYARISI ---
                         if ozel_durum_var_mi and not ozel_sonuc.empty:
                             ozel_satir = ozel_sonuc.iloc[0]
-                            ozel_tarih = str(ozel_satir.iloc[0]) if len(ozel_satir) > 0 else "-"
+                            ozel_tarih_str = str(ozel_satir.iloc[0]) if len(ozel_satir) > 0 else "-"
                             ozel_isim = str(ozel_satir.iloc[1]) if len(ozel_satir) > 1 else "-"
                             ozel_dosya = str(ozel_satir.iloc[2]) if len(ozel_satir) > 2 else "-"
                             ozel_ek_bilgi = str(ozel_satir.iloc[3]) if len(ozel_satir) > 3 else "-"
                             
+                            kalan_gun_mesaji = ""
+                            icon_tipi = "⚠️"
+                            
+                            # Tarihi parse etme ve gün hesaplama
+                            try:
+                                # Tarihi gün.ay.yıl formatında okumaya çalış
+                                parsed_date = pd.to_datetime(ozel_tarih_str, dayfirst=True)
+                                gecen_gun = (datetime.datetime.now() - parsed_date).days
+                                kalan_gun = 40 - gecen_gun
+                                
+                                if kalan_gun > 0:
+                                    kalan_gun_mesaji = f"⏳ **DİKKAT! Yasal sürenin dolmasına SON {kalan_gun} GÜN!** Lütfen vakit kaybetmeden istenen e-posta adresini kuruma bildiriniz."
+                                    icon_tipi = "⚠️"
+                                elif kalan_gun == 0:
+                                    kalan_gun_mesaji = f"🚨 **DİKKAT! Yasal süreniz BUGÜN DOLUYOR!** Lütfen acilen istenen e-posta adresini kuruma bildiriniz."
+                                    icon_tipi = "🚨"
+                                else:
+                                    kalan_gun_mesaji = f"❌ **SÜRE DOLDU!** (Duyurunun üzerinden {gecen_gun} gün geçmiş). Yasal 40 günlük süreniz dolmuş görünmektedir. Ancak dosyanızın reddedilmemesi ihtimaline karşı yinede **ACİLEN** istenilen bilgiyi kuruma iletmeniz tavsiye edilir."
+                                    icon_tipi = "❌"
+                            except Exception:
+                                # Tarih okunamadıysa standart mesaj göster
+                                kalan_gun_mesaji = "Lütfen duyurunun yayınlanma tarihinden itibaren 40 gün içinde e-posta adresinizi kuruma bildiriniz."
+                            
                             st.error(f"""
                             🚨 **ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)**
                             
-                            Dosyanız, Ulusal Vatandaşlık Kurumu'nun (ANC) tarafınıza ulaşılamadığı için yayınladığı özel listede tespit edilmiştir. Aşağıdaki linkteki listede kendinizi bu bilgilerle bulabilirsiniz:
+                            Dosyanız, Ulusal Vatandaşlık Kurumu'nun (ANC) tarafınıza ulaşılamadığı için yayınladığı özel listede tespit edilmiştir. 
                             
-                            * **Tarih:** {ozel_tarih}
+                            * **Yayınlanma Tarihi:** {ozel_tarih_str}
                             * **İsim:** {ozel_isim}
                             * **Dosya Numarası:** {ozel_dosya}
                             * **Bilgi Notu:** {ozel_ek_bilgi}
                             
-                            **21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.**
+                            **{kalan_gun_mesaji}**
                             
-                            Dosya durumuna ilişkin bu bilgilendirmede yer alan başvuru sahibinden, duyurunun yayınlanma tarihinden itibaren **40 gün içinde**, bildirimin yeniden iletilmesi amacıyla Ulusal Vatandaşlık Otoritesine yazılı olarak bir e-posta adresi bildirmeleri rica ediliyor.
+                            *(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)*
                             
                             🔗 **Resmi Kaynak Listesi:** [cetatenie.just.ro/category/confirmari-corespondenta-electronica/](https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/)
-                            """, icon="⚠️")
+                            """, icon=icon_tipi)
 
                         with st.container(border=True):
                             
