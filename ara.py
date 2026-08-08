@@ -108,6 +108,7 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     df_d = _esnek_veri_oku("dosyadurumu")
     df_m10 = _esnek_veri_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10")
     df_m11 = _esnek_veri_oku("Romanya_Vatandaslik_Tum_Veriler_Madde11")
+    df_ozel_durum = _esnek_veri_oku("Dosya_Durumlari") # YENİ EKLENEN DOSYA
 
     yol_d = gercek_dosya_yolu("dosyadurumu")
     yol_m10 = gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde10")
@@ -130,10 +131,10 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     del k_list
     gc.collect()
 
-    return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11
+    return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11, df_ozel_durum
 
 def dosya_zaman_damgasi_al():
-    tabanlar = ["dosyadurumu", "Romanya_Vatandaslik_Tum_Veriler_Madde10", "Romanya_Vatandaslik_Tum_Veriler_Madde11"]
+    tabanlar = ["dosyadurumu", "Romanya_Vatandaslik_Tum_Veriler_Madde10", "Romanya_Vatandaslik_Tum_Veriler_Madde11", "Dosya_Durumlari"]
     uzantilar = ['.xlsx', '.zip', '.csv']
     tetikleyici_kod = ""
     for taban in tabanlar:
@@ -146,7 +147,7 @@ def dosya_zaman_damgasi_al():
                 break
     return tetikleyici_kod
 
-df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11 = veritabanini_hazirla(dosya_zaman_damgasi_al())
+df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11, df_ozel = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
@@ -208,6 +209,15 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                 if not sonuclar.empty:
                     st.success(f"✅ Dosyanız bulundu! Durum ve Karar bilgileri aşağıdadır:")
                     
+                    # --- ÖZEL DURUM BİLDİRİMİ (Dosya_Durumlari.xlsx) ---
+                    ozel_durum_var_mi = False
+                    if not df_ozel.empty and len(df_ozel.columns) >= 3:
+                        # 3. Sütunun (index 2) dosya numarası olduğu varsayımıyla (0:Tarih, 1:İsim, 2:Dosya No, 3:Bilgi)
+                        df_ozel['Arama_Sutunu'] = df_ozel.iloc[:, 2].astype(str).str.strip()
+                        ozel_sonuc = df_ozel[df_ozel['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
+                        if not ozel_sonuc.empty:
+                            ozel_durum_var_mi = True
+                    
                     for index, row in sonuclar.iterrows():
                         dosya_no_parcalar = str(row['Dosya No']).split('/')
                         ana_no = dosya_no_parcalar[0].strip()
@@ -237,6 +247,18 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
                                 user_ordin_no = int(p_match.group(1))
                                 user_ordin_yil = int(p_match.group(2))
+
+                        # --- EĞER KİŞİ LİSTEDEYSE UYARIYI BURADA KUTU ÜSTÜNDE GÖSTER ---
+                        if ozel_durum_var_mi:
+                            st.error("""
+                            🚨 **ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)**
+                            
+                            **21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.**
+                            
+                            Dosya durumuna ilişkin bu bilgilendirmede yer alan başvuru sahibinden, duyurunun yayınlanma tarihinden itibaren **40 gün içinde**, bildirimin yeniden iletilmesi amacıyla Ulusal Vatandaşlık Otoritesine yazılı olarak bir e-posta adresi bildirmeleri rica ediliyor.
+                            
+                            🔗 **Resmi Kaynak:** [cetatenie.just.ro/category/confirmari-corespondenta-electronica/](https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/)
+                            """, icon="⚠️")
 
                         with st.container(border=True):
                             
