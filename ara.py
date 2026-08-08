@@ -108,7 +108,7 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     df_d = _esnek_veri_oku("dosyadurumu")
     df_m10 = _esnek_veri_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10")
     df_m11 = _esnek_veri_oku("Romanya_Vatandaslik_Tum_Veriler_Madde11")
-    df_ozel_durum = _esnek_veri_oku("Dosya_Durumlari") # YENİ EKLENEN DOSYA
+    df_ozel_durum = _esnek_veri_oku("Dosya_Durumlari")
 
     yol_d = gercek_dosya_yolu("dosyadurumu")
     yol_m10 = gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde10")
@@ -193,7 +193,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             st.warning("⚠️ Hatalı format. Lütfen araya '/' işareti koyunuz. Örn: 1234/2023")
         else:
             parcalar = temiz_arama.split("/")
-            # Harfleri (RD) görmezden gel, sadece sayıları çek
             ilk_numara = "".join(filter(str.isdigit, parcalar[0]))
             son_yil = "".join(filter(str.isdigit, parcalar[-1]))
             
@@ -211,8 +210,8 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                     
                     # --- ÖZEL DURUM BİLDİRİMİ (Dosya_Durumlari.xlsx) ---
                     ozel_durum_var_mi = False
+                    ozel_sonuc = pd.DataFrame()
                     if not df_ozel.empty and len(df_ozel.columns) >= 3:
-                        # 3. Sütunun (index 2) dosya numarası olduğu varsayımıyla (0:Tarih, 1:İsim, 2:Dosya No, 3:Bilgi)
                         df_ozel['Arama_Sutunu'] = df_ozel.iloc[:, 2].astype(str).str.strip()
                         ozel_sonuc = df_ozel[df_ozel['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
                         if not ozel_sonuc.empty:
@@ -248,16 +247,29 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 user_ordin_no = int(p_match.group(1))
                                 user_ordin_yil = int(p_match.group(2))
 
-                        # --- EĞER KİŞİ LİSTEDEYSE UYARIYI BURADA KUTU ÜSTÜNDE GÖSTER ---
-                        if ozel_durum_var_mi:
-                            st.error("""
+                        # --- KİŞİ LİSTEDEYSE TABLODAKİ DETAYLARIYLA UYARIYI GÖSTER ---
+                        if ozel_durum_var_mi and not ozel_sonuc.empty:
+                            ozel_satir = ozel_sonuc.iloc[0]
+                            ozel_tarih = str(ozel_satir.iloc[0]) if len(ozel_satir) > 0 else "-"
+                            ozel_isim = str(ozel_satir.iloc[1]) if len(ozel_satir) > 1 else "-"
+                            ozel_dosya = str(ozel_satir.iloc[2]) if len(ozel_satir) > 2 else "-"
+                            ozel_ek_bilgi = str(ozel_satir.iloc[3]) if len(ozel_satir) > 3 else "-"
+                            
+                            st.error(f"""
                             🚨 **ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)**
+                            
+                            Dosyanız, Ulusal Vatandaşlık Kurumu'nun (ANC) tarafınıza ulaşılamadığı için yayınladığı özel listede tespit edilmiştir. Aşağıdaki linkteki listede kendinizi bu bilgilerle bulabilirsiniz:
+                            
+                            * **Tarih:** {ozel_tarih}
+                            * **İsim:** {ozel_isim}
+                            * **Dosya Numarası:** {ozel_dosya}
+                            * **Bilgi Notu:** {ozel_ek_bilgi}
                             
                             **21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.**
                             
                             Dosya durumuna ilişkin bu bilgilendirmede yer alan başvuru sahibinden, duyurunun yayınlanma tarihinden itibaren **40 gün içinde**, bildirimin yeniden iletilmesi amacıyla Ulusal Vatandaşlık Otoritesine yazılı olarak bir e-posta adresi bildirmeleri rica ediliyor.
                             
-                            🔗 **Resmi Kaynak:** [cetatenie.just.ro/category/confirmari-corespondenta-electronica/](https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/)
+                            🔗 **Resmi Kaynak Listesi:** [cetatenie.just.ro/category/confirmari-corespondenta-electronica/](https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/)
                             """, icon="⚠️")
 
                         with st.container(border=True):
