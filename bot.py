@@ -539,7 +539,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
         "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
-        f"<b>Bot Veritabanı Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
+        f"<b>Stadiu Dosar Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
         f"<b>Madde 11:</b>\n{m11_metin}\n\n"
