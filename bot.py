@@ -75,11 +75,13 @@ def set_bulut_verisi(bekleyenler, son_durum):
 # 🧠 CANLI HAFIZA (RAM) VE ESNEK VERİ YÜKLEME
 # ==========================================
 hafiza = {
-    'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
-    'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
+    'df_dosya': pd.DataFrame(), 
+    'df_karar_birlesik': pd.DataFrame(),
     'df_ozel_durum': pd.DataFrame(),
     'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0,
-    'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False 
+    'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False,
+    'son_m10_belgeler': ["Veri Yok"], # ✅ Menü için özel hafıza alanı
+    'son_m11_belgeler': ["Veri Yok"]  # ✅ Menü için özel hafıza alanı
 }
 
 def gercek_dosya_yolu(taban_adi):
@@ -90,20 +92,30 @@ def gercek_dosya_yolu(taban_adi):
     return None
 
 def veri_yukle_esnek(taban_adi):
-    """Bulunan dosyayı uzantısına göre en uygun yöntemle okur"""
+    """Bulunan dosyayı uzantısına göre en uygun yöntemle ve yedek kodlamalarla okur"""
     dosya_adi = gercek_dosya_yolu(taban_adi)
     if not dosya_adi:
         return pd.DataFrame()
         
+    df = pd.DataFrame()
     try:
         if dosya_adi.endswith('.xlsx'):
             df = pd.read_excel(dosya_adi)
         else:
-            # .csv veya .zip içindeki csv'leri okur
-            df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
-            if len(df.columns) < 2: 
-                df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
-                
+            # Önce standart UTF-8 ile okumayı deneriz
+            try:
+                df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+                if len(df.columns) < 2: 
+                    df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+            except UnicodeDecodeError:
+                # UTF-8 hata verirse Windows-Türkçe (cp1254) kodlamasına geçeriz
+                df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False, on_bad_lines='skip')
+                if len(df.columns) < 2:
+                    df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False, on_bad_lines='skip')
+                    
+        if df.empty:
+            return df
+            
         df.columns = df.columns.astype(str).str.strip()
         df = df.fillna("")
         
@@ -114,8 +126,9 @@ def veri_yukle_esnek(taban_adi):
         for col in df.select_dtypes(include=['object', 'string']).columns:
             df[col] = df[col].astype(str).str.strip()
         return df
+        
     except Exception as e:
-        print(f"⚠️ {dosya_adi} yüklenirken hata: {e}")
+        print(f"⚠️ {dosya_adi} yüklenirken hata oluştu: {e}")
     
     return pd.DataFrame()
 
@@ -441,6 +454,10 @@ def veritabanini_kontrol_et(app_context=None):
         df_m11 = veri_yukle_esnek("Romanya_Vatandaslik_Tum_Veriler_Madde11")
         hafiza['df_ozel_durum'] = veri_yukle_esnek("Dosya_Durumlari") 
         
+        # ✅ Tabloları birleştirmeden ÖNCE güncel belgeleri tespit edip hafızaya alıyoruz
+        hafiza['son_m10_belgeler'], _ = en_guncel_belgeler(df_m10, gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde10"))
+        hafiza['son_m11_belgeler'], _ = en_guncel_belgeler(df_m11, gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde11"))
+        
         hafiza['max_m10'] = max_ordin_hesapla_vektorel(df_m10)
         hafiza['max_m11'] = max_ordin_hesapla_vektorel(df_m11)
         
@@ -452,16 +469,14 @@ def veritabanini_kontrol_et(app_context=None):
         if not df_m11.empty: karar_listesi.append(df_m11)
         hafiza['df_karar_birlesik'] = pd.concat(karar_listesi, ignore_index=True) if karar_listesi else pd.DataFrame()
         
+        # Bellek temizliği
         del df_m10
         del df_m11
-        hafiza['df_karar_m10'] = pd.DataFrame()
-        hafiza['df_karar_m11'] = pd.DataFrame()
         gc.collect() 
         
         hafiza['son_guncelleme'] = mevcut_saat
         
         if app_context:
-            # DİNAMİK YOL İLE TARİH TESPİTİ
             gercek_dosya = gercek_dosya_yolu("dosyadurumu")
             _, dosya_tarih = en_guncel_belgeler(hafiza['df_dosya'], gercek_dosya)
             
@@ -494,12 +509,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     gercek_dosya = gercek_dosya_yolu("dosyadurumu")
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'], gercek_dosya)
     
-    df_k = hafiza['df_karar_birlesik']
-    if not df_k.empty and 'Kaynak Belge' in df_k.columns:
-        m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*10|m10|madde10', case=False, regex=True)], gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde10"))
-        m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*11|m11|madde11', case=False, regex=True)], gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde11"))
-    else:
-        m10_files, m11_files = ["Veri Yok"], ["Veri Yok"]
+    # ✅ Artık "Veri Yok" hatası almamak için verileri direkt hafızadan çekiyoruz
+    m10_files = hafiza.get('son_m10_belgeler', ["Veri Yok"])
+    m11_files = hafiza.get('son_m11_belgeler', ["Veri Yok"])
 
     m10_metin = "\n".join([f"🔸 {b}" for b in m10_files]) if m10_files and m10_files[0] != "Veri Yok" else "🔸 Veri Yok"
     m11_metin = "\n".join([f"🔸 {b}" for b in m11_files]) if m11_files and m11_files[0] != "Veri Yok" else "🔸 Veri Yok"
