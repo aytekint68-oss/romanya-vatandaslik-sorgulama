@@ -92,7 +92,7 @@ def gercek_dosya_yolu(taban_adi):
     return None
 
 def veri_yukle_esnek(taban_adi):
-    """Bulunan dosyayı uzantısına göre en uygun yöntemle ve yedek kodlamalarla okur"""
+    """Bulunan dosyayı uzantısına göre en uygun yöntemle ve çoklu yedek kodlamalarla okur"""
     dosya_adi = gercek_dosya_yolu(taban_adi)
     if not dosya_adi:
         return pd.DataFrame()
@@ -102,18 +102,26 @@ def veri_yukle_esnek(taban_adi):
         if dosya_adi.endswith('.xlsx'):
             df = pd.read_excel(dosya_adi)
         else:
-            # Önce standart UTF-8 ile okumayı deneriz
-            try:
-                df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
-                if len(df.columns) < 2: 
-                    df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
-            except UnicodeDecodeError:
-                # UTF-8 hata verirse Windows-Türkçe (cp1254) kodlamasına geçeriz
-                df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False, on_bad_lines='skip')
-                if len(df.columns) < 2:
-                    df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False, on_bad_lines='skip')
+            basarili = False
+            # Sırasıyla denenecek kodlamalar: UTF-8, Romence, Türkçe, Batı Avrupa (Kesin açar)
+            kodlamalar = ['utf-8-sig', 'utf-8', 'cp1250', 'cp1254', 'latin1']
+            
+            for enc in kodlamalar:
+                if basarili: 
+                    break
+                try:
+                    df = pd.read_csv(dosya_adi, sep=';', encoding=enc, low_memory=False, on_bad_lines='skip')
+                    if len(df.columns) < 2:
+                        df = pd.read_csv(dosya_adi, sep=',', encoding=enc, low_memory=False, on_bad_lines='skip')
+                    
+                    # Eğer sütun sayısı 1'den büyükse dosyayı doğru parçalamışız demektir
+                    if len(df.columns) > 1:
+                        basarili = True
+                except Exception:
+                    continue # Hata verirse çökmek yerine sıradaki kodlamaya geç
                     
         if df.empty:
+            print(f"⚠️ {dosya_adi} hiçbir formatta okunamadı (Boş Dosya).")
             return df
             
         df.columns = df.columns.astype(str).str.strip()
@@ -125,10 +133,11 @@ def veri_yukle_esnek(taban_adi):
             
         for col in df.select_dtypes(include=['object', 'string']).columns:
             df[col] = df[col].astype(str).str.strip()
+            
         return df
         
     except Exception as e:
-        print(f"⚠️ {dosya_adi} yüklenirken hata oluştu: {e}")
+        print(f"⚠️ {dosya_adi} yüklenirken bilinmeyen bir hata oluştu: {e}")
     
     return pd.DataFrame()
 
