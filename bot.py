@@ -28,10 +28,8 @@ print("🤖 Akıllı Asistan Başlatılıyor...")
 def get_bulut_verisi():
     headers = {"X-Master-Key": JSONBIN_KEY}
     
-    # 🌟 İNATÇI OKUMA MOTORU: 3 Kez Dene
     for deneme in range(3):
         try:
-            # JSONBin önbelleğini kırmak için zaman damgası eklendi
             url = f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}/latest?t={datetime.datetime.now().timestamp()}"
             res = requests.get(url, headers=headers, timeout=15)
             if res.status_code == 200:
@@ -41,23 +39,19 @@ def get_bulut_verisi():
         except Exception as e:
             print(f"⚠️ Bulut Bağlantı Sorunu (Okuma Zaman Aşımı) - Deneme {deneme+1}")
         
-        time.sleep(2) # Hata varsa 2 saniye bekle tekrar dene
+        time.sleep(2)
         
     print("❌ 3 denemeye rağmen buluttan veri çekilemedi! Verileri ezmemek için sistem duraklatılıyor.")
-    return None # 🛡️ KÖRLÜK KORUMASI: Başarısız olursa boş liste([]) YERİNE None döndür.
+    return None 
 
 def set_bulut_verisi(bekleyenler, son_durum):
-    
-    # 🛡️ ÇELİK ZIRH KORUMASI: Şu an 0 (Açık). Sistem 50 kişiye ulaştığında 10 yapın.
     if len(bekleyenler) < 0:
         print(f"⚠️ GÜVENLİK KİLİDİ DEVREDE! Listede sadece {len(bekleyenler)} kişi var. Veri ezilme riskine karşı kayıt YAPILMADI!")
         return False
 
-    # 🌟 İŞTE VERSİYONLAMAYI (YEDEKLEMEYİ) AÇAN SİHİRLİ KOMUT BURADA:
     headers = {
         "X-Master-Key": JSONBIN_KEY, 
         "Content-Type": "application/json"
-        # <--- BU SATIRI EKLEDİK
     }
     payload = {"bekleyenler": bekleyenler, "son_durum": son_durum}
     
@@ -66,7 +60,7 @@ def set_bulut_verisi(bekleyenler, son_durum):
             res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers, timeout=45)
             
             if res.status_code == 200:
-                return True # ✅ Kayıt Başarılı
+                return True
             else:
                 print(f"⚠️ JSONBin Kayıt Hatası (Kod: {res.status_code}) - Deneme {deneme+1}")
         except Exception as e:
@@ -75,46 +69,44 @@ def set_bulut_verisi(bekleyenler, son_durum):
         time.sleep(2)
         
     print("❌ 3 denemeye rağmen JSONBin'e kayıt yapılamadı!")
-    return False # ❌ Kayıt Başarısız
+    return False
 
 # ==========================================
-# 🧠 CANLI HAFIZA (RAM) VE CSV YÜKLEME
+# 🧠 CANLI HAFIZA (RAM) VE ESNEK VERİ YÜKLEME
 # ==========================================
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
+    'df_ozel_durum': pd.DataFrame(), # 🚨 40 GÜN LİSTESİ İÇİN YENİ ALAN
     'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0,
     'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False 
 }
 
-def veri_yukle(dosya_adi):
-    if os.path.exists(dosya_adi):
-        try:
-            df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
-            if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
-            
-            df.columns = df.columns.astype(str).str.strip()
-            df = df.fillna("")
-            indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
-            if indeks_sutunlari:
-                df = df.drop(columns=indeks_sutunlari)
-            for col in df.select_dtypes(include=['object', 'string']).columns:
-                df[col] = df[col].astype(str).str.strip()
-            return df
-        except Exception:
+def veri_yukle_esnek(taban_adi):
+    """Excel veya CSV formatlarını otomatik tanıyıp okuyan yeni nesil esnek yükleyici."""
+    for uzanti in ['.xlsx', '.csv', '.zip']:
+        dosya_adi = taban_adi + uzanti
+        if os.path.exists(dosya_adi):
             try:
-                df = pd.read_csv(dosya_adi, sep=';', encoding='cp1254', low_memory=False, on_bad_lines='skip')
-                if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='cp1254', low_memory=False, on_bad_lines='skip')
+                if uzanti == '.xlsx':
+                    df = pd.read_excel(dosya_adi)
+                else:
+                    df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+                    if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
                 
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.fillna("")
+                
                 indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
                 if indeks_sutunlari:
                     df = df.drop(columns=indeks_sutunlari)
+                    
                 for col in df.select_dtypes(include=['object', 'string']).columns:
                     df[col] = df[col].astype(str).str.strip()
                 return df
-            except Exception: pass
+            except Exception as e:
+                print(f"⚠️ {dosya_adi} yüklenirken hata: {e}")
+                pass
     return pd.DataFrame()
 
 def max_ordin_hesapla_vektorel(df_k):
@@ -166,20 +158,74 @@ def tum_belgeler(df):
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, ilk_calistirma=False):
     df_karar = hafiza['df_karar_birlesik']
     df_dosya = hafiza['df_dosya']
+    df_ozel = hafiza['df_ozel_durum'] # 🚨 Özel 40 Gün Listesi
     kalan_bekleyenler = []
     bekleyenler = hafiza['bekleyenler'] 
     
     admin_onay_listesi = [] 
     
+    # 40 Gün hesaplamaları için arama sütunu
+    ozel_arama_sutunu = pd.Series(dtype=str)
+    if not df_ozel.empty and len(df_ozel.columns) >= 3:
+        ozel_arama_sutunu = df_ozel.iloc[:, 2].astype(str).str.strip()
+
     print(f"Sistemdeki {len(bekleyenler)} kişiye hedefli bildirim dağıtılıyor...")
 
     arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
+    ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", []) # Uyarıyı spam atmamak için hafıza
 
     for kisi in bekleyenler:
         chat_id = kisi['chat_id']
         dosya_tam = kisi['dosya_no']
         ana_no, ana_yil = dosya_tam.split('/')
         
+        # --- 🚨 40 GÜN KURALI (EKSİK EVRAK) KONTROLÜ ---
+        if not df_ozel.empty and not ozel_arama_sutunu.empty:
+            ozel_kriter = f"^{ana_no}/.*{ana_yil}$"
+            ozel_satirlar = df_ozel[ozel_arama_sutunu.str.contains(ozel_kriter, flags=re.IGNORECASE, regex=True)]
+            
+            if not ozel_satirlar.empty:
+                bildirim_key = f"{chat_id}_{dosya_tam}_40gun"
+                
+                # SADECE DAHA ÖNCE UYARI ALMAMIŞSA GÖNDER!
+                if bildirim_key not in ozel_bildirim_gecmisi:
+                    ozel_satir = ozel_satirlar.iloc[0]
+                    ozel_tarih_str = str(ozel_satir.iloc[0]) if len(ozel_satir) > 0 else "-"
+                    ozel_isim = str(ozel_satir.iloc[1]) if len(ozel_satir) > 1 else "-"
+                    ozel_ek_bilgi = str(ozel_satir.iloc[3]) if len(ozel_satir) > 3 else "-"
+
+                    kalan_gun_mesaji = ""
+                    try:
+                        parsed_date = pd.to_datetime(ozel_tarih_str, dayfirst=True)
+                        gecen_gun = (datetime.datetime.now() - parsed_date).days
+                        kalan_gun = 40 - gecen_gun
+                        if kalan_gun > 0:
+                            kalan_gun_mesaji = f"⏳ <b>DİKKAT! Yasal sürenin dolmasına SON {kalan_gun} GÜN!</b> Lütfen vakit kaybetmeden istenen e-posta adresini kuruma bildiriniz."
+                        elif kalan_gun == 0:
+                            kalan_gun_mesaji = f"🚨 <b>DİKKAT! Yasal süreniz BUGÜN DOLUYOR!</b> Lütfen acilen istenen e-posta adresini kuruma bildiriniz."
+                        else:
+                            kalan_gun_mesaji = f"❌ <b>SÜRE DOLDU!</b> (Duyurunun üzerinden {gecen_gun} gün geçmiş). Yasal 40 günlük süreniz dolmuş görünmektedir. Ancak dosyanızın reddedilmemesi ihtimaline karşı yinede ACİLEN istenilen bilgiyi kuruma iletmeniz tavsiye edilir."
+                    except Exception:
+                        kalan_gun_mesaji = "Lütfen duyurunun yayınlanma tarihinden itibaren 40 gün içinde e-posta adresinizi kuruma bildiriniz."
+
+                    msg_ozel = (
+                        f"🚨 <b>ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)</b> 🚨\n\n"
+                        f"Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosya, Ulusal Vatandaşlık Kurumu'nun (ANC) <b>tarafınıza ulaşılamadığı için</b> yayınladığı özel listede tespit edilmiştir!\n\n"
+                        f"📅 <b>Yayınlanma Tarihi:</b> {ozel_tarih_str}\n"
+                        f"👤 <b>İsim:</b> {ozel_isim}\n"
+                        f"📝 <b>Kurum Notu:</b> {ozel_ek_bilgi}\n\n"
+                        f"{kalan_gun_mesaji}\n\n"
+                        f"<i>(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)</i>\n\n"
+                        f"🔗 <a href='https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/'>Resmi Kaynak Listesi İçin Tıklayınız</a>"
+                    )
+                    try:
+                        await app_context.bot.send_message(chat_id=chat_id, text=msg_ozel, parse_mode='HTML', disable_web_page_preview=True)
+                        ozel_bildirim_gecmisi.append(bildirim_key)
+                        print(f"🚨 {dosya_tam} için 40 Gün Acil Uyarı gönderildi!")
+                    except Exception as e:
+                        print(f"Özel uyarı atılamadı ({chat_id}): {e}")
+        # --- 🚨 40 GÜN KONTROLÜ BİTİŞ ---
+
         is_m10 = False
         is_m11 = True 
         madde_turu = "Madde 11" 
@@ -289,7 +335,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         )
                         await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 
-                kalan_bekleyenler.append(kisi) 
+            kalan_bekleyenler.append(kisi) 
         except Exception as e:
             print(f"Hata ({chat_id}): {e}")
             kalan_bekleyenler.append(kisi)
@@ -305,6 +351,8 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
             await app_context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, parse_mode='HTML')
         except Exception as e: print(f"Admin'e rapor hatası: {e}")
 
+    # Yeni durumu bulut state'ine kaydet
+    yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi
     hafiza['bekleyenler'] = kalan_bekleyenler
     hafiza['son_durum'] = yeni_durum
     set_bulut_verisi(kalan_bekleyenler, yeni_durum)
@@ -318,9 +366,7 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         bekleyenler = hafiza['bekleyenler']
         total_dosya = len(bekleyenler)
         
-        count_m10 = 0
-        count_m11 = 0
-        
+        count_m10, count_m11 = 0, 0
         df_dosya = hafiza['df_dosya']
         arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
         
@@ -336,10 +382,8 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
                         kaynak_dosya_metni = str(user_row.iloc[0].get('Kaynak Belge', ''))
                         if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
                             is_m10 = True
-                if is_m10:
-                    count_m10 += 1
-                else:
-                    count_m11 += 1
+                if is_m10: count_m10 += 1
+                else: count_m11 += 1
             except Exception:
                 count_m11 += 1
 
@@ -366,8 +410,6 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
 def veritabanini_kontrol_et(app_context=None):
     if not hafiza['bulut_yuklendi']:
         bulut = get_bulut_verisi()
-        
-        # 🛡️ BULUT OKUNAMADIYSA İŞLEM YAPMA (Körlük Engeli)
         if bulut is None:
             print("⚠️ Bulut okunamadı, veritabanı kontrolü geçici olarak iptal edildi.")
             return
@@ -376,16 +418,21 @@ def veritabanini_kontrol_et(app_context=None):
         hafiza['son_durum'] = bulut.get("son_durum", {})
         hafiza['bulut_yuklendi'] = True
 
-    ana_dosya = "dosyadurumu.zip"
-    if not os.path.exists(ana_dosya): return
-    mevcut_saat = os.path.getmtime(ana_dosya)
+    # Check multiple triggers for an update
+    dosyalar_kontrol = ["dosyadurumu.zip", "dosyadurumu.csv", "Dosya_Durumlari.xlsx", "Dosya_Durumlari.csv"]
+    mevcut_saat = 0
+    for d in dosyalar_kontrol:
+        if os.path.exists(d):
+            mevcut_saat = max(mevcut_saat, os.path.getmtime(d))
     
-    if mevcut_saat > hafiza['son_guncelleme']:
-        print("🔄 Yeni dosya tespit edildi. Veritabanı Telegram için güncelleniyor...")
-        hafiza['df_dosya'] = veri_yukle("dosyadurumu.zip")
+    if mevcut_saat > hafiza['son_guncelleme'] and mevcut_saat > 0:
+        print("🔄 Yeni dosya(lar) tespit edildi. Veritabanı Telegram için güncelleniyor...")
         
-        df_m10 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
-        df_m11 = veri_yukle("Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
+        # Esnek yükleyici kullanımı
+        hafiza['df_dosya'] = veri_yukle_esnek("dosyadurumu")
+        df_m10 = veri_yukle_esnek("Romanya_Vatandaslik_Tum_Veriler_Madde10")
+        df_m11 = veri_yukle_esnek("Romanya_Vatandaslik_Tum_Veriler_Madde11")
+        hafiza['df_ozel_durum'] = veri_yukle_esnek("Dosya_Durumlari") # 🚨 EKLENDİ
         
         hafiza['max_m10'] = max_ordin_hesapla_vektorel(df_m10)
         hafiza['max_m11'] = max_ordin_hesapla_vektorel(df_m11)
@@ -415,13 +462,13 @@ def veritabanini_kontrol_et(app_context=None):
 
             eklenen_m10 = list(set(yeni_m10_belgeler) - set(eski_m10))
             eklenen_m11 = list(set(yeni_m11_belgeler) - set(eski_m11))
-
             dosya_tarih_degisti = (dosya_tarih != eski_dosya_tarih and dosya_tarih not in ["Bilinmiyor", "Veri Yok", "Tarih Bulunamadı"])
 
             yeni_durum = {
                 "dosya_tarih": dosya_tarih, 
                 "m10_belgeler": yeni_m10_belgeler, 
-                "m11_belgeler": yeni_m11_belgeler
+                "m11_belgeler": yeni_m11_belgeler,
+                "ozel_bildirimler": eski_durum.get("ozel_bildirimler", []) # Geçmiş spam koruması kopyalandı
             }
             
             ilk_calistirma = not bool(eski_durum)
@@ -480,6 +527,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     aranan_kelime = update.message.text.strip()
     chat_id = str(update.message.chat_id) 
     df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
+    df_ozel = hafiza['df_ozel_durum'] # Özel 40 Gün Listesi
     
     if df_dosya.empty:
         await update.message.reply_text("❌ Sistemde veri bulunmuyor.")
@@ -512,6 +560,45 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         dosya_no_standart = f"{ana_no}/{ana_yil}"
         bulut_takip_formati = f"{ana_no}/{ana_yil}"
         
+        # --- 🚨 MANUEL SORGULAMADA 40 GÜN (EKSİK EVRAK) KONTROLÜ ---
+        ozel_mesaj_baslik = ""
+        if not df_ozel.empty and len(df_ozel.columns) >= 3:
+            ozel_arama = df_ozel.iloc[:, 2].astype(str).str.strip()
+            ozel_sonuc = df_ozel[ozel_arama.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
+            
+            if not ozel_sonuc.empty:
+                ozel_satir = ozel_sonuc.iloc[0]
+                ozel_tarih_str = str(ozel_satir.iloc[0]) if len(ozel_satir) > 0 else "-"
+                ozel_isim = str(ozel_satir.iloc[1]) if len(ozel_satir) > 1 else "-"
+                ozel_ek_bilgi = str(ozel_satir.iloc[3]) if len(ozel_satir) > 3 else "-"
+
+                kalan_gun_mesaji = ""
+                try:
+                    parsed_date = pd.to_datetime(ozel_tarih_str, dayfirst=True)
+                    gecen_gun = (datetime.datetime.now() - parsed_date).days
+                    kalan_gun = 40 - gecen_gun
+                    if kalan_gun > 0:
+                        kalan_gun_mesaji = f"⏳ <b>DİKKAT! Yasal sürenin dolmasına SON {kalan_gun} GÜN!</b> Lütfen vakit kaybetmeden istenen e-posta adresini kuruma bildiriniz."
+                    elif kalan_gun == 0:
+                        kalan_gun_mesaji = f"🚨 <b>DİKKAT! Yasal süreniz BUGÜN DOLUYOR!</b> Lütfen acilen istenen e-posta adresini kuruma bildiriniz."
+                    else:
+                        kalan_gun_mesaji = f"❌ <b>SÜRE DOLDU!</b> (Duyurunun üzerinden {gecen_gun} gün geçmiş). Yine de ACİLEN istenilen bilgiyi kuruma iletmeniz tavsiye edilir."
+                except Exception:
+                    kalan_gun_mesaji = "Lütfen yayınlanma tarihinden itibaren 40 gün içinde e-posta adresinizi kuruma bildiriniz."
+
+                ozel_mesaj_baslik = (
+                    f"🚨 <b>ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)</b> 🚨\n\n"
+                    f"Dosyanız ANC'nin tarafınıza ulaşılamadığı için yayınladığı özel listede tespit edilmiştir!\n\n"
+                    f"📅 <b>Yayınlanma Tarihi:</b> {ozel_tarih_str}\n"
+                    f"👤 <b>İsim:</b> {ozel_isim}\n"
+                    f"📝 <b>Kurum Notu:</b> {ozel_ek_bilgi}\n\n"
+                    f"{kalan_gun_mesaji}\n\n"
+                    f"<i>(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)</i>\n"
+                    f"🔗 <a href='https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/'>Resmi Kaynak Listesi İçin Tıklayın</a>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n\n"
+                )
+        # --- 🚨 KONTROL BİTİŞ ---
+
         karar_bulundu_mu, k_row = False, None
         
         solutie_metni = str(row['SOLUTIE']).strip()
@@ -538,7 +625,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         termen = termen_metni if termen_metni and termen_metni != "-" else "Belirtilmemiş"
         kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
-        yanit = (
+        yanit = ozel_mesaj_baslik + (
             f"📂 <b>DOSYA BİLGİLERİ</b>\n\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
             f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n"
             f"📝 <b>Kurum Notu (Solutie):</b> {kurum_notu}\n📂 <b>Kaynak:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
@@ -616,7 +703,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             klavye = [[InlineKeyboardButton("🔔 Karar Çıkınca Haberdar Et", callback_data=f"kvkk_{ana_no}_{ana_yil}")]]
             reply_markup = InlineKeyboardMarkup(klavye)
 
-        await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=reply_markup)
+        await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=reply_markup, disable_web_page_preview=True)
 
 # ==========================================
 # 🔘 BUTON TIKLAMA VE KVKK SÜRECİ
@@ -661,7 +748,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _, ilk_no, son_yil = query.data.split('_')
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
         
-        # 1. Okuma (Get) Kontrolü
         bulut_verisi = get_bulut_verisi()
         if bulut_verisi is None:
             await query.edit_message_text(text="⚠️ Sistemde geçici bir sunucu yoğunluğu var. Lütfen 5-10 dakika sonra tekrar deneyin.")
@@ -674,10 +760,8 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(text=f"✅ {dosya_no_temiz} numaralı dosya zaten takip listenizde!")
             return
             
-        # Kullanıcıyı hafızaya al
         hafiza['bekleyenler'].append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
         
-        # 2. Yazma (Put) Kontrolü
         kayit_basarili = set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum']) 
         
         if kayit_basarili:
@@ -686,7 +770,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='HTML'
             )
         else:
-            # Bulut çöktüyse kullanıcıyı RAM'den geri çıkar
             hafiza['bekleyenler'].pop() 
             await query.edit_message_text(
                 text="⚠️ <b>Bulut Kayıt Hatası!</b>\n\nSunucularda anlık bir yoğunluk yaşandığı için kaydınız tamamlanamadı. Lütfen daha sonra bota dosya numaranızı tekrar yazarak şansınızı deneyin.", 
@@ -792,7 +875,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(text="❌ İptal edilecek veri bulunamadı.", parse_mode='HTML')
             return
             
-        # Silmeden önce güncel bulutu okuyoruz (Başkasının verisi ezilmesin diye)
         bulut_verisi = get_bulut_verisi()
         if bulut_verisi is None:
             await query.edit_message_text(text="⚠️ Sistemde geçici bir sunucu yoğunluğu var. Silme işlemi yapılamadı, lütfen daha sonra tekrar deneyin.")
@@ -801,11 +883,10 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         hafiza['bekleyenler'] = bulut_verisi.get("bekleyenler", [])
         hafiza['son_durum'] = bulut_verisi.get("son_durum", {})
         
-        eski_liste = list(hafiza['bekleyenler']) # Hata durumunda geri yüklemek için yedek
+        eski_liste = list(hafiza['bekleyenler']) 
         
         hafiza['bekleyenler'] = [k for k in hafiza['bekleyenler'] if not (str(k.get('chat_id')) == chat_id and k.get('dosya_no') in secilenler)]
         
-        # Buluta yazmayı dene
         kayit_basarili = set_bulut_verisi(hafiza['bekleyenler'], hafiza['son_durum'])
         
         if kayit_basarili:
@@ -815,7 +896,7 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='HTML'
             )
         else:
-            hafiza['bekleyenler'] = eski_liste # Sunucu hatası varsa silmeyi geri al
+            hafiza['bekleyenler'] = eski_liste 
             await query.edit_message_text(
                 text="⚠️ <b>Bulut Güncelleme Hatası!</b>\n\nSunucularda anlık bir yoğunluk yaşandığı için silme işlemi tamamlanamadı. Lütfen daha sonra tekrar deneyin.", 
                 parse_mode='HTML'
@@ -840,7 +921,7 @@ if __name__ == '__main__':
         application.job_queue.run_once(baslangic_taramasi, 2)
         
         # ÇİFT ZAMANLI RAPOR SİSTEMİ (TSİ -> UTC ÇEVRİMİ İLE)
-        saat_aksam = datetime.time(17, 0, 0)  # 20:00 TSİ        
+        saat_aksam = datetime.time(17, 0, 0)  # 20:00 TSİ       
         
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=saat_aksam)
         print("⏰ Günlük saat 20:00 özet raporlama görevleri zamanlayıcıya eklendi.")
