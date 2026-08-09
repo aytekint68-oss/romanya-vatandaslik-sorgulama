@@ -77,36 +77,46 @@ def set_bulut_verisi(bekleyenler, son_durum):
 hafiza = {
     'df_dosya': pd.DataFrame(), 'df_karar_m10': pd.DataFrame(),
     'df_karar_m11': pd.DataFrame(), 'df_karar_birlesik': pd.DataFrame(),
-    'df_ozel_durum': pd.DataFrame(), # 🚨 40 GÜN LİSTESİ İÇİN YENİ ALAN
+    'df_ozel_durum': pd.DataFrame(),
     'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0,
     'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False 
 }
 
+def gercek_dosya_yolu(taban_adi):
+    """Dosyanın sistemde hangi uzantıyla var olduğunu bulur."""
+    for uzanti in ['.zip', '.xlsx', '.csv']:
+        if os.path.exists(taban_adi + uzanti):
+            return taban_adi + uzanti
+    return None
+
 def veri_yukle_esnek(taban_adi):
-    """Excel veya CSV formatlarını otomatik tanıyıp okuyan yeni nesil esnek yükleyici."""
-    for uzanti in ['.xlsx', '.csv', '.zip']:
-        dosya_adi = taban_adi + uzanti
-        if os.path.exists(dosya_adi):
-            try:
-                if uzanti == '.xlsx':
-                    df = pd.read_excel(dosya_adi)
-                else:
-                    df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
-                    if len(df.columns) < 2: df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+    """Bulunan dosyayı uzantısına göre en uygun yöntemle okur"""
+    dosya_adi = gercek_dosya_yolu(taban_adi)
+    if not dosya_adi:
+        return pd.DataFrame()
+        
+    try:
+        if dosya_adi.endswith('.xlsx'):
+            df = pd.read_excel(dosya_adi)
+        else:
+            # .csv veya .zip içindeki csv'leri okur
+            df = pd.read_csv(dosya_adi, sep=';', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
+            if len(df.columns) < 2: 
+                df = pd.read_csv(dosya_adi, sep=',', encoding='utf-8-sig', low_memory=False, on_bad_lines='skip')
                 
-                df.columns = df.columns.astype(str).str.strip()
-                df = df.fillna("")
-                
-                indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
-                if indeks_sutunlari:
-                    df = df.drop(columns=indeks_sutunlari)
-                    
-                for col in df.select_dtypes(include=['object', 'string']).columns:
-                    df[col] = df[col].astype(str).str.strip()
-                return df
-            except Exception as e:
-                print(f"⚠️ {dosya_adi} yüklenirken hata: {e}")
-                pass
+        df.columns = df.columns.astype(str).str.strip()
+        df = df.fillna("")
+        
+        indeks_sutunlari = [col for col in df.columns if 'unnamed' in str(col).lower() or str(col).lower() == 'index']
+        if indeks_sutunlari:
+            df = df.drop(columns=indeks_sutunlari)
+            
+        for col in df.select_dtypes(include=['object', 'string']).columns:
+            df[col] = df[col].astype(str).str.strip()
+        return df
+    except Exception as e:
+        print(f"⚠️ {dosya_adi} yüklenirken hata: {e}")
+    
     return pd.DataFrame()
 
 def max_ordin_hesapla_vektorel(df_k):
@@ -135,6 +145,7 @@ def en_guncel_belgeler(df, dosya_yolu=None):
     unique_files = df[['Kaynak Belge']].drop_duplicates().copy()
     unique_files['Parsed_Date'] = pd.to_datetime(unique_files['Kaynak Belge'].str.extract(r'(\d{2}\.\d{2}\.\d{4})')[0], format='%d.%m.%Y', errors='coerce')
     valid_files = unique_files.dropna(subset=['Parsed_Date'])
+    
     if not valid_files.empty:
         max_date = valid_files['Parsed_Date'].max()
         latest_files = valid_files[valid_files['Parsed_Date'] == max_date]['Kaynak Belge'].tolist()
@@ -145,6 +156,7 @@ def en_guncel_belgeler(df, dosya_yolu=None):
             dt_str = datetime.datetime.fromtimestamp(mtime).strftime('%d.%m.%Y')
             return [unique_files.iloc[0]['Kaynak Belge']], dt_str
         return [unique_files.iloc[0]['Kaynak Belge']], "Tarih Bulunamadı"
+    
     return ["Veri Yok"], "Bilinmiyor"
 
 def tum_belgeler(df):
@@ -158,13 +170,12 @@ def tum_belgeler(df):
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, ilk_calistirma=False):
     df_karar = hafiza['df_karar_birlesik']
     df_dosya = hafiza['df_dosya']
-    df_ozel = hafiza['df_ozel_durum'] # 🚨 Özel 40 Gün Listesi
+    df_ozel = hafiza['df_ozel_durum']
     kalan_bekleyenler = []
     bekleyenler = hafiza['bekleyenler'] 
     
     admin_onay_listesi = [] 
     
-    # 40 Gün hesaplamaları için arama sütunu
     ozel_arama_sutunu = pd.Series(dtype=str)
     if not df_ozel.empty and len(df_ozel.columns) >= 3:
         ozel_arama_sutunu = df_ozel.iloc[:, 2].astype(str).str.strip()
@@ -172,14 +183,14 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
     print(f"Sistemdeki {len(bekleyenler)} kişiye hedefli bildirim dağıtılıyor...")
 
     arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
-    ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", []) # Uyarıyı spam atmamak için hafıza
+    ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])
 
     for kisi in bekleyenler:
         chat_id = kisi['chat_id']
         dosya_tam = kisi['dosya_no']
         ana_no, ana_yil = dosya_tam.split('/')
         
-        # --- 🚨 40 GÜN KURALI (EKSİK EVRAK) KONTROLÜ ---
+        # --- 🚨 40 GÜN KURALI KONTROLÜ ---
         if not df_ozel.empty and not ozel_arama_sutunu.empty:
             ozel_kriter = f"^{ana_no}/.*{ana_yil}$"
             ozel_satirlar = df_ozel[ozel_arama_sutunu.str.contains(ozel_kriter, flags=re.IGNORECASE, regex=True)]
@@ -187,7 +198,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
             if not ozel_satirlar.empty:
                 bildirim_key = f"{chat_id}_{dosya_tam}_40gun"
                 
-                # SADECE DAHA ÖNCE UYARI ALMAMIŞSA GÖNDER!
                 if bildirim_key not in ozel_bildirim_gecmisi:
                     ozel_satir = ozel_satirlar.iloc[0]
                     ozel_tarih_str = str(ozel_satir.iloc[0]) if len(ozel_satir) > 0 else "-"
@@ -224,7 +234,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         print(f"🚨 {dosya_tam} için 40 Gün Acil Uyarı gönderildi!")
                     except Exception as e:
                         print(f"Özel uyarı atılamadı ({chat_id}): {e}")
-        # --- 🚨 40 GÜN KONTROLÜ BİTİŞ ---
 
         is_m10 = False
         is_m11 = True 
@@ -312,7 +321,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                     kullanici_icin_degisenler = []
                     
                     if dosya_tarih_degisti:
-                        kullanici_icin_degisenler.append(f"Stadiu Dosar Durumu (Güncelleme: {dosya_tarih})")
+                        kullanici_icin_degisenler.append(f"Bot Stadiu Dosar Verilerini Güncelledi: ({dosya_tarih})")
                     
                     if is_m10 and eklenen_m10:
                         for b in eklenen_m10: kullanici_icin_degisenler.append(f"Madde 10: {b}")
@@ -351,7 +360,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
             await app_context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, parse_mode='HTML')
         except Exception as e: print(f"Admin'e rapor hatası: {e}")
 
-    # Yeni durumu bulut state'ine kaydet
     yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi
     hafiza['bekleyenler'] = kalan_bekleyenler
     hafiza['son_durum'] = yeni_durum
@@ -428,11 +436,10 @@ def veritabanini_kontrol_et(app_context=None):
     if mevcut_saat > hafiza['son_guncelleme'] and mevcut_saat > 0:
         print("🔄 Yeni dosya(lar) tespit edildi. Veritabanı Telegram için güncelleniyor...")
         
-        # Esnek yükleyici kullanımı
         hafiza['df_dosya'] = veri_yukle_esnek("dosyadurumu")
         df_m10 = veri_yukle_esnek("Romanya_Vatandaslik_Tum_Veriler_Madde10")
         df_m11 = veri_yukle_esnek("Romanya_Vatandaslik_Tum_Veriler_Madde11")
-        hafiza['df_ozel_durum'] = veri_yukle_esnek("Dosya_Durumlari") # 🚨 EKLENDİ
+        hafiza['df_ozel_durum'] = veri_yukle_esnek("Dosya_Durumlari") 
         
         hafiza['max_m10'] = max_ordin_hesapla_vektorel(df_m10)
         hafiza['max_m11'] = max_ordin_hesapla_vektorel(df_m11)
@@ -454,7 +461,10 @@ def veritabanini_kontrol_et(app_context=None):
         hafiza['son_guncelleme'] = mevcut_saat
         
         if app_context:
-            _, dosya_tarih = en_guncel_belgeler(hafiza['df_dosya'], "dosyadurumu.zip")
+            # DİNAMİK YOL İLE TARİH TESPİTİ
+            gercek_dosya = gercek_dosya_yolu("dosyadurumu")
+            _, dosya_tarih = en_guncel_belgeler(hafiza['df_dosya'], gercek_dosya)
+            
             eski_durum = hafiza['son_durum']
             eski_m10 = eski_durum.get("m10_belgeler", [])
             eski_m11 = eski_durum.get("m11_belgeler", [])
@@ -468,7 +478,7 @@ def veritabanini_kontrol_et(app_context=None):
                 "dosya_tarih": dosya_tarih, 
                 "m10_belgeler": yeni_m10_belgeler, 
                 "m11_belgeler": yeni_m11_belgeler,
-                "ozel_bildirimler": eski_durum.get("ozel_bildirimler", []) # Geçmiş spam koruması kopyalandı
+                "ozel_bildirimler": eski_durum.get("ozel_bildirimler", [])
             }
             
             ilk_calistirma = not bool(eski_durum)
@@ -481,12 +491,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     veritabanini_kontrol_et(context) 
     chat_id = str(update.message.chat_id)
 
-    _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'], "dosyadurumu.zip")
+    gercek_dosya = gercek_dosya_yolu("dosyadurumu")
+    _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'], gercek_dosya)
     
     df_k = hafiza['df_karar_birlesik']
     if not df_k.empty and 'Kaynak Belge' in df_k.columns:
-        m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*10|m10|madde10', case=False, regex=True)], "Romanya_Vatandaslik_Tum_Veriler_Madde10.csv")
-        m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*11|m11|madde11', case=False, regex=True)], "Romanya_Vatandaslik_Tum_Veriler_Madde11.csv")
+        m10_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*10|m10|madde10', case=False, regex=True)], gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde10"))
+        m11_files, _ = en_guncel_belgeler(df_k[df_k['Kaynak Belge'].str.contains(r'art[.\- ]*11|m11|madde11', case=False, regex=True)], gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde11"))
     else:
         m10_files, m11_files = ["Veri Yok"], ["Veri Yok"]
 
@@ -507,7 +518,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mesaj = (
         "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
         "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
-        f"<b>Dosya Durumu (Stadiu Dosar) Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
+        f"<b>Bot Veritabanı Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
         f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
         f"<b>Madde 10:</b>\n{m10_metin}\n\n"
         f"<b>Madde 11:</b>\n{m11_metin}\n\n"
@@ -527,7 +538,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     aranan_kelime = update.message.text.strip()
     chat_id = str(update.message.chat_id) 
     df_dosya, df_karar = hafiza['df_dosya'], hafiza['df_karar_birlesik']
-    df_ozel = hafiza['df_ozel_durum'] # Özel 40 Gün Listesi
+    df_ozel = hafiza['df_ozel_durum'] 
     
     if df_dosya.empty:
         await update.message.reply_text("❌ Sistemde veri bulunmuyor.")
@@ -560,7 +571,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         dosya_no_standart = f"{ana_no}/{ana_yil}"
         bulut_takip_formati = f"{ana_no}/{ana_yil}"
         
-        # --- 🚨 MANUEL SORGULAMADA 40 GÜN (EKSİK EVRAK) KONTROLÜ ---
+        # --- 🚨 MANUEL SORGULAMADA 40 GÜN KONTROLÜ ---
         ozel_mesaj_baslik = ""
         if not df_ozel.empty and len(df_ozel.columns) >= 3:
             ozel_arama = df_ozel.iloc[:, 2].astype(str).str.strip()
@@ -597,7 +608,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"🔗 <a href='https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/'>Resmi Kaynak Listesi İçin Tıklayın</a>\n"
                     f"━━━━━━━━━━━━━━━━━━\n\n"
                 )
-        # --- 🚨 KONTROL BİTİŞ ---
 
         karar_bulundu_mu, k_row = False, None
         
@@ -743,7 +753,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text="❌ Takip işlemi iptal edildi. Verileriniz kaydedilmedi.", parse_mode='HTML')
         return
 
-    # --- 🌟 YENİ KAYIT İŞLEMİ (BİLDİRİM VE HATA YAKALAMA) ---
     if query.data.startswith("takip_"):
         _, ilk_no, son_yil = query.data.split('_')
         dosya_no_temiz = f"{ilk_no}/{son_yil}"
@@ -777,7 +786,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
 
-    # --- ÇOKLU SEÇİMLİ (CHECKLIST) DOSYA TAKİBİNİ BIRAKMA SİSTEMİ ---
     if query.data == "menu_birak":
         user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
         
@@ -840,7 +848,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(klavye))
         return
 
-    # --- 🌟 SİLME İŞLEMİ (BİLDİRİM VE HATA YAKALAMA) ---
     if query.data == "toplusil_onay":
         secilenler = context.user_data.get('secilenler', [])
         if not secilenler:
