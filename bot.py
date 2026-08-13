@@ -80,8 +80,8 @@ hafiza = {
     'df_ozel_durum': pd.DataFrame(),
     'max_m10': {}, 'max_m11': {}, 'son_guncelleme': 0,
     'bekleyenler': [], 'son_durum': {}, 'bulut_yuklendi': False,
-    'son_m10_belgeler': ["Veri Yok"], # ✅ Menü için özel hafıza alanı
-    'son_m11_belgeler': ["Veri Yok"]  # ✅ Menü için özel hafıza alanı
+    'son_m10_belgeler': ["Veri Yok"], 
+    'son_m11_belgeler': ["Veri Yok"]  
 }
 
 def gercek_dosya_yolu(taban_adi):
@@ -114,11 +114,10 @@ def veri_yukle_esnek(taban_adi):
                     if len(df.columns) < 2:
                         df = pd.read_csv(dosya_adi, sep=',', encoding=enc, low_memory=False, on_bad_lines='skip')
                     
-                    # Eğer sütun sayısı 1'den büyükse dosyayı doğru parçalamışız demektir
                     if len(df.columns) > 1:
                         basarili = True
                 except Exception:
-                    continue # Hata verirse çökmek yerine sıradaki kodlamaya geç
+                    continue 
                     
         if df.empty:
             print(f"⚠️ {dosya_adi} hiçbir formatta okunamadı (Boş Dosya).")
@@ -448,7 +447,6 @@ def veritabanini_kontrol_et(app_context=None):
         hafiza['son_durum'] = bulut.get("son_durum", {})
         hafiza['bulut_yuklendi'] = True
 
-    # Check multiple triggers for an update
     dosyalar_kontrol = ["dosyadurumu.zip", "dosyadurumu.csv", "Dosya_Durumlari.xlsx", "Dosya_Durumlari.csv"]
     mevcut_saat = 0
     for d in dosyalar_kontrol:
@@ -463,7 +461,6 @@ def veritabanini_kontrol_et(app_context=None):
         df_m11 = veri_yukle_esnek("Romanya_Vatandaslik_Tum_Veriler_Madde11")
         hafiza['df_ozel_durum'] = veri_yukle_esnek("Dosya_Durumlari") 
         
-        # ✅ Tabloları birleştirmeden ÖNCE güncel belgeleri tespit edip hafızaya alıyoruz
         hafiza['son_m10_belgeler'], _ = en_guncel_belgeler(df_m10, gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde10"))
         hafiza['son_m11_belgeler'], _ = en_guncel_belgeler(df_m11, gercek_dosya_yolu("Romanya_Vatandaslik_Tum_Veriler_Madde11"))
         
@@ -478,7 +475,6 @@ def veritabanini_kontrol_et(app_context=None):
         if not df_m11.empty: karar_listesi.append(df_m11)
         hafiza['df_karar_birlesik'] = pd.concat(karar_listesi, ignore_index=True) if karar_listesi else pd.DataFrame()
         
-        # Bellek temizliği
         del df_m10
         del df_m11
         gc.collect() 
@@ -518,7 +514,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     gercek_dosya = gercek_dosya_yolu("dosyadurumu")
     _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'], gercek_dosya)
     
-    # ✅ Artık "Veri Yok" hatası almamak için verileri direkt hafızadan çekiyoruz
     m10_files = hafiza.get('son_m10_belgeler', ["Veri Yok"])
     m11_files = hafiza.get('son_m11_belgeler', ["Veri Yok"])
 
@@ -656,9 +651,20 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         termen = termen_metni if termen_metni and termen_metni != "-" else "Belirtilmemiş"
         kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
+        # ✅ BAŞVURU TARİHİNİ DİNAMİK OLARAK TESPİT ETME KODU
+        basvuru_tarihi = ""
+        for col in row.index:
+            if any(kelime in str(col).lower() for kelime in ['tarih', 'data', 'date', 'inregistrarii', 'cerere']):
+                val = str(row[col]).strip()
+                if val and val != "-" and val.lower() != 'nan':
+                    basvuru_tarihi = val
+                    break
+        if not basvuru_tarihi:
+            basvuru_tarihi = "Belirtilmemiş"
+
         yanit = ozel_mesaj_baslik + (
             f"📂 <b>DOSYA BİLGİLERİ</b>\n\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>Başvuru Tarihi:</b> {row.get('Başvuru Tarihi', '')}\n⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n"
+            f"📅 <b>Başvuru Tarihi:</b> {basvuru_tarihi}\n⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n"
             f"📝 <b>Kurum Notu (Solutie):</b> {kurum_notu}\n📂 <b>Kaynak:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
             f"⚖️ <b>KARAR (ORDIN) DURUMU</b>\n\n"
         )
