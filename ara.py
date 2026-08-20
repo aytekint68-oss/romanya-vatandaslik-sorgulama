@@ -101,7 +101,6 @@ def en_guncel_belgeleri_getir(df, dosya_yolu=None):
     return ["Veri Yok"], "Bilinmiyor"
 
 def sutun_degeri_al(row, olasi_isimler):
-    """Sütun adlarındaki büyük-küçük harf veya boşluk farklarını tolere eder"""
     for col in row.index:
         col_clean = str(col).strip().lower()
         for hedef in olasi_isimler:
@@ -214,7 +213,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
             else:
                 arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
                 
-                # Dosya No sütununu güvenle belirleme
+                # Dosya No sütununu dinamik bul
                 dosya_no_col = next((col for col in df_dosya.columns if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), df_dosya.columns[0])
                 df_dosya['Arama_Sutunu'] = df_dosya[dosya_no_col].astype(str).str.strip()
                 sonuclar = df_dosya[df_dosya['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
@@ -250,24 +249,40 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 karar_bulundu_mu = True
                                 k_row = karar_sonucu.iloc[0]
 
-                        # Sütunları güvenle çekme
+                        # Ham verileri çek
                         basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'DATA INREGISTRARII', 'Tarih'])
                         termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])
                         solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
-                        
-                        # --- TERMEN / SOLUTIE KAYMASI VE TARİH DÜZELTME ---
-                        # 1. Eğer solutie sütununa tarih (GG.AA.YYYY veya GG.AA.YYYY 00:00:00) yazılmışsa, bu TERMEN verisidir
-                        tarih_saat_deseni = r'^\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4}(?:\s+\d{2}[:\.]\d{2}[:\.]\d{2})?$'
-                        if solutie_metni and re.match(tarih_saat_deseni, solutie_metni):
-                            if not termen_metni or termen_metni == "-":
-                                termen_metni = solutie_metni
-                            solutie_metni = ""
 
-                        # 2. Termen içindeki 00:00:00 veya 00.00.00 gibi saat artıklarını temizle
+                        # =========================================================
+                        # 🔧 SOLUTIE / TERMEN KAYMA VE TARİH AYIKLAMA MANTIĞI
+                        # =========================================================
+                        # 1. Solutie içinde tarih (GG.AA.YYYY) aranır:
+                        solutie_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', solutie_metni)
+                        
+                        # Eğer solutie alanında bir tarih varsa (Örn: 29.12.2027 00:00:00 veya 18.06.2028):
+                        # ve içinde /P veya ordin gibi bir karar ibaresi YOKSA, bu kesinlikle TERMEN tarihidir!
+                        if solutie_tarih_match and not re.search(r'\d+\s*/?\s*P', solutie_metni, re.IGNORECASE):
+                            if not termen_metni or termen_metni.lower() in ['nan', 'none', '-', 'belirtilmemiş']:
+                                termen_metni = solutie_tarih_match.group(1)
+                            solutie_metni = ""  # Kurum notu boşaltılır
+
+                        # 2. Termen içindeki tarihi temizle ve formatla (00:00:00 artıklarını at)
                         if termen_metni:
-                            termen_metni = re.sub(r'[\s_]+00[:\.]00[:\.]00', '', termen_metni).strip()
-                            if termen_metni.lower() in ['nan', 'none', '']:
-                                termen_metni = ""
+                            termen_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni)
+                            if termen_tarih_match:
+                                termen_metni = termen_tarih_match.group(1).replace('/', '.').replace('-', '.')
+                            else:
+                                if termen_metni.lower() in ['nan', 'none', '-']:
+                                    termen_metni = ""
+
+                        # 3. Başvuru tarihini temizle
+                        if basvuru_tarihi:
+                            basvuru_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', basvuru_tarihi)
+                            if basvuru_match:
+                                basvuru_tarihi = basvuru_match.group(1).replace('/', '.').replace('-', '.')
+
+                        # =========================================================
 
                         p_numarasi = None
                         user_ordin_no = 0
@@ -338,7 +353,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             with col1:
                                 st.markdown(f"**📅 Başvuru Tarihi:**<br>{basvuru_tarihi if basvuru_tarihi else 'Belirtilmemiş'}", unsafe_allow_html=True)
                             with col2:
-                                if termen_metni and termen_metni != "-":
+                                if termen_metni:
                                     st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>{termen_metni}", unsafe_allow_html=True)
                                 else:
                                     st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>Belirtilmemiş", unsafe_allow_html=True)
