@@ -139,12 +139,17 @@ def veri_yukle_esnek(taban_adi):
     
     return pd.DataFrame()
 
-def sutun_degeri_al(row, olasi_isimler):
-    """Sütun isimlerindeki boşluk, karakter veya dil farklarını tolere eder"""
+def sutun_degeri_al(row, olasi_isimler, haric_kelimeler=None):
+    """Sütun isimlerini güvenle eşleştirir, istenmeyen çakışmaları engeller"""
+    if haric_kelimeler is None:
+        haric_kelimeler = []
+        
     for col in row.index:
         col_clean = str(col).strip().lower()
+        if any(h.lower() in col_clean for h in haric_kelimeler):
+            continue
         for hedef in olasi_isimler:
-            if hedef.lower() in col_clean or col_clean == hedef.lower():
+            if hedef.lower() == col_clean or hedef.lower() in col_clean:
                 val = str(row[col]).strip()
                 if val.lower() not in ['nan', 'none']:
                     return val
@@ -276,7 +281,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
             user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
             if not user_row.empty:
                 satir_veri = user_row.iloc[0]
-                kaynak_dosya_metni = sutun_degeri_al(satir_veri, ['Kaynak Belge', 'Kaynak', 'Dosya'])
+                kaynak_dosya_metni = sutun_degeri_al(satir_veri, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no', 'no:'])
                 if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
                     is_m10 = True
                     is_m11 = False
@@ -313,7 +318,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         try:
             if onaylandi_mi:
-                kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak', 'Dosya'])
+                kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no', 'no:'])
                 gosterilecek_karar = ""
                 
                 k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
@@ -430,7 +435,7 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
                     arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
                     user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
                     if not user_row.empty:
-                        kaynak_dosya_metni = sutun_degeri_al(user_row.iloc[0], ['Kaynak Belge', 'Kaynak', 'Dosya'])
+                        kaynak_dosya_metni = sutun_degeri_al(user_row.iloc[0], ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no', 'no:'])
                         if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
                             is_m10 = True
                 if is_m10: count_m10 += 1
@@ -595,8 +600,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
     df_gecici = df_dosya.copy()
     
-    # Dosya No sütununu güvenle belirleme
-    dosya_no_col = next((col for col in df_gecici.columns if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), df_gecici.columns[0])
+    # Dosya No sütununu belirle
+    dosya_no_col = next((col for col in df_gecici.columns if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), df_gecici.columns[0])
     df_gecici['Arama_Sutunu'] = df_gecici[dosya_no_col].astype(str).str.strip()
     sonuclar = df_gecici[df_gecici['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)].copy()
 
@@ -652,7 +657,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         karar_bulundu_mu, k_row = False, None
         
-        # Değerleri esnek fonksiyonla al
+        # Değerleri güvenle al
         solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'SOLUŢIE', 'Kurum Notu'])
         termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])
 
@@ -702,7 +707,11 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 karar_bulundu_mu = True
                 k_row = final_matches.iloc[0]
 
-        kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak', 'Dosya'])
+        # Kaynak Belge sütununu dosya numarasıyla çakışmayacak şekilde çek
+        kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no', 'no:'])
+        if not kaynak_dosya_metni or kaynak_dosya_metni.lower() in ['nan', 'none']:
+            kaynak_dosya_metni = str(row.get('Kaynak Belge', 'Belirtilmemiş'))
+
         kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
         # BAŞVURU TARİHİNİ DİNAMİK AL
@@ -724,7 +733,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         zaten_takipte = False
 
         if karar_bulundu_mu:
-            kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak', 'Dosya'])
+            kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no', 'no:'])
             gosterilecek_karar = ""
             
             k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
