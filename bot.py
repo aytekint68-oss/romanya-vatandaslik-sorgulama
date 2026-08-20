@@ -273,9 +273,11 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 
                 solutie_metni = str(user_row.iloc[0].get('SOLUTIE', '')).strip()
                 if solutie_metni:
-                    p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
+                    p_match = re.search(r'(\d{1,6})\s*[/]?\s*P(?:\s*[/]?\s*(\d{4}))?', solutie_metni, re.IGNORECASE)
                     if p_match: 
-                        p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
+                        u_no = p_match.group(1)
+                        u_yil = p_match.group(2)
+                        p_numarasi = f"{u_no}/P/{u_yil}" if u_yil else f"{u_no}/P"
 
         onaylandi_mi = False
         k_row = None
@@ -295,38 +297,45 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
         try:
             if onaylandi_mi:
                 kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
-                gosterilecek_karar = p_numarasi
+                gosterilecek_karar = ""
                 
-                if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
-                    k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
-                    if k_ordin_cols:
-                        val = str(k_row[k_ordin_cols[0]]).strip()
-                        if val and val.lower() not in ['nan', 'none', '']:
-                            gosterilecek_karar = val
+                # 1. Karar tablosundaki sütundan oku
+                k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
+                if k_ordin_cols:
+                    val = str(k_row[k_ordin_cols[0]]).strip()
+                    if val and val.lower() not in ['nan', 'none', '']:
+                        gosterilecek_karar = val
 
-                if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
-                    pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE)
+                # 2. Dosya adından yakala (Örn: Ordin_nr._594P_... -> 594/P)
+                if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '', 'belirtilmemiş']:
+                    pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)
                     if pdf_match:
-                        gosterilecek_karar = pdf_match.group(1)
+                        no_kismi = pdf_match.group(1)
+                        p_harfi = "/P" if pdf_match.group(2) else ""
+                        gosterilecek_karar = f"{no_kismi}{p_harfi}"
 
-                if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
-                    clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
-                    if clean_no_match:
-                        pure_no = clean_no_match.group(1)
-                        yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
-                        if not yil_match:
-                            yil_match = re.search(r'\b(202\d)\b', str(k_row.get('Tarih', '')))
-                        pure_year = yil_match.group(1) if yil_match else "2026"
-                        gosterilecek_karar = f"{pure_no}/P/{pure_year}"
+                # 3. Solutie'den gelen P numarası
+                if not gosterilecek_karar and p_numarasi:
+                    gosterilecek_karar = p_numarasi
+
+                # 4. Standart "SAYI/P" formatına temizle
+                if gosterilecek_karar:
+                    p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)
+                    if p_format_match:
+                        gosterilecek_karar = f"{p_format_match.group(1)}/P"
                     else:
-                        gosterilecek_karar = "Belirtilmemiş"
+                        sadece_sayi = re.search(r'(\d+)', str(gosterilecek_karar))
+                        gosterilecek_karar = f"{sadece_sayi.group(1)}/P" if sadece_sayi else str(gosterilecek_karar)
                 else:
                     gosterilecek_karar = "Belirtilmemiş"
                 
                 karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
                 if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
-                    date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', kaynak_belge_adi)
-                    karar_tarihi = date_match.group(1) if date_match else "Belirtilmemiş"
+                    date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
+                    if date_match:
+                        karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.')
+                    else:
+                        karar_tarihi = "Belirtilmemiş"
 
                 msg = (
                     f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı! 💚\n\n"
@@ -620,7 +629,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"👤 <b>İsim:</b> {ozel_isim}\n"
                     f"📝 <b>Kurum Notu:</b> {ozel_ek_bilgi}\n\n"
                     f"{kalan_gun_mesaji}\n\n"
-                    f"<i>(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)</i>\n"
+                    f"<i>(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)</i>\n\n"
                     f"🔗 <a href='https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/'>Resmi Kaynak Listesi İçin Tıklayın</a>\n"
                     f"━━━━━━━━━━━━━━━━━━\n\n"
                 )
@@ -630,8 +639,14 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         solutie_metni = str(row['SOLUTIE']).strip()
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
         if solutie_metni:
-            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
-            if p_match: p_numarasi, user_ordin_no, user_ordin_yil = f"{p_match.group(1)}/P/{p_match.group(2)}", int(p_match.group(1)), int(p_match.group(2))
+            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P(?:\s*[/]?\s*(\d{4}))?', solutie_metni, re.IGNORECASE)
+            if p_match: 
+                user_ordin_no = int(p_match.group(1))
+                if p_match.group(2):
+                    user_ordin_yil = int(p_match.group(2))
+                    p_numarasi = f"{user_ordin_no}/P/{user_ordin_yil}"
+                else:
+                    p_numarasi = f"{user_ordin_no}/P"
 
         if not df_karar.empty:
             regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
@@ -673,39 +688,46 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         zaten_takipte = False
 
         if karar_bulundu_mu:
-            kaynak_belge_adi = k_row['Kaynak Belge']
-            gosterilecek_karar = p_numarasi
+            kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
+            gosterilecek_karar = ""
             
-            if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
-                k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
-                if k_ordin_cols:
-                    val = str(k_row[k_ordin_cols[0]]).strip()
-                    if val and val.lower() not in ['nan', 'none', '']:
-                        gosterilecek_karar = val
+            # 1. Karar tablosundaki sütundan oku
+            k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
+            if k_ordin_cols:
+                val = str(k_row[k_ordin_cols[0]]).strip()
+                if val and val.lower() not in ['nan', 'none', '']:
+                    gosterilecek_karar = val
 
-            if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
-                pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE)
+            # 2. Dosya adından yakala (Örn: Ordin_nr._594P_... -> 594/P)
+            if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '', 'belirtilmemiş']:
+                pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)
                 if pdf_match:
-                    gosterilecek_karar = pdf_match.group(1)
+                    no_kismi = pdf_match.group(1)
+                    p_harfi = "/P" if pdf_match.group(2) else ""
+                    gosterilecek_karar = f"{no_kismi}{p_harfi}"
 
-            if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
-                clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
-                if clean_no_match:
-                    pure_no = clean_no_match.group(1)
-                    yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
-                    if not yil_match:
-                        yil_match = re.search(r'\b(202\d)\b', str(k_row.get('Tarih', '')))
-                    pure_year = yil_match.group(1) if yil_match else "2026"
-                    gosterilecek_karar = f"{pure_no}/P/{pure_year}"
+            # 3. Solutie'den gelen P numarası
+            if not gosterilecek_karar and p_numarasi:
+                gosterilecek_karar = p_numarasi
+
+            # 4. Standart "SAYI/P" formatına temizle
+            if gosterilecek_karar:
+                p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)
+                if p_format_match:
+                    gosterilecek_karar = f"{p_format_match.group(1)}/P"
                 else:
-                    gosterilecek_karar = "Belirtilmemiş"
+                    sadece_sayi = re.search(r'(\d+)', str(gosterilecek_karar))
+                    gosterilecek_karar = f"{sadece_sayi.group(1)}/P" if sadece_sayi else str(gosterilecek_karar)
             else:
                 gosterilecek_karar = "Belirtilmemiş"
             
             karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
             if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
-                date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', kaynak_belge_adi)
-                karar_tarihi = date_match.group(1) if date_match else "Belirtilmemiş"
+                date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
+                if date_match:
+                    karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.')
+                else:
+                    karar_tarihi = "Belirtilmemiş"
 
             yanit += f"🎉 ✅ <b>TEBRİKLER! Kararınız yayımlandı.</b> 💚\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
