@@ -103,7 +103,6 @@ def veri_yukle_esnek(taban_adi):
             df = pd.read_excel(dosya_adi)
         else:
             basarili = False
-            # Sırasıyla denenecek kodlamalar: UTF-8, Romence, Türkçe, Batı Avrupa (Kesin açar)
             kodlamalar = ['utf-8-sig', 'utf-8', 'cp1250', 'cp1254', 'latin1']
             
             for enc in kodlamalar:
@@ -139,6 +138,17 @@ def veri_yukle_esnek(taban_adi):
         print(f"⚠️ {dosya_adi} yüklenirken bilinmeyen bir hata oluştu: {e}")
     
     return pd.DataFrame()
+
+def sutun_degeri_al(row, olasi_isimler):
+    """Sütun isimlerindeki boşluk, karakter veya dil farklarını tolere eder"""
+    for col in row.index:
+        col_clean = str(col).strip().lower()
+        for hedef in olasi_isimler:
+            if hedef.lower() in col_clean or col_clean == hedef.lower():
+                val = str(row[col]).strip()
+                if val.lower() not in ['nan', 'none']:
+                    return val
+    return ""
 
 def max_ordin_hesapla_vektorel(df_k):
     if df_k.empty: return {}
@@ -203,7 +213,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
     print(f"Sistemdeki {len(bekleyenler)} kişiye hedefli bildirim dağıtılıyor...")
 
-    arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
+    arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty and 'Dosya No' in df_dosya.columns else (df_dosya.iloc[:, 0].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str))
     ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])
 
     for kisi in bekleyenler:
@@ -265,13 +275,20 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
             arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
             user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
             if not user_row.empty:
-                kaynak_dosya_metni = str(user_row.iloc[0].get('Kaynak Belge', ''))
+                satir_veri = user_row.iloc[0]
+                kaynak_dosya_metni = sutun_degeri_al(satir_veri, ['Kaynak Belge', 'Kaynak', 'Dosya'])
                 if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
                     is_m10 = True
                     is_m11 = False
                     madde_turu = "Madde 10"
                 
-                solutie_metni = str(user_row.iloc[0].get('SOLUTIE', '')).strip()
+                solutie_metni = sutun_degeri_al(satir_veri, ['SOLUTIE', 'Solutie', 'SOLUŢIE', 'Kurum Notu'])
+                
+                # Tarih kaymasını filtrele
+                solutie_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', solutie_metni)
+                if solutie_tarih_match and not re.search(r'\d+\s*/?\s*P', solutie_metni, re.IGNORECASE):
+                    solutie_metni = ""
+
                 if solutie_metni:
                     p_match = re.search(r'(\d{1,6})\s*[/]?\s*P(?:\s*[/]?\s*(\d{4}))?', solutie_metni, re.IGNORECASE)
                     if p_match: 
@@ -296,17 +313,15 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         try:
             if onaylandi_mi:
-                kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
+                kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak', 'Dosya'])
                 gosterilecek_karar = ""
                 
-                # 1. Karar tablosundaki sütundan oku
                 k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
                 if k_ordin_cols:
                     val = str(k_row[k_ordin_cols[0]]).strip()
                     if val and val.lower() not in ['nan', 'none', '']:
                         gosterilecek_karar = val
 
-                # 2. Dosya adından yakala (Örn: Ordin_nr._594P_... -> 594/P)
                 if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '', 'belirtilmemiş']:
                     pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)
                     if pdf_match:
@@ -314,11 +329,9 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         p_harfi = "/P" if pdf_match.group(2) else ""
                         gosterilecek_karar = f"{no_kismi}{p_harfi}"
 
-                # 3. Solutie'den gelen P numarası
                 if not gosterilecek_karar and p_numarasi:
                     gosterilecek_karar = p_numarasi
 
-                # 4. Standart "SAYI/P" formatına temizle
                 if gosterilecek_karar:
                     p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)
                     if p_format_match:
@@ -329,8 +342,8 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 else:
                     gosterilecek_karar = "Belirtilmemiş"
                 
-                karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
-                if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
+                karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data', 'Karar Tarihi'])
+                if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none", ""]: 
                     date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
                     if date_match:
                         karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.')
@@ -406,7 +419,7 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         
         count_m10, count_m11 = 0, 0
         df_dosya = hafiza['df_dosya']
-        arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str)
+        arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty and 'Dosya No' in df_dosya.columns else (df_dosya.iloc[:, 0].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str))
         
         for kisi in bekleyenler:
             dosya_tam = kisi['dosya_no']
@@ -417,7 +430,7 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
                     arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
                     user_row = df_dosya[arama_sutunu.str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
                     if not user_row.empty:
-                        kaynak_dosya_metni = str(user_row.iloc[0].get('Kaynak Belge', ''))
+                        kaynak_dosya_metni = sutun_degeri_al(user_row.iloc[0], ['Kaynak Belge', 'Kaynak', 'Dosya'])
                         if re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE):
                             is_m10 = True
                 if is_m10: count_m10 += 1
@@ -456,7 +469,7 @@ def veritabanini_kontrol_et(app_context=None):
         hafiza['son_durum'] = bulut.get("son_durum", {})
         hafiza['bulut_yuklendi'] = True
 
-    dosyalar_kontrol = ["dosyadurumu.zip", "dosyadurumu.csv", "Dosya_Durumlari.xlsx", "Dosya_Durumlari.csv"]
+    dosyalar_kontrol = ["dosyadurumu.zip", "dosyadurumu.xlsx", "dosyadurumu.csv", "Dosya_Durumlari.xlsx", "Dosya_Durumlari.csv"]
     mevcut_saat = 0
     for d in dosyalar_kontrol:
         if os.path.exists(d):
@@ -581,7 +594,10 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
     df_gecici = df_dosya.copy()
-    df_gecici['Arama_Sutunu'] = df_gecici['Dosya No'].astype(str).str.strip()
+    
+    # Dosya No sütununu güvenle belirleme
+    dosya_no_col = next((col for col in df_gecici.columns if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), df_gecici.columns[0])
+    df_gecici['Arama_Sutunu'] = df_gecici[dosya_no_col].astype(str).str.strip()
     sonuclar = df_gecici[df_gecici['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)].copy()
 
     if sonuclar.empty:
@@ -636,7 +652,32 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         karar_bulundu_mu, k_row = False, None
         
-        solutie_metni = str(row['SOLUTIE']).strip()
+        # Değerleri esnek fonksiyonla al
+        solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'SOLUŢIE', 'Kurum Notu'])
+        termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])
+
+        # =========================================================
+        # 🔧 SOLUTIE / TERMEN KAYMA VE TARİH AYIKLAMA MANTIĞI
+        # =========================================================
+        solutie_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', solutie_metni)
+        
+        # Eğer solutie hücresinde tarih varsa ve içinde /P veya ordin yoksa, bu TERMEN'dir:
+        if solutie_tarih_match and not re.search(r'\d+\s*/?\s*P', solutie_metni, re.IGNORECASE):
+            termen_metni = solutie_tarih_match.group(1)
+            solutie_metni = ""
+
+        # Termen içindeki tarihi temizle ve formatla
+        if termen_metni:
+            termen_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni)
+            if termen_tarih_match:
+                termen = termen_tarih_match.group(1).replace('/', '.').replace('-', '.')
+            else:
+                termen = "Belirtilmemiş" if termen_metni.lower() in ['nan', 'none', '-', ''] else termen_metni
+        else:
+            termen = "Belirtilmemiş"
+
+        # =========================================================
+
         p_numarasi, user_ordin_no, user_ordin_yil = None, 0, 0
         if solutie_metni:
             p_match = re.search(r'(\d{1,6})\s*[/]?\s*P(?:\s*[/]?\s*(\d{4}))?', solutie_metni, re.IGNORECASE)
@@ -661,20 +702,15 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 karar_bulundu_mu = True
                 k_row = final_matches.iloc[0]
 
-        kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
-        termen_metni = str(row.get('TERMEN', '')).strip()
-        termen = termen_metni if termen_metni and termen_metni != "-" else "Belirtilmemiş"
+        kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak', 'Dosya'])
         kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
-        # ✅ BAŞVURU TARİHİNİ DİNAMİK OLARAK TESPİT ETME KODU
-        basvuru_tarihi = ""
-        for col in row.index:
-            if any(kelime in str(col).lower() for kelime in ['tarih', 'data', 'date', 'inregistrarii', 'cerere']):
-                val = str(row[col]).strip()
-                if val and val != "-" and val.lower() != 'nan':
-                    basvuru_tarihi = val
-                    break
-        if not basvuru_tarihi:
+        # BAŞVURU TARİHİNİ DİNAMİK AL
+        basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'DATA INREGISTRARII', 'Tarih', 'Data'])
+        if basvuru_tarihi:
+            b_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', basvuru_tarihi)
+            basvuru_tarihi = b_match.group(1).replace('/', '.').replace('-', '.') if b_match else basvuru_tarihi
+        else:
             basvuru_tarihi = "Belirtilmemiş"
 
         yanit = ozel_mesaj_baslik + (
@@ -688,17 +724,15 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         zaten_takipte = False
 
         if karar_bulundu_mu:
-            kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
+            kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak', 'Dosya'])
             gosterilecek_karar = ""
             
-            # 1. Karar tablosundaki sütundan oku
             k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
             if k_ordin_cols:
                 val = str(k_row[k_ordin_cols[0]]).strip()
                 if val and val.lower() not in ['nan', 'none', '']:
                     gosterilecek_karar = val
 
-            # 2. Dosya adından yakala (Örn: Ordin_nr._594P_... -> 594/P)
             if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '', 'belirtilmemiş']:
                 pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)
                 if pdf_match:
@@ -706,11 +740,9 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     p_harfi = "/P" if pdf_match.group(2) else ""
                     gosterilecek_karar = f"{no_kismi}{p_harfi}"
 
-            # 3. Solutie'den gelen P numarası
             if not gosterilecek_karar and p_numarasi:
                 gosterilecek_karar = p_numarasi
 
-            # 4. Standart "SAYI/P" formatına temizle
             if gosterilecek_karar:
                 p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)
                 if p_format_match:
@@ -721,8 +753,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 gosterilecek_karar = "Belirtilmemiş"
             
-            karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
-            if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
+            karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data', 'Karar Tarihi'])
+            if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none", ""]: 
                 date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
                 if date_match:
                     karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.')
