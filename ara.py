@@ -100,6 +100,17 @@ def en_guncel_belgeleri_getir(df, dosya_yolu=None):
     
     return ["Veri Yok"], "Bilinmiyor"
 
+def sutun_degeri_al(row, olasi_isimler):
+    """Sütun adlarındaki büyük-küçük harf veya boşluk farklarını tolere eder"""
+    for col in row.index:
+        col_clean = str(col).strip().lower()
+        for hedef in olasi_isimler:
+            if col_clean == hedef.lower():
+                val = str(row[col]).strip()
+                if val.lower() not in ['nan', 'none']:
+                    return val
+    return ""
+
 # =========================================================
 # 🌟 MERKEZİ VERİTANI YÜKLEYİCİSİ
 # =========================================================
@@ -186,7 +197,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
     else:
         temiz_arama = aranan_kelime.strip().replace(" ", "")
         
-        # --- YENİ AKILLI ARAMA KONTROLLERİ ---
+        # --- AKILLI ARAMA KONTROLLERİ ---
         if not re.fullmatch(r'[a-zA-Z0-9/]+', temiz_arama):
             st.warning("⚠️ Hatalı giriş yaptınız. Lütfen SADECE rakam, harf ve '/' işareti kullanınız. Örn: 1234/2023 veya 9402/RD/2024")
         elif "/" not in temiz_arama:
@@ -202,7 +213,10 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                 st.warning("⚠️ Sistem uyarısı: Dosya yılı yalnızca 2017 ile 2026 yılları arasında olabilir.")
             else:
                 arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
-                df_dosya['Arama_Sutunu'] = df_dosya['Dosya No'].astype(str).str.strip()
+                
+                # Dosya No sütununu güvenle belirleme
+                dosya_no_col = next((col for col in df_dosya.columns if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), df_dosya.columns[0])
+                df_dosya['Arama_Sutunu'] = df_dosya[dosya_no_col].astype(str).str.strip()
                 sonuclar = df_dosya[df_dosya['Arama_Sutunu'].str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
                 
                 if not sonuclar.empty:
@@ -218,7 +232,8 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             ozel_durum_var_mi = True
                     
                     for index, row in sonuclar.iterrows():
-                        dosya_no_parcalar = str(row['Dosya No']).split('/')
+                        dosya_no_val = str(row[dosya_no_col]).strip()
+                        dosya_no_parcalar = dosya_no_val.split('/')
                         ana_no = dosya_no_parcalar[0].strip()
                         ana_yil = dosya_no_parcalar[-1].strip()
                         
@@ -226,7 +241,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         k_row = None
                         
                         if not df_karar.empty:
-                            karar_sutunu = [col for col in df_karar.columns if 'dosya' in col.lower()][0]
+                            karar_sutunu = [col for col in df_karar.columns if 'dosya' in str(col).lower() or 'nr' in str(col).lower()][0]
                             temiz_karar_metni = df_karar[karar_sutunu].astype(str).str.replace(" ", "").str.upper()
                             karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
                             karar_sonucu = df_karar[temiz_karar_metni.str.contains(karar_icin_regex, regex=True, case=False)]
@@ -235,7 +250,25 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 karar_bulundu_mu = True
                                 k_row = karar_sonucu.iloc[0]
 
-                        solutie_metni = str(row['SOLUTIE']).strip()
+                        # Sütunları güvenle çekme
+                        basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'DATA INREGISTRARII', 'Tarih'])
+                        termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])
+                        solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+                        
+                        # --- TERMEN / SOLUTIE KAYMASI VE TARİH DÜZELTME ---
+                        # 1. Eğer solutie sütununa tarih (GG.AA.YYYY veya GG.AA.YYYY 00:00:00) yazılmışsa, bu TERMEN verisidir
+                        tarih_saat_deseni = r'^\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4}(?:\s+\d{2}[:\.]\d{2}[:\.]\d{2})?$'
+                        if solutie_metni and re.match(tarih_saat_deseni, solutie_metni):
+                            if not termen_metni or termen_metni == "-":
+                                termen_metni = solutie_metni
+                            solutie_metni = ""
+
+                        # 2. Termen içindeki 00:00:00 veya 00.00.00 gibi saat artıklarını temizle
+                        if termen_metni:
+                            termen_metni = re.sub(r'[\s_]+00[:\.]00[:\.]00', '', termen_metni).strip()
+                            if termen_metni.lower() in ['nan', 'none', '']:
+                                termen_metni = ""
+
                         p_numarasi = None
                         user_ordin_no = 0
                         user_ordin_yil = 0
@@ -261,7 +294,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             kalan_gun_mesaji = ""
                             icon_tipi = "⚠️"
                             
-                            # Tarihi parse etme ve gün hesaplama
                             try:
                                 parsed_date = pd.to_datetime(ozel_tarih_str, dayfirst=True)
                                 gecen_gun = (datetime.datetime.now() - parsed_date).days
@@ -299,14 +331,13 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         with st.container(border=True):
                             
                             st.markdown(f"<h3 style='text-align: center; color: #4F8BF9; margin-bottom: 0;'>📂 DOSYA BİLGİLERİ</h3>", unsafe_allow_html=True)
-                            st.markdown(f"<h4 style='text-align: center; margin-top: 0;'>No: {row['Dosya No']}</h4>", unsafe_allow_html=True)
+                            st.markdown(f"<h4 style='text-align: center; margin-top: 0;'>No: {dosya_no_val}</h4>", unsafe_allow_html=True)
                             st.divider()
                             
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.markdown(f"**📅 Başvuru Tarihi:**<br>{row.get('Başvuru Tarihi', '')}", unsafe_allow_html=True)
+                                st.markdown(f"**📅 Başvuru Tarihi:**<br>{basvuru_tarihi if basvuru_tarihi else 'Belirtilmemiş'}", unsafe_allow_html=True)
                             with col2:
-                                termen_metni = str(row.get('TERMEN', '')).strip()
                                 if termen_metni and termen_metni != "-":
                                     st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>{termen_metni}", unsafe_allow_html=True)
                                 else:
@@ -322,7 +353,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 else:
                                     st.warning("**📝 Kurum Notu (Solutie):** Henüz bir not girilmemiş (İnceleme Bekliyor).", icon="⏳")
                                     
-                            kaynak_dosya_metni = str(row.get('Kaynak Belge', ''))
+                            kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak', 'Dosya Adi'])
                             st.markdown(f"📂 **Kaynak Belge (Stadiu Dosar):** {kaynak_dosya_metni}")
                             st.divider()
                             
@@ -332,7 +363,7 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 st.success("🎉 **TEBRİKLER! Kararınız yayımlandı.**", icon="✅")
                                 
                                 with st.container(border=True):
-                                    kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
+                                    kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak', 'Dosya Adi'])
                                     gosterilecek_karar = ""
                                     
                                     # 1. Karar tablosundaki sütundan oku
@@ -367,8 +398,8 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
 
                                     st.markdown(f"📜 **Karar Numarası:** {gosterilecek_karar}")
                                     
-                                    karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
-                                    if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
+                                    karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data', 'Karar Tarihi'])
+                                    if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none", ""]: 
                                         date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
                                         if date_match:
                                             karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.')
