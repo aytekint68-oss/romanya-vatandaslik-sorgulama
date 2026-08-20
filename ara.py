@@ -241,11 +241,14 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                         user_ordin_yil = 0
                         
                         if solutie_metni:
-                            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P\s*[/]?\s*(\d{4})', solutie_metni, re.IGNORECASE)
+                            p_match = re.search(r'(\d{1,6})\s*[/]?\s*P(?:\s*[/]?\s*(\d{4}))?', solutie_metni, re.IGNORECASE)
                             if p_match:
-                                p_numarasi = f"{p_match.group(1)}/P/{p_match.group(2)}"
                                 user_ordin_no = int(p_match.group(1))
-                                user_ordin_yil = int(p_match.group(2))
+                                if p_match.group(2):
+                                    user_ordin_yil = int(p_match.group(2))
+                                    p_numarasi = f"{user_ordin_no}/P/{user_ordin_yil}"
+                                else:
+                                    p_numarasi = f"{user_ordin_no}/P"
 
                         # --- KİŞİ LİSTEDEYSE 40 GÜN HESAPLAMASI VE UYARISI ---
                         if ozel_durum_var_mi and not ozel_sonuc.empty:
@@ -260,7 +263,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                             
                             # Tarihi parse etme ve gün hesaplama
                             try:
-                                # Tarihi gün.ay.yıl formatında okumaya çalış
                                 parsed_date = pd.to_datetime(ozel_tarih_str, dayfirst=True)
                                 gecen_gun = (datetime.datetime.now() - parsed_date).days
                                 kalan_gun = 40 - gecen_gun
@@ -275,7 +277,6 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     kalan_gun_mesaji = f"❌ **SÜRE DOLDU!** (Duyurunun üzerinden {gecen_gun} gün geçmiş). Yasal 40 günlük süreniz dolmuş görünmektedir. Ancak dosyanızın reddedilmemesi ihtimaline karşı yinede **ACİLEN** istenilen bilgiyi kuruma iletmeniz tavsiye edilir."
                                     icon_tipi = "❌"
                             except Exception:
-                                # Tarih okunamadıysa standart mesaj göster
                                 kalan_gun_mesaji = "Lütfen duyurunun yayınlanma tarihinden itibaren 40 gün içinde e-posta adresinizi kuruma bildiriniz."
                             
                             st.error(f"""
@@ -332,31 +333,35 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                 
                                 with st.container(border=True):
                                     kaynak_belge_adi = str(k_row.get('Kaynak Belge', ''))
-                                    gosterilecek_karar = p_numarasi
+                                    gosterilecek_karar = ""
                                     
-                                    if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
-                                        k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower() or 'no' in str(col).lower()]
-                                        if k_ordin_cols:
-                                            val = str(k_row[k_ordin_cols[0]]).strip()
-                                            if val and val.lower() not in ['nan', 'none', '']:
-                                                gosterilecek_karar = val
+                                    # 1. Karar tablosundaki sütundan oku
+                                    k_ordin_cols = [col for col in k_row.index if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
+                                    if k_ordin_cols:
+                                        val = str(k_row[k_ordin_cols[0]]).strip()
+                                        if val and val.lower() not in ['nan', 'none', '']:
+                                            gosterilecek_karar = val
 
-                                    if not gosterilecek_karar or str(gosterilecek_karar).strip().lower() in ['nan', 'none', '', 'belirtilmemiş']:
-                                        pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE)
+                                    # 2. Karar tablosunda yoksa dosya adından yakala
+                                    if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '', 'belirtilmemiş']:
+                                        pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)
                                         if pdf_match:
-                                            gosterilecek_karar = pdf_match.group(1)
+                                            no_kismi = pdf_match.group(1)
+                                            p_harfi = "/P" if pdf_match.group(2) else ""
+                                            gosterilecek_karar = f"{no_kismi}{p_harfi}"
 
-                                    if gosterilecek_karar and str(gosterilecek_karar).strip().lower() not in ['nan', 'none', '', 'belirtilmemiş']:
-                                        clean_no_match = re.search(r'(\d+)', str(gosterilecek_karar))
-                                        if clean_no_match:
-                                            pure_no = clean_no_match.group(1)
-                                            yil_match = re.search(r'\b(202\d)\b', kaynak_belge_adi)
-                                            if not yil_match:
-                                                yil_match = re.search(r'\b(202\d)\b', str(k_row.get('Tarih', '')))
-                                            pure_year = yil_match.group(1) if yil_match else "2026"
-                                            gosterilecek_karar = f"{pure_no}/P/{pure_year}"
+                                    # 3. Solutie'den gelen p_numarasi
+                                    if not gosterilecek_karar and p_numarasi:
+                                        gosterilecek_karar = p_numarasi
+
+                                    # 4. Karar numarasını temizleyip standart "594/P" formatına çevir
+                                    if gosterilecek_karar:
+                                        p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)
+                                        if p_format_match:
+                                            gosterilecek_karar = f"{p_format_match.group(1)}/P"
                                         else:
-                                            gosterilecek_karar = "Belirtilmemiş"
+                                            sadece_sayi = re.search(r'(\d+)', str(gosterilecek_karar))
+                                            gosterilecek_karar = f"{sadece_sayi.group(1)}/P" if sadece_sayi else str(gosterilecek_karar)
                                     else:
                                         gosterilecek_karar = "Belirtilmemiş"
 
@@ -364,8 +369,11 @@ if st.button("🔍 Dosyamı ve Kararımı Sorgula"):
                                     
                                     karar_tarihi = k_row.get('Tarih', 'Belirtilmemiş')
                                     if pd.isna(karar_tarihi) or str(karar_tarihi).strip() in ["nan", "None", ""]: 
-                                        date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', kaynak_belge_adi)
-                                        karar_tarihi = date_match.group(1) if date_match else "Belirtilmemiş"
+                                        date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
+                                        if date_match:
+                                            karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.')
+                                        else:
+                                            karar_tarihi = "Belirtilmemiş"
                                         
                                     st.markdown(f"📅 **Karar Tarihi:** {karar_tarihi}")
                                     st.markdown(f"📂 **Kaynak Belge (Ordin):** {kaynak_belge_adi}")
