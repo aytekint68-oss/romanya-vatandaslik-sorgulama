@@ -185,7 +185,7 @@ info_box_html = f"""<div style="background-color: rgba(42, 171, 238, 0.1); borde
 st.markdown(info_box_html, unsafe_allow_html=True)
 st.markdown("---")
 
-st.markdown("💡 **Örnek Arama Formatı:** 1234/2017 veya 9402/RD/2024")
+st.markdown("💡 **Örnek Arama Formatı:** 1234/2022 veya 1234/RD/2022")
 
 # --- YENİ FORM YAPISI VE DİNAMİK YIL KONTROLÜ ---
 with st.form(key="arama_formu"):
