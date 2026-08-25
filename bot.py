@@ -461,6 +461,88 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
             print(f"Günlük rapor gönderilirken hata oluştu: {e}")
 
 # ==========================================
+# 📢 YÖNETİCİ GENEL DUYURU (BROADCAST) MOTORU
+# ==========================================
+async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
+    
+    # 1. Güvenlik Kontrolü: Sadece admin çalıştırabilir
+    if chat_id != str(ADMIN_CHAT_ID):
+        await update.message.reply_text("⛔ Bu komutu kullanma yetkiniz bulunmamaktadır.")
+        return
+
+    # 2. Kayıtlı tüm benzersiz kullanıcıları çek
+    bekleyenler = hafiza.get('bekleyenler', [])
+    if not bekleyenler:
+        bulut = get_bulut_verisi()
+        if bulut:
+            bekleyenler = bulut.get("bekleyenler", [])
+            hafiza['bekleyenler'] = bekleyenler
+
+    hedef_chat_idleri = list(set([str(k['chat_id']) for k in bekleyenler if 'chat_id' in k]))
+
+    if not hedef_chat_idleri:
+        await update.message.reply_text("❌ Sistemde kayıtlı kullanıcı bulunamadı.")
+        return
+
+    # 3. Türkçe Mesaj İçeriği ve Buton Tasarımı
+    duyuru_metni = (
+        "<b>cetatenie.just.ro</b> resmi internet sitesi bir süredir erişilemez durumdaydı, "
+        "bu sebeple dosyanızla ilgili güncel bilgilere ulaşılamamaktaydı.\n\n"
+        "Erişim sorunu <b>tamamen giderilmiş</b> ve tüm <b>veritabanımız güncellenmiştir</b>. "
+        "Bizimle kaldığınız ve anlayışınız için teşekkür ederiz!"
+    )
+    
+    # Alt Buton
+    klavye = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔎 Dosyamı Kontrol Et", switch_inline_query_current_chat="")]
+    ])
+
+    gorsel_yolu = "duyuru.png"  # Sunucudaki görselin adı veya doğrudan URL linki
+    
+    basarili = 0
+    hatali = 0
+    
+    await update.message.reply_text(f"📢 Türkçe duyuru {len(hedef_chat_idleri)} kullanıcıya gönderilmeye başlanıyor...")
+
+    # 4. Toplu Gönderim Döngüsü (Rate Limit Korumalı)
+    for hedef_id in hedef_chat_idleri:
+        try:
+            if os.path.exists(gorsel_yolu):
+                with open(gorsel_yolu, 'rb') as photo:
+                    await context.bot.send_photo(
+                        chat_id=hedef_id,
+                        photo=photo,
+                        caption=duyuru_metni,
+                        parse_mode='HTML',
+                        reply_markup=klavye
+                    )
+            else:
+                # Görsel yoksa sadece metin ilet
+                await context.bot.send_message(
+                    chat_id=hedef_id,
+                    text=duyuru_metni,
+                    parse_mode='HTML',
+                    reply_markup=klavye
+                )
+            basarili += 1
+        except Exception as e:
+            hatali += 1
+            print(f"Duyuru iletilemedi ({hedef_id}): {e}")
+
+        # Telegram Flood/Spam limitine takılmamak için kısa bekleme süresi
+        await asyncio.sleep(0.05)
+
+    # 5. Sonuç Raporu
+    await update.message.reply_text(
+        f"✅ <b>Duyuru Tamamlandı!</b>\n\n"
+        f"📤 Başarılı: {basarili}\n"
+        f"🚫 Ulaşılamayan/Engellenen: {hatali}",
+        parse_mode='HTML'
+    )
+    
+    
+# ==========================================
 # 🔍 VERİTABANI KONTROL MERKEZİ
 # ==========================================
 def veritabanini_kontrol_et(app_context=None):
@@ -1026,6 +1108,7 @@ if __name__ == '__main__':
     app.post_init = post_init
     
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("duyuru", duyuru_gonder))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
     app.add_handler(CallbackQueryHandler(buton_tiklama))
     
