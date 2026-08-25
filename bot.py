@@ -485,27 +485,25 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Sistemde kayıtlı kullanıcı bulunamadı.")
         return
 
-    # 3. Türkçe Mesaj İçeriği ve Buton Tasarımı
+    # 3. Türkçe Duyuru Metni ve Arama/Start Butonu
     duyuru_metni = (
-        "<b>cetatenie.just.ro</b> resmi internet sitesi bir süredir erişilemez durumdaydı, "
+        "<b>cetatenie.just.ro</b> resmi internet sitesi yaşanan siber saldırı nedeniyle bir süredir erişilemez durumdaydı, "
         "bu sebeple dosyanızla ilgili güncel bilgilere ulaşılamamaktaydı.\n\n"
         "Erişim sorunu <b>tamamen giderilmiş</b> ve tüm <b>veritabanımız güncellenmiştir</b>. "
-        "Bizimle kaldığınız ve anlayışınız için teşekkür ederiz!"
+        "Bizimle kaldığınız ve anlayışınız için teşekkür ederiz! 🇹🇩"
     )
     
-    # Alt Buton
     klavye = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔎 Dosyamı Kontrol Et", switch_inline_query_current_chat="")]
+        [InlineKeyboardButton("🔎 Dosyamı Kontrol Et", callback_data="duyuru_start")]
     ])
 
-    gorsel_yolu = "duyuru.png"  # Sunucudaki görselin adı veya doğrudan URL linki
+    gorsel_yolu = "duyuru.png"
     
     basarili = 0
     hatali = 0
     
-    await update.message.reply_text(f"📢 Türkçe duyuru {len(hedef_chat_idleri)} kullanıcıya gönderilmeye başlanıyor...")
+    await update.message.reply_text(f"📢 Duyuru {len(hedef_chat_idleri)} kayıtlı kullanıcıya iletilmeye başlanıyor...")
 
-    # 4. Toplu Gönderim Döngüsü (Rate Limit Korumalı)
     for hedef_id in hedef_chat_idleri:
         try:
             if os.path.exists(gorsel_yolu):
@@ -518,7 +516,6 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         reply_markup=klavye
                     )
             else:
-                # Görsel yoksa sadece metin ilet
                 await context.bot.send_message(
                     chat_id=hedef_id,
                     text=duyuru_metni,
@@ -530,18 +527,15 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             hatali += 1
             print(f"Duyuru iletilemedi ({hedef_id}): {e}")
 
-        # Telegram Flood/Spam limitine takılmamak için kısa bekleme süresi
         await asyncio.sleep(0.05)
 
-    # 5. Sonuç Raporu
     await update.message.reply_text(
         f"✅ <b>Duyuru Tamamlandı!</b>\n\n"
         f"📤 Başarılı: {basarili}\n"
         f"🚫 Ulaşılamayan/Engellenen: {hatali}",
         parse_mode='HTML'
     )
-    
-    
+
 # ==========================================
 # 🔍 VERİTABANI KONTROL MERKEZİ
 # ==========================================
@@ -748,12 +742,10 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # =========================================================
         solutie_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', solutie_metni)
         
-        # Eğer solutie hücresinde tarih varsa ve içinde /P veya ordin yoksa, bu TERMEN'dir:
         if solutie_tarih_match and not re.search(r'\d+\s*/?\s*P', solutie_metni, re.IGNORECASE):
             termen_metni = solutie_tarih_match.group(1)
             solutie_metni = ""
 
-        # Termen içindeki tarihi temizle ve formatla
         if termen_metni:
             termen_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni)
             if termen_tarih_match:
@@ -789,14 +781,12 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 karar_bulundu_mu = True
                 k_row = final_matches.iloc[0]
 
-        # Kaynak Belge sütununu dosya numarasıyla çakışmayacak şekilde çek
         kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no', 'no:'])
         if not kaynak_dosya_metni or kaynak_dosya_metni.lower() in ['nan', 'none']:
             kaynak_dosya_metni = str(row.get('Kaynak Belge', 'Belirtilmemiş'))
 
         kurum_notu = solutie_metni if solutie_metni else ("Sistemde not düşülmemiş ancak listelerde onay tespit edildi!" if karar_bulundu_mu else "Henüz bir not girilmemiş (İnceleme Bekliyor).")
 
-        # BAŞVURU TARİHİNİ DİNAMİK AL
         basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'DATA INREGISTRARII', 'Tarih', 'Data'])
         if basvuru_tarihi:
             b_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', basvuru_tarihi)
@@ -895,6 +885,48 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     chat_id = str(query.message.chat_id)
     
+    # 🎯 DUYURU BUTONUNA BASILDIĞINDA /START MENÜSÜNÜ GETİRİR
+    if query.data == "duyuru_start":
+        veritabanini_kontrol_et(context) 
+        gercek_dosya = gercek_dosya_yolu("dosyadurumu")
+        _, dosya_guncelleme_tarihi = en_guncel_belgeler(hafiza['df_dosya'], gercek_dosya)
+        
+        m10_files = hafiza.get('son_m10_belgeler', ["Veri Yok"])
+        m11_files = hafiza.get('son_m11_belgeler', ["Veri Yok"])
+
+        m10_metin = "\n".join([f"🔸 {b}" for b in m10_files]) if m10_files and m10_files[0] != "Veri Yok" else "🔸 Veri Yok"
+        m11_metin = "\n".join([f"🔸 {b}" for b in m11_files]) if m11_files and m11_files[0] != "Veri Yok" else "🔸 Veri Yok"
+
+        user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
+        
+        reply_markup = None
+        takip_metni = ""
+        if user_takip_listesi:
+            dosyalar_alt_alta = "\n".join([f"💚 <code>{d}</code>" for d in user_takip_listesi])
+            takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>\n\n{dosyalar_alt_alta}\n"
+            
+            klavye = [[InlineKeyboardButton("❌ Dosya Takibini Bırak", callback_data="menu_birak")]]
+            reply_markup = InlineKeyboardMarkup(klavye)
+
+        mesaj = (
+            "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
+            "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
+            f"<b>Stadiu Dosar Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
+            f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
+            f"<b>Madde 10:</b>\n{m10_metin}\n\n"
+            f"<b>Madde 11:</b>\n{m11_metin}\n\n"
+            "💡 <b>Kullanım:</b>\n"
+            "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
+            "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n"
+            f"{takip_metni}" 
+            "━━━━━━━━━━━━━━━━━━\n"
+            "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
+            "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
+            "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
+        )
+        await context.bot.send_message(chat_id=chat_id, text=mesaj, parse_mode='HTML', reply_markup=reply_markup)
+        return
+
     if query.data.startswith("kvkk_"):
         _, ilk_no, son_yil = query.data.split('_')
         
