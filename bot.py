@@ -485,12 +485,15 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Sistemde kayıtlı kullanıcı bulunamadı.")
         return
 
-    # 3. Türkçe Duyuru Metni ve Arama/Start Butonu
+    # 3. Güncellenen Duyuru Metni
     duyuru_metni = (
-        "<b>cetatenie.just.ro</b> resmi internet sitesi yaşanan siber saldırı nedeniyle bir süredir erişilemez durumdaydı, "
-        "bu sebeple dosyanızla ilgili güncel bilgilere ulaşılamamaktaydı.\n\n"
-        "Erişim sorunu <b>tamamen giderilmiş</b> ve tüm <b>veritabanımız güncellenmiştir</b>. "
-        "Bizimle kaldığınız ve anlayışınız için teşekkür ederiz! 🇹🇩"
+        "📢 <b>Değerli Kullanıcılarımız,</b>\n\n"
+        "Birkaç gündür <b>cetatenie.just.ro</b> isimli web sitesine erişim sağlanamadığı için "
+        "dosya durumları ve yeni eklenen ordinler hakkında güncel bilgilere ulaşılamamaktadır.\n\n"
+        "Uygulamamızı kullanmaya devam edebilir ve dosya takibinizi sürdürebilirsiniz.\n\n"
+        "Web sitesi yeniden erişime açıldığında, varsa yeni ordin dosyaları sistemimize eklenecek "
+        "ve bilgiler güncellenecektir.\n\n"
+        "Anlayışınız için teşekkür ederiz. 🇹🇩"
     )
     
     klavye = InlineKeyboardMarkup([
@@ -504,6 +507,7 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(f"📢 Duyuru {len(hedef_chat_idleri)} kayıtlı kullanıcıya iletilmeye başlanıyor...")
 
+    # 4. Toplu Dağıtım
     for hedef_id in hedef_chat_idleri:
         try:
             if os.path.exists(gorsel_yolu):
@@ -529,6 +533,7 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await asyncio.sleep(0.05)
 
+    # 5. Admin Raporu
     await update.message.reply_text(
         f"✅ <b>Duyuru Tamamlandı!</b>\n\n"
         f"📤 Başarılı: {basarili}\n"
