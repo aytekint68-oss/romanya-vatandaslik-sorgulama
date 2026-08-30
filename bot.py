@@ -163,9 +163,9 @@ def max_ordin_hesapla_vektorel(df_k):
     temp_df = pd.DataFrame()
     if 'Kaynak Belge' in df_k.columns:
         temp_df['Yil'] = df_k['Kaynak Belge'].astype(str).str.extract(r'\d{2}[\.\-\_]\d{2}[\.\-\_](\d{4})')[0]
-        temp_df['Yil'] = temp_df['Yil'].fillna(df_k['Kaynak Belge'].astype(str).str.extract(r' (202\d) ')[0])
+        temp_df['Yil'] = temp_df['Yil'].fillna(df_k['Kaynak Belge'].astype(str).str.extract(r'(202\d)')[0])
     else:
-        temp_df['Yil'] = df_k[ordin_col].astype(str).str.extract(r' (202\d) ')[0]
+        temp_df['Yil'] = df_k[ordin_col].astype(str).str.extract(r'(202\d)')[0]
     temp_df['No'] = df_k[ordin_col].astype(str).str.extract(r'(\d{1,6})')[0]
     temp_df['Yil'], temp_df['No'] = pd.to_numeric(temp_df['Yil'], errors='coerce'), pd.to_numeric(temp_df['No'], errors='coerce')
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
@@ -224,6 +224,13 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
     for kisi in bekleyenler:
         chat_id = kisi['chat_id']
         dosya_tam = kisi['dosya_no']
+        
+        # --- YENİ: Zaten onaylanmışsa tekrar işlem yapma, listede tut ve geç ---
+        if kisi.get('onaylandi', False):
+            kalan_bekleyenler.append(kisi)
+            continue
+        # -------------------------------------------------------------------------------
+        
         ana_no, ana_yil = dosya_tam.split('/')
         
         # --- 🚨 40 GÜN KURALI KONTROLÜ ---
@@ -255,13 +262,25 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         kalan_gun_mesaji = "Lütfen duyurunun yayınlanma tarihinden itibaren 40 gün içinde e-posta adresinizi kuruma bildiriniz."
 
                     msg_ozel = (
-                        f"🚨 <b>ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)</b> 🚨\n\n"
-                        f"Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosya, Ulusal Vatandaşlık Kurumu'nun (ANC) <b>tarafınıza ulaşılamadığı için</b> yayınladığı özel listede tespit edilmiştir!\n\n"
-                        f"📅 <b>Yayınlanma Tarihi:</b> {ozel_tarih_str}\n"
-                        f"👤 <b>İsim:</b> {ozel_isim}\n"
-                        f"📝 <b>Kurum Notu:</b> {ozel_ek_bilgi}\n\n"
-                        f"{kalan_gun_mesaji}\n\n"
-                        f"<i>(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)</i>\n\n"
+                        f"🚨 <b>ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)</b> 🚨
+
+"
+                        f"Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosya, Ulusal Vatandaşlık Kurumu'nun (ANC) <b>tarafınıza ulaşılamadığı için</b> yayınladığı özel listede tespit edilmiştir!
+
+"
+                        f"📅 <b>Yayınlanma Tarihi:</b> {ozel_tarih_str}
+"
+                        f"👤 <b>İsim:</b> {ozel_isim}
+"
+                        f"📝 <b>Kurum Notu:</b> {ozel_ek_bilgi}
+
+"
+                        f"{kalan_gun_mesaji}
+
+"
+                        f"<i>(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)</i>
+
+"
                         f"🔗 <a href='https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/'>Resmi Kaynak Listesi İçin Tıklayınız</a>"
                     )
                     try:
@@ -304,7 +323,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
         onaylandi_mi = False
         k_row = None
         if not df_karar.empty:
-            regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+            regex_find = rf"{ana_no}.*?{ana_yil}"
             mask_initial = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
@@ -356,14 +375,23 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         karar_tarihi = "Belirtilmemiş"
 
                 msg = (
-                    f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı! 💚\n\n"
-                    f"📜 <b>Karar No:</b> {gosterilecek_karar}\n"
-                    f"📅 <b>Tarih:</b> {karar_tarihi}\n"
+                    f"🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız onaylandı ve resmi listelerde yayımlandı! 💚
+
+"
+                    f"📜 <b>Karar No:</b> {gosterilecek_karar}
+"
+                    f"📅 <b>Tarih:</b> {karar_tarihi}
+"
                     f"📂 <b>Kaynak:</b> {kaynak_belge_adi}"
                 )
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 print(f"✅ {dosya_tam} için detaylı MÜJDE iletildi.")
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> <i>({madde_turu})</i>") 
+                
+                # --- YENİ: Dosyayı silmek yerine onaylandı olarak etiketle ---
+                kisi['onaylandi'] = True
+                kalan_bekleyenler.append(kisi) 
+                # ----------------------------------------------------------------------
             else:
                 if not ilk_calistirma and (eklenen_m10 or eklenen_m11 or dosya_tarih_degisti):
                     kullanici_icin_degisenler = []
@@ -379,20 +407,28 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
                     if kullanici_icin_degisenler:
                         if len(kullanici_icin_degisenler) > 10:
-                            degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler[:10]]) + f"\n🔹 <i>...ve {len(kullanici_icin_degisenler)-10} belge daha.</i>"
+                            degisim_metni = "
+".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler[:10]]) + f"
+🔹 <i>...ve {len(kullanici_icin_degisenler)-10} belge daha.</i>"
                         else:
-                            degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler])
+                            degisim_metni = "
+".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler])
                             
                         msg = (
-                            f"🔔 <b>Sistem Güncellemesi:</b>\n\n"
-                            f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni veriler yüklenmiştir.\n"
-                            f"📂 <b>Sisteme Yeni Eklenenler:</b>\n{degisim_metni}\n\n"
+                            f"🔔 <b>Sistem Güncellemesi:</b>
+
+"
+                            f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni veriler yüklenmiştir.
+"
+                            f"📂 <b>Sisteme Yeni Eklenenler:</b>
+{degisim_metni}
+
+"
                             f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni listelerde görünmemiştir. "
                             f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
                         )
                         await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 
-                # ONAYLANAN KİŞİLERİN TAKİPTEN DÜŞMESİ İÇİN BU SATIRI else BLOĞUNA TAŞIDIK
                 kalan_bekleyenler.append(kisi) 
         except Exception as e:
             print(f"Hata ({chat_id}): {e}")
@@ -400,12 +436,16 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
         await asyncio.sleep(0.05) 
 
-    # Admin onayı bildirimi geri eklendi
     if admin_onay_listesi and ADMIN_CHAT_ID:
-        admin_msg = "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n🎉 Yeni listelerde takipteki şu dosyaların kararı çıkmıştır:\n"
+        admin_msg = "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>
+
+🎉 Yeni listelerde takipteki şu dosyaların kararı çıkmıştır:
+"
         for d in admin_onay_listesi:
-            admin_msg += f"✅ {d}\n"
-        admin_msg += "\n<i>İlgili kullanıcılara MÜJDE mesajları otomatik olarak iletilmiştir.</i>"
+            admin_msg += f"✅ {d}
+"
+        admin_msg += "
+<i>İlgili kullanıcılara MÜJDE mesajları otomatik olarak iletilmiştir.</i>"
         try:
             await app_context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, parse_mode='HTML')
         except Exception as e: print(f"Admin'e rapor hatası: {e}")
@@ -422,13 +462,20 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
     if ADMIN_CHAT_ID:
         bekleyenler = hafiza['bekleyenler']
-        total_dosya = len(bekleyenler)
+        
+        # --- YENİ: Toplam bekleyen sayısında onaylananları hariç tutalım ---
+        aktif_bekleyen_sayisi = len([k for k in bekleyenler if not k.get('onaylandi', False)])
+        total_dosya = aktif_bekleyen_sayisi
+        # ----------------------------------------------------------------------
         
         count_m10, count_m11 = 0, 0
         df_dosya = hafiza['df_dosya']
         arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty and 'Dosya No' in df_dosya.columns else (df_dosya.iloc[:, 0].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str))
         
         for kisi in bekleyenler:
+            if kisi.get('onaylandi', False):
+                continue
+                
             dosya_tam = kisi['dosya_no']
             try:
                 ana_no, ana_yil = dosya_tam.split('/')
@@ -449,11 +496,21 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         saat_metni = tsi_now.strftime("%H:%M")
         
         rapor_msg = (
-            f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
-            f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
-            f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>\n\n"
-            f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
-            f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
+            f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>
+
+"
+            f"🕒 <b>Saat:</b> {saat_metni} (TSİ)
+
+"
+            f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{total_dosya}</code>
+
+"
+            f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>
+
+"
+            f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>
+
+"
             f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
         )
         try:
@@ -489,12 +546,20 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 3. Güncellenen Duyuru Metni
     duyuru_metni = (
-        "📢 <b>Değerli Kullanıcılarımız,</b>\n\n"
+        "📢 <b>Değerli Kullanıcılarımız,</b>
+
+"
         "Birkaç gündür <b>cetatenie.just.ro</b> isimli web sitesine erişim sağlanamadığı için "
-        "dosya durumları ve yeni eklenen ordinler hakkında güncel bilgilere ulaşılamamaktadır.\n\n"
-        "Uygulamamızı kullanmaya devam edebilir ve dosya takibinizi sürdürebilirsiniz.\n\n"
+        "dosya durumları ve yeni eklenen ordinler hakkında güncel bilgilere ulaşılamamaktadır.
+
+"
+        "Uygulamamızı kullanmaya devam edebilir ve dosya takibinizi sürdürebilirsiniz.
+
+"
         "Web sitesi yeniden erişime açıldığında, varsa yeni ordin dosyaları sistemimize eklenecek "
-        "ve bilgiler güncellenecektir.\n\n"
+        "ve bilgiler güncellenecektir.
+
+"
         "Anlayışınız için teşekkür ederiz. 🇹🇩"
     )
     
@@ -537,8 +602,11 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 5. Admin Raporu
     await update.message.reply_text(
-        f"✅ <b>Duyuru Tamamlandı!</b>\n\n"
-        f"📤 Başarılı: {basarili}\n"
+        f"✅ <b>Duyuru Tamamlandı!</b>
+
+"
+        f"📤 Başarılı: {basarili}
+"
         f"🚫 Ulaşılamayan/Engellenen: {hatali}",
         parse_mode='HTML'
     )
@@ -627,34 +695,74 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     m10_files = hafiza.get('son_m10_belgeler', ["Veri Yok"])
     m11_files = hafiza.get('son_m11_belgeler', ["Veri Yok"])
 
-    m10_metin = "\n".join([f"🔸 {b}" for b in m10_files]) if m10_files and m10_files[0] != "Veri Yok" else "🔸 Veri Yok"
-    m11_metin = "\n".join([f"🔸 {b}" for b in m11_files]) if m11_files and m11_files[0] != "Veri Yok" else "🔸 Veri Yok"
+    m10_metin = "
+".join([f"🔸 {b}" for b in m10_files]) if m10_files and m10_files[0] != "Veri Yok" else "🔸 Veri Yok"
+    m11_metin = "
+".join([f"🔸 {b}" for b in m11_files]) if m11_files and m11_files[0] != "Veri Yok" else "🔸 Veri Yok"
 
-    user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
+    # --- YENİ: Takip objelerini ve durumlarını ayıklama ---
+    user_takip_objeleri = [k for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
     
     reply_markup = None
     takip_metni = ""
-    if user_takip_listesi:
-        dosyalar_alt_alta = "\n".join([f"💚 <code>{d}</code>" for d in user_takip_listesi])
-        takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>\n\n{dosyalar_alt_alta}\n"
+    if user_takip_objeleri:
+        dosyalar_alt_alta = ""
+        for k in user_takip_objeleri:
+            d_no = k.get('dosya_no')
+            if k.get('onaylandi', False):
+                dosyalar_alt_alta += f"🎉 <del>{d_no}</del> <i>(Bu dosya onaylandı)</i>
+"
+            else:
+                dosyalar_alt_alta += f"⏳ <code>{d_no}</code>
+"
+                
+        takip_metni = f"
+━━━━━━━━━━━━━━━━━━
+🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>
+
+{dosyalar_alt_alta}
+"
         
         klavye = [[InlineKeyboardButton("❌ Dosya Takibini Bırak", callback_data="menu_birak")]]
         reply_markup = InlineKeyboardMarkup(klavye)
+    # --------------------------------------------------------
 
     mesaj = (
-        "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
-        f"<b>Stadiu Dosar Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
-        f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
-        f"<b>Madde 10:</b>\n{m10_metin}\n\n"
-        f"<b>Madde 11:</b>\n{m11_metin}\n\n"
-        "💡 <b>Kullanım:</b>\n"
-        "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
-        "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n"
+        "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>
+
+"
+        "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.
+
+"
+        f"<b>Stadiu Dosar Son Güncelleme:</b> {dosya_guncelleme_tarihi}
+
+"
+        f"📄 <b>Sisteme Eklenen Son Kararlar:</b>
+
+"
+        f"<b>Madde 10:</b>
+{m10_metin}
+
+"
+        f"<b>Madde 11:</b>
+{m11_metin}
+
+"
+        "💡 <b>Kullanım:</b>
+"
+        "Sadece dosya numaranızı ve yılını yazıp gönderin.
+"
+        "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>
+"
         f"{takip_metni}" 
-        "━━━━━━━━━━━━━━━━━━\n"
-        "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
-        "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
+        "━━━━━━━━━━━━━━━━━━
+"
+        "⚖️ <b>Yasal Bilgilendirme:</b>
+
+"
+        "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.
+
+"
         "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
     )
     await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)
@@ -727,15 +835,30 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     kalan_gun_mesaji = "Lütfen yayınlanma tarihinden itibaren 40 gün içinde e-posta adresinizi kuruma bildiriniz."
 
                 ozel_mesaj_baslik = (
-                    f"🚨 <b>ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)</b> 🚨\n\n"
-                    f"Dosyanız ANC'nin tarafınıza ulaşılamadığı için yayınladığı özel listede tespit edilmiştir!\n\n"
-                    f"📅 <b>Yayınlanma Tarihi:</b> {ozel_tarih_str}\n"
-                    f"👤 <b>İsim:</b> {ozel_isim}\n"
-                    f"📝 <b>Kurum Notu:</b> {ozel_ek_bilgi}\n\n"
-                    f"{kalan_gun_mesaji}\n\n"
-                    f"<i>(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)</i>\n\n"
-                    f"🔗 <a href='https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/'>Resmi Kaynak Listesi İçin Tıklayın</a>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n\n"
+                    f"🚨 <b>ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)</b> 🚨
+
+"
+                    f"Dosyanız ANC'nin tarafınıza ulaşılamadığı için yayınladığı özel listede tespit edilmiştir!
+
+"
+                    f"📅 <b>Yayınlanma Tarihi:</b> {ozel_tarih_str}
+"
+                    f"👤 <b>İsim:</b> {ozel_isim}
+"
+                    f"📝 <b>Kurum Notu:</b> {ozel_ek_bilgi}
+
+"
+                    f"{kalan_gun_mesaji}
+
+"
+                    f"<i>(21/1991 sayılı Kanun'un 34.1. maddesinin 10. fıkrasına göre yapılan bildirimdir.)</i>
+
+"
+                    f"🔗 <a href='https://cetatenie.just.ro/category/confirmari-corespondenta-electronica/'>Resmi Kaynak Listesi İçin Tıklayın</a>
+"
+                    f"━━━━━━━━━━━━━━━━━━
+
+"
                 )
 
         karar_bulundu_mu, k_row = False, None
@@ -776,7 +899,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     p_numarasi = f"{user_ordin_no}/P"
 
         if not df_karar.empty:
-            regex_find = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+            regex_find = rf"{ana_no}.*?{ana_yil}"
             mask_initial = pd.Series(False, index=df_karar.index)
             for col in df_karar.columns:
                 if col != 'Kaynak Belge':
@@ -802,10 +925,21 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             basvuru_tarihi = "Belirtilmemiş"
 
         yanit = ozel_mesaj_baslik + (
-            f"📂 <b>DOSYA BİLGİLERİ</b>\n\n<b>No:</b> {row['Arama_Sutunu']}\n━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>Başvuru Tarihi:</b> {basvuru_tarihi}\n⏳ <b>Sonraki Aşama (Termen):</b> {termen}\n"
-            f"📝 <b>Kurum Notu (Solutie):</b> {kurum_notu}\n📂 <b>Kaynak:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
-            f"⚖️ <b>KARAR (ORDIN) DURUMU</b>\n\n"
+            f"📂 <b>DOSYA BİLGİLERİ</b>
+
+<b>No:</b> {row['Arama_Sutunu']}
+━━━━━━━━━━━━━━━━━━
+"
+            f"📅 <b>Başvuru Tarihi:</b> {basvuru_tarihi}
+⏳ <b>Sonraki Aşama (Termen):</b> {termen}
+"
+            f"📝 <b>Kurum Notu (Solutie):</b> {kurum_notu}
+📂 <b>Kaynak:</b> {kaynak_dosya_metni}
+━━━━━━━━━━━━━━━━━━
+"
+            f"⚖️ <b>KARAR (ORDIN) DURUMU</b>
+
+"
         )
 
         buton_ekle = False
@@ -849,7 +983,11 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     karar_tarihi = "Belirtilmemiş"
 
-            yanit += f"🎉 ✅ <b>TEBRİKLER! Kararınız yayımlandı.</b> 💚\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n📂 <b>Kaynak:</b> {kaynak_belge_adi}"
+            yanit += f"🎉 ✅ <b>TEBRİKLER! Kararınız yayımlandı.</b> 💚
+
+📜 <b>Karar No:</b> {gosterilecek_karar}
+📅 <b>Tarih:</b> {karar_tarihi}
+📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
             takip_listesi = hafiza['bekleyenler']
             
@@ -864,18 +1002,28 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if p_numarasi and user_ordin_yil > 0:
                 max_pub_ordin = hafiza['max_m10'].get(user_ordin_yil, 0) if is_m10 else hafiza['max_m11'].get(user_ordin_yil, 0)
                 if max_pub_ordin > 0 and user_ordin_no == max_pub_ordin:
-                    yanit += f"⚠️ <b>{p_numarasi}</b>\n\nDosya durumunuzda karar tespit edildi. Sistemdeki son {madde_adi} kararı sizin numaranızdır ({max_pub_ordin}/{user_ordin_yil}). Listelere eklenmemiş olabilirsiniz, resmi tebligatı bekleyiniz."
+                    yanit += f"⚠️ <b>{p_numarasi}</b>
+
+Dosya durumunuzda karar tespit edildi. Sistemdeki son {madde_adi} kararı sizin numaranızdır ({max_pub_ordin}/{user_ordin_yil}). Listelere eklenmemiş olabilirsiniz, resmi tebligatı bekleyiniz."
                 elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin:
-                    yanit += f"🚨 <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Sizin kararınız ({user_ordin_no}) geride kalmış. Dosyanız OLUMSUZ sonuçlanmış olabilir. Tebligatı bekleyiniz."
+                    yanit += f"🚨 <b>{p_numarasi}</b>
+
+Sistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Sizin kararınız ({user_ordin_no}) geride kalmış. Dosyanız OLUMSUZ sonuçlanmış olabilir. Tebligatı bekleyiniz."
                 elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin:
-                    yanit += f"ℹ️ <b>{p_numarasi}</b>\n\nSistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Numaranız ({user_ordin_no}) sıraya ulaşmamış. Dosyanız büyük ihtimalle OLUMLU sonuçlandı, yayımlanması bekleniyor! 🎉"
+                    yanit += f"ℹ️ <b>{p_numarasi}</b>
+
+Sistemdeki son {madde_adi} kararı {max_pub_ordin}/{user_ordin_yil}. Numaranız ({user_ordin_no}) sıraya ulaşmamış. Dosyanız büyük ihtimalle OLUMLU sonuçlandı, yayımlanması bekleniyor! 🎉"
                 else:
-                    yanit += f"⚠️ <b>{p_numarasi}</b>\n\nDosyanız olumlu sonuçlanmış ancak {user_ordin_yil} yılı listeleri yayımlanmamıştır."
+                    yanit += f"⚠️ <b>{p_numarasi}</b>
+
+Dosyanız olumlu sonuçlanmış ancak {user_ordin_yil} yılı listeleri yayımlanmamıştır."
             else:
                 yanit += "❌ 🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır."
 
             if zaten_takipte:
-                yanit += "\n━━━━━━━━━━━━━━━━━━\n💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğim. 🔔"
+                yanit += "
+━━━━━━━━━━━━━━━━━━
+💚 <b>Dosyanız takip listemizde!</b> Yeni listeler yüklendiğinde size otomatik mesaj göndereceğim. 🔔"
 
         reply_markup = None
         if buton_ekle:
@@ -901,34 +1049,74 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         m10_files = hafiza.get('son_m10_belgeler', ["Veri Yok"])
         m11_files = hafiza.get('son_m11_belgeler', ["Veri Yok"])
 
-        m10_metin = "\n".join([f"🔸 {b}" for b in m10_files]) if m10_files and m10_files[0] != "Veri Yok" else "🔸 Veri Yok"
-        m11_metin = "\n".join([f"🔸 {b}" for b in m11_files]) if m11_files and m11_files[0] != "Veri Yok" else "🔸 Veri Yok"
+        m10_metin = "
+".join([f"🔸 {b}" for b in m10_files]) if m10_files and m10_files[0] != "Veri Yok" else "🔸 Veri Yok"
+        m11_metin = "
+".join([f"🔸 {b}" for b in m11_files]) if m11_files and m11_files[0] != "Veri Yok" else "🔸 Veri Yok"
 
-        user_takip_listesi = [k.get('dosya_no') for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
+        # --- YENİ: Takip objelerini ve durumlarını ayıklama ---
+        user_takip_objeleri = [k for k in hafiza['bekleyenler'] if str(k.get('chat_id')) == chat_id]
         
         reply_markup = None
         takip_metni = ""
-        if user_takip_listesi:
-            dosyalar_alt_alta = "\n".join([f"💚 <code>{d}</code>" for d in user_takip_listesi])
-            takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>\n\n{dosyalar_alt_alta}\n"
+        if user_takip_objeleri:
+            dosyalar_alt_alta = ""
+            for k in user_takip_objeleri:
+                d_no = k.get('dosya_no')
+                if k.get('onaylandi', False):
+                    dosyalar_alt_alta += f"🎉 <del>{d_no}</del> <i>(Bu dosya onaylandı)</i>
+"
+                else:
+                    dosyalar_alt_alta += f"⏳ <code>{d_no}</code>
+"
+                    
+            takip_metni = f"
+━━━━━━━━━━━━━━━━━━
+🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>
+
+{dosyalar_alt_alta}
+"
             
             klavye = [[InlineKeyboardButton("❌ Dosya Takibini Bırak", callback_data="menu_birak")]]
             reply_markup = InlineKeyboardMarkup(klavye)
+        # --------------------------------------------------------
 
         mesaj = (
-            "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>\n\n"
-            "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.\n\n"
-            f"<b>Stadiu Dosar Son Güncelleme:</b> {dosya_guncelleme_tarihi}\n\n"
-            f"📄 <b>Sisteme Eklenen Son Kararlar:</b>\n\n"
-            f"<b>Madde 10:</b>\n{m10_metin}\n\n"
-            f"<b>Madde 11:</b>\n{m11_metin}\n\n"
-            "💡 <b>Kullanım:</b>\n"
-            "Sadece dosya numaranızı ve yılını yazıp gönderin.\n"
-            "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>\n"
+            "🇹🇩 <b>Romanya Vatandaşlık Sorgulama Botuna Hoş Geldiniz!</b>
+
+"
+            "Madde 10/11 kapsamındaki dosya durumunuzu (Stadiu Dosar) ve karar (Ordin) sonucunuzu buradan sorgulayabilirsiniz.
+
+"
+            f"<b>Stadiu Dosar Son Güncelleme:</b> {dosya_guncelleme_tarihi}
+
+"
+            f"📄 <b>Sisteme Eklenen Son Kararlar:</b>
+
+"
+            f"<b>Madde 10:</b>
+{m10_metin}
+
+"
+            f"<b>Madde 11:</b>
+{m11_metin}
+
+"
+            "💡 <b>Kullanım:</b>
+"
+            "Sadece dosya numaranızı ve yılını yazıp gönderin.
+"
+            "<i>Örn: 37064/2023</i> veya <i>1234/2017</i>
+"
             f"{takip_metni}" 
-            "━━━━━━━━━━━━━━━━━━\n"
-            "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
-            "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
+            "━━━━━━━━━━━━━━━━━━
+"
+            "⚖️ <b>Yasal Bilgilendirme:</b>
+
+"
+            "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.
+
+"
             "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
         )
         await context.bot.send_message(chat_id=chat_id, text=mesaj, parse_mode='HTML', reply_markup=reply_markup)
@@ -938,12 +1126,20 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _, ilk_no, son_yil = query.data.split('_')
         
         kvkk_metni = (
-            "🛡️ <b>KVKK Aydınlatma ve Açık Rıza Metni</b>\n\n"
-            f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı otomatik takibe almak üzeresiniz.\n\n"
+            "🛡️ <b>KVKK Aydınlatma ve Açık Rıza Metni</b>
+
+"
+            f"<b>{ilk_no}/{son_yil}</b> numaralı dosyanızı otomatik takibe almak üzeresiniz.
+
+"
             "Romanya Vatandaşlık Sorgulama Platformu olarak, size dosya durumunuz değiştiğinde anlık bildirim gönderebilmemiz amacıyla; "
-            "<b>Telegram Chat ID</b> ve <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.\n\n"
+            "<b>Telegram Chat ID</b> ve <b>Dosya Numaranız</b> güvenli bulut sunucularımızda işlenecektir.
+
+"
             "Bu veriler <b>sadece</b> size bilgilendirme mesajı atmak için kullanılır; hiçbir ticari amaca hizmet etmez ve asla üçüncü şahıslarla paylaşılmaz. "
-            "İstediğiniz an bota /start yazıp altta çıkacak olan <b>Dosya Takibini Bırak</b> butonuna tıklayarak seçeceğiniz verilerinizin sistemimizden <b>kalıcı olarak siliniyor olmasını</b> sağlayabilirsiniz.\n\n"
+            "İstediğiniz an bota /start yazıp altta çıkacak olan <b>Dosya Takibini Bırak</b> butonuna tıklayarak seçeceğiniz verilerinizin sistemimizden <b>kalıcı olarak siliniyor olmasını</b> sağlayabilirsiniz.
+
+"
             "Verilerinizin bu amaçlarla işlenmesini onaylıyor musunuz?"
         )
         klavye = [
@@ -986,13 +1182,17 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if kayit_basarili:
             await query.edit_message_text(
-                text=f"🔔 <b>Harika! KVKK onayınız alındı.</b>\n\n{dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", 
+                text=f"🔔 <b>Harika! KVKK onayınız alındı.</b>
+
+{dosya_no_temiz} numaralı dosyanızı takibe aldım. Yeni listelerde yayımlandığı an size otomatik müjde veya güncelleme mesajı göndereceğim.", 
                 parse_mode='HTML'
             )
         else:
             hafiza['bekleyenler'].pop() 
             await query.edit_message_text(
-                text="⚠️ <b>Bulut Kayıt Hatası!</b>\n\nSunucularda anlık bir yoğunluk yaşandığı için kaydınız tamamlanamadı. Lütfen daha sonra bota dosya numaranızı tekrar yazarak şansınızı deneyin.", 
+                text="⚠️ <b>Bulut Kayıt Hatası!</b>
+
+Sunucularda anlık bir yoğunluk yaşandığı için kaydınız tamamlanamadı. Lütfen daha sonra bota dosya numaranızı tekrar yazarak şansınızı deneyin.", 
                 parse_mode='HTML'
             )
         return
@@ -1011,7 +1211,9 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         secilenler = context.user_data['secilenler']
         
         soru_metni = (
-            "📋 <b>Dosya Takip Yönetim Paneli (Çoklu Seçim)</b>\n\n"
+            "📋 <b>Dosya Takip Yönetim Paneli (Çoklu Seçim)</b>
+
+"
             "Takibini iptal etmek istediğiniz dosyaları aşağıdaki listeden işaretleyiniz. "
             "Seçim bittiğinde altta çıkacak olan toplu silme butonuna basabilirsiniz:"
         )
@@ -1065,18 +1267,26 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Lütfen önce listeden en az bir dosya seçiniz!", show_alert=True)
             return
             
-        dosyalar_raporu = "\n".join([f"❌ <code>{d}</code>" for d in secilenler])
+        dosyalar_raporu = "
+".join([f"❌ <code>{d}</code>" for d in secilenler])
         
         if len(secilenler) == 1:
             baslik = "TAKİP İPTAL ONAYI"
-            fiil_cumlesi = f"Seçtiğiniz şu <b>1</b> adet dosyanın takibini bırakmak üzeresiniz:\n"
+            fiil_cumlesi = f"Seçtiğiniz şu <b>1</b> adet dosyanın takibini bırakmak üzeresiniz:
+"
         else:
             baslik = "TOPLU SİLME ONAYI"
-            fiil_cumlesi = f"Seçtiğiniz şu <b>{len(secilenler)}</b> adet dosyanın takibini aynı anda bırakmak üzeresiniz:\n"
+            fiil_cumlesi = f"Seçtiğiniz şu <b>{len(secilenler)}</b> adet dosyanın takibini aynı anda bırakmak üzeresiniz:
+"
             
         soru_metni = (
-            f"⚠️ <b>{baslik}</b>\n\n"
-            f"{fiil_cumlesi}\n{dosyalar_raporu}\n\n"
+            f"⚠️ <b>{baslik}</b>
+
+"
+            f"{fiil_cumlesi}
+{dosyalar_raporu}
+
+"
             f"Bu işlem sonucunda verileriniz sunucudan tamamen silinecektir. Onaylıyor musunuz?"
         )
         
@@ -1110,13 +1320,17 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if kayit_basarili:
             context.user_data['secilenler'] = []
             await query.edit_message_text(
-                text=f"🚀 <b>İşlem Başarılı!</b>\n\nSeçmiş olduğunuz {len(secilenler)} adet dosyanın takibi iptal edilmiş ve KVKK uyarınca verileriniz kalıcı olarak imha edilmiştir.", 
+                text=f"🚀 <b>İşlem Başarılı!</b>
+
+Seçmiş olduğunuz {len(secilenler)} adet dosyanın takibi iptal edilmiş ve KVKK uyarınca verileriniz kalıcı olarak imha edilmiştir.", 
                 parse_mode='HTML'
             )
         else:
             hafiza['bekleyenler'] = eski_liste 
             await query.edit_message_text(
-                text="⚠️ <b>Bulut Güncelleme Hatası!</b>\n\nSunucularda anlık bir yoğunluk yaşandığı için silme işlemi tamamlanamadı. Lütfen daha sonra tekrar deneyin.", 
+                text="⚠️ <b>Bulut Güncelleme Hatası!</b>
+
+Sunucularda anlık bir yoğunluk yaşandığı için silme işlemi tamamlanamadı. Lütfen daha sonra tekrar deneyin.", 
                 parse_mode='HTML'
             )
         return
