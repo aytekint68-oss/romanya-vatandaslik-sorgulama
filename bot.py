@@ -1152,5 +1152,3 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(buton_tiklama))
     
     app.run_polling()
-bot_guncel.py
-bot_guncel.py görüntüleniyor.
