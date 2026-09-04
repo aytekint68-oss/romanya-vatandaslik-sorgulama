@@ -507,10 +507,12 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 3. Güncellenen Duyuru Metni
     duyuru_metni = (
         "📢 <b>Değerli Kullanıcılarımız,</b>\n\n"
-        "<b>cetatenie.just.ro</b> isimli web sitesi yeniden erişime açılmış olup, "
-        "yeni dosyalar eklendiğinde sistemimizdeki verileri güncellemeye devam edeceğiz.\n\n"
-        "Uygulamamızı kullanarak dosya takibinizi kesintisiz bir şekilde sürdürebilirsiniz.\n\n"
-        "İlginiz ve anlayışınız için teşekkür ederiz. 🇹🇩"
+        "<b>cetatenie.just.ro</b> resmi internet sitesine yaklaşık 4 gündür erişim sağlanamamaktadır. "
+        "Web sitesi yeniden erişime açıldığında dosya durumları ve yeni yayımlanan kararlar (ordinler) "
+        "sistemimize eklenmeye ve güncellenmeye devam edecektir.\n\n"
+        "💡 <b>Hatırlatma:</b> Botumuz üzerinden birden fazla dosyayı takibe alabilirsiniz; "
+        "<b>dosya takip sayısında herhangi bir sınırlama yoktur.</b>\n\n"
+        "Anlayışınız ve bizi tercih ettiğiniz için teşekkür ederiz. 🇹🇩"
     )
     
     klavye = InlineKeyboardMarkup([
