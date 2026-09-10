@@ -377,17 +377,19 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 kalan_bekleyenler.append(kisi) 
                 # -------------------------------------------------------
             else:
-                if not ilk_calistirma and (eklenen_m10 or eklenen_m11 or dosya_tarih_degisti):
+                ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)
+                
+                if not ilk_calistirma and (ilgili_ordin_eklendi_mi or dosya_tarih_degisti):
                     kullanici_icin_degisenler = []
                     
                     if dosya_tarih_degisti:
-                        kullanici_icin_degisenler.append(f"Bot Stadiu Dosar Verilerini Güncelledi: ({dosya_tarih})")
+                        kullanici_icin_degisenler.append(f"Stadiu Dosar (Dosya Durumu) Güncellendi: ({dosya_tarih})")
                     
                     if is_m10 and eklenen_m10:
-                        for b in eklenen_m10: kullanici_icin_degisenler.append(f"Madde 10: {b}")
+                        for b in eklenen_m10: kullanici_icin_degisenler.append(f"Madde 10 Kararı: {b}")
                     
                     if is_m11 and eklenen_m11:
-                        for b in eklenen_m11: kullanici_icin_degisenler.append(f"Madde 11: {b}")
+                        for b in eklenen_m11: kullanici_icin_degisenler.append(f"Madde 11 Kararı: {b}")
 
                     if kullanici_icin_degisenler:
                         if len(kullanici_icin_degisenler) > 10:
@@ -395,13 +397,21 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         else:
                             degisim_metni = "\n".join([f"🔹 {liste}" for liste in kullanici_icin_degisenler])
                             
-                        msg = (
-                            f"🔔 <b>Sistem Güncellemesi:</b>\n\n"
-                            f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni veriler yüklenmiştir.\n"
-                            f"📂 <b>Sisteme Yeni Eklenenler:</b>\n{degisim_metni}\n\n"
-                            f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni listelerde görünmemiştir. "
-                            f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
-                        )
+                        if ilgili_ordin_eklendi_mi:
+                            msg = (
+                                f"🔔 <b>Sistem Güncellemesi (Yeni Kararlar Eklendi):</b>\n\n"
+                                f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni kararlar (ordin) veya güncellemeler yüklenmiştir.\n"
+                                f"📂 <b>Sisteme Yeni Eklenenler/Güncellenenler:</b>\n{degisim_metni}\n\n"
+                                f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni onay listelerinde görünmemiştir. "
+                                f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
+                            )
+                        else:
+                            msg = (
+                                f"🔔 <b>Sistem Güncellemesi (Stadiu Dosar):</b>\n\n"
+                                f"ANC sisteminde <b>Stadiu Dosar (Dosya Durumları)</b> listesi güncellenmiştir.\n"
+                                f"📅 <b>Güncel Tarih:</b> {dosya_tarih}\n\n"
+                                f"Dosyanızdaki aşamalarda (Termen, Solutie vb.) herhangi bir değişiklik olup olmadığını kontrol etmek için <b>{dosya_tam}</b> numarasını bota yazarak son durumu anında öğrenebilirsiniz."
+                            )
                         await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
                 
                 kalan_bekleyenler.append(kisi) 
