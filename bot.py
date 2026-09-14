@@ -400,7 +400,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         if ilgili_ordin_eklendi_mi:
                             msg = (
                                 f"🔔 <b>Sistem Güncellemesi (Yeni Kararlar Eklendi):</b>\n\n"
-                                f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni kararlar (ordin) veya güncellemeler yüklenmiştir.\n"
+                                f"ANC sistemine sizin dosya türünüzle ilgili olabilecek yeni kararlar (ordin) veya güncellemeler yüklenmiştir.\n\n"
                                 f"📂 <b>Sisteme Yeni Eklenenler/Güncellenenler:</b>\n{degisim_metni}\n\n"
                                 f"Maalesef takip ettiğiniz <b>{dosya_tam}</b> numaralı dosyanız bu yeni onay listelerinde görünmemiştir. "
                                 f"Dosyanızı sizin için takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏"
