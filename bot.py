@@ -54,7 +54,28 @@ def get_bulut_verisi():
     except Exception as e:
         print(f"⚠️ MongoDB Okuma Hatası: {e}", flush=True)
         return None
+        
+def set_bulut_verisi(bekleyenler, son_durum):
+    if len(bekleyenler) < 0:
+        return False
 
+    temiz_son_durum = dict(son_durum) if son_durum else {}
+    if "m10_belgeler" in temiz_son_durum and isinstance(temiz_son_durum["m10_belgeler"], list):
+        temiz_son_durum["m10_belgeler"] = temiz_son_durum["m10_belgeler"][:20]
+    if "m11_belgeler" in temiz_son_durum and isinstance(temiz_son_durum["m11_belgeler"], list):
+        temiz_son_durum["m11_belgeler"] = temiz_son_durum["m11_belgeler"][:20]
+
+    try:
+        koleksiyon.update_one(
+            {"_id": "bulut_hafiza"}, 
+            {"$set": {"bekleyenler": bekleyenler, "son_durum": temiz_son_durum}}, 
+            upsert=True
+        )
+        return True
+    except Exception as e:
+        print(f"❌ MongoDB Kayıt Hatası: {e}", flush=True)
+        return False
+        
 # (KODUN KALAN KISMI AYNI ŞEKİLDE DEVAM EDECEK...)
 # ==========================================
 # 🧠 CANLI HAFIZA (RAM) VE ESNEK VERİ YÜKLEME
