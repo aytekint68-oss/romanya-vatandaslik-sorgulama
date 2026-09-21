@@ -4,3 +4,4 @@ openpyxl
 PyMuPDF
 python-telegram-bot
 python-telegram-bot[job-queue]
+pymongo[srv]==4.6.2
