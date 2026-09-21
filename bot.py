@@ -28,10 +28,11 @@ print("🤖 Akıllı Asistan Başlatılıyor...", flush=True)
 def get_bulut_verisi():
     headers = {"X-Master-Key": JSONBIN_KEY}
     
-    for deneme in range(3):
+    for deneme in range(4): # Deneme sayısını 4'e çıkardık
         try:
             url = f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}/latest?t={datetime.datetime.now().timestamp()}"
-            res = requests.get(url, headers=headers, timeout=30)
+            # Timeout'u okuma için (bağlantı=15s, okuma=45s) olarak tuple yapıyoruz
+            res = requests.get(url, headers=headers, timeout=(15, 45))
             if res.status_code == 200:
                 return res.json().get("record", {"bekleyenler": [], "son_durum": {}})
             else:
@@ -39,10 +40,11 @@ def get_bulut_verisi():
         except Exception as e:
             print(f"⚠️ Bulut Bağlantı Sorunu (Okuma Hatası: {e}) - Deneme {deneme+1}", flush=True)
         
-        time.sleep(3)
+        # Eğer Cloudflare engeli yiyorsak aralığı açarak bekleyelim
+        time.sleep(4)
         
-    print("❌ 3 denemeye rağmen buluttan veri çekilemedi! Verileri ezmemek için sistem duraklatılıyor.", flush=True)
-    return None 
+    print("❌ 4 denemeye rağmen buluttan veri çekilemedi! Verileri ezmemek için sistem duraklatılıyor.", flush=True)
+    return None
 
 def set_bulut_verisi(bekleyenler, son_durum):
     if len(bekleyenler) < 0:
