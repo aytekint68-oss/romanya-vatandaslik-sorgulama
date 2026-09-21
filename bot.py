@@ -6,6 +6,7 @@ import asyncio
 import datetime
 import gc
 import time
+import certifi
 from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
@@ -30,7 +31,8 @@ print("🤖 Akıllı Asistan Başlatılıyor...", flush=True)
 # ☁️ MONGODB VERİTABANI BAĞLANTISI
 # ==========================================
 try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    # tlsCAFile=certifi.where() ekleyerek SSL hatasını aşıyoruz
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
     db = client["VatandaslikBot"]
     koleksiyon = db["Hafiza"]
     client.admin.command('ping')
