@@ -116,6 +116,7 @@ def sutun_degeri_al(row, olasi_isimler):
 @st.cache_data(max_entries=1, ttl=3600, show_spinner="Yeni veriler senkronize ediliyor, lütfen bekleyin...")
 def veritabanini_hazirla(guncelleme_tetikleyici):
     df_d = _esnek_veri_oku("dosyadurumu")
+    df_d_eski = _esnek_veri_oku("dosyadurumu_eski") # Eski liste eklendi
     df_m10 = _esnek_veri_oku("Romanya_Vatandaslik_Tum_Veriler_Madde10")
     df_m11 = _esnek_veri_oku("Romanya_Vatandaslik_Tum_Veriler_Madde11")
     df_ozel_durum = _esnek_veri_oku("Dosya_Durumlari")
@@ -141,10 +142,11 @@ def veritabanini_hazirla(guncelleme_tetikleyici):
     del k_list
     gc.collect()
 
-    return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11, df_ozel_durum
+    return df_d, df_k, d_tarih, m10_list, m11_list, max_m10, max_m11, df_ozel_durum, df_d_eski
 
 def dosya_zaman_damgasi_al():
-    tabanlar = ["dosyadurumu", "Romanya_Vatandaslik_Tum_Veriler_Madde10", "Romanya_Vatandaslik_Tum_Veriler_Madde11", "Dosya_Durumlari"]
+    # dosyadurumu_eski verisini de önbellek takibine aldık
+    tabanlar = ["dosyadurumu", "dosyadurumu_eski", "Romanya_Vatandaslik_Tum_Veriler_Madde10", "Romanya_Vatandaslik_Tum_Veriler_Madde11", "Dosya_Durumlari"]
     uzantilar = ['.xlsx', '.zip', '.csv']
     tetikleyici_kod = ""
     for taban in tabanlar:
@@ -157,7 +159,8 @@ def dosya_zaman_damgasi_al():
                 break
     return tetikleyici_kod
 
-df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11, df_ozel = veritabanini_hazirla(dosya_zaman_damgasi_al())
+# df_dosya_eski verisi eklendi
+df_dosya, df_karar, dosya_guncelleme_tarihi, m10_belgeler_listesi, m11_belgeler_listesi, max_ordin_m10, max_ordin_m11, df_ozel, df_dosya_eski = veritabanini_hazirla(dosya_zaman_damgasi_al())
 
 # --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
@@ -290,6 +293,23 @@ if arama_baslatildi:
                                     basvuru_tarihi = basvuru_match.group(1).replace('/', '.').replace('-', '.')
 
                             # =========================================================
+                            # 📅 ESKİ DOSYA İLE TERMEN KARŞILAŞTIRMASI (YENİ EKLENEN KISIM)
+                            # =========================================================
+                            eski_termen_metni = ""
+                            if not df_dosya_eski.empty:
+                                eski_dosya_col = next((col for col in df_dosya_eski.columns if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), df_dosya_eski.columns[0])
+                                eski_match = df_dosya_eski[df_dosya_eski[eski_dosya_col].astype(str).str.strip().str.contains(arama_kriteri, flags=re.IGNORECASE, regex=True)]
+                                if not eski_match.empty:
+                                    e_val = sutun_degeri_al(eski_match.iloc[0], ['TERMEN', 'Termen', 'Sonraki Aşama'])
+                                    e_match_date = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_val)
+                                    eski_termen_metni = e_match_date.group(1).replace('/', '.').replace('-', '.') if e_match_date else e_val
+
+                            termen_ekran_yazisi = termen_metni if termen_metni else "Belirtilmemiş"
+                            
+                            # Eğer eski tarih varsa, yeni tarih geçerliyse ve iki tarih birbirinden farklıysa ekrana eskiyi de yazdırıyoruz
+                            if eski_termen_metni and termen_metni and eski_termen_metni.lower() not in ['nan', 'none', '', 'belirtilmemiş'] and eski_termen_metni != termen_metni:
+                                termen_ekran_yazisi = f"{termen_metni} <br><span style='font-size:0.85em; color:#777;'>(Önceki: {eski_termen_metni}) 🔄</span>"
+                            # =========================================================
 
                             p_numarasi = None
                             user_ordin_no = 0
@@ -360,10 +380,8 @@ if arama_baslatildi:
                                 with col1:
                                     st.markdown(f"**📅 Başvuru Tarihi:**<br>{basvuru_tarihi if basvuru_tarihi else 'Belirtilmemiş'}", unsafe_allow_html=True)
                                 with col2:
-                                    if termen_metni:
-                                        st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>{termen_metni}", unsafe_allow_html=True)
-                                    else:
-                                        st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>Belirtilmemiş", unsafe_allow_html=True)
+                                    # Termen alanına yeni HTML yazısını aktarıyoruz
+                                    st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>{termen_ekran_yazisi}", unsafe_allow_html=True)
                                         
                                 st.markdown("<br>", unsafe_allow_html=True)
                                 
