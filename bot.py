@@ -3,9 +3,10 @@ import re
 import os
 import requests
 import asyncio
-import datetime # Zamanlama için gerekli
-import gc # RAM temizliği için çöp toplayıcı
-import time  # İnatçı deneme sistemi için
+import datetime
+import gc
+import time
+from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
@@ -13,74 +14,41 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 # GÜVENLİ AYARLAR (ŞİFRELER SUNUCUDAN OKUNUR)
 # ==========================================
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-JSONBIN_ID = os.getenv("JSONBIN_BIN_ID")
-JSONBIN_KEY = os.getenv("JSONBIN_MASTER_KEY")
+MONGO_URI = os.getenv("MONGO_URI")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID") 
 
-if not BOT_TOKEN or not JSONBIN_ID or not JSONBIN_KEY:
+# Sadece veri taşıma işlemi için eski JSONBin şifrelerini anlık okuyoruz
+JSONBIN_ID = os.getenv("JSONBIN_BIN_ID")
+JSONBIN_KEY = os.getenv("JSONBIN_MASTER_KEY")
+
+if not BOT_TOKEN or not MONGO_URI:
     print("❌ HATA: Çevre değişkenleri (Environment Variables) Render üzerinde tanımlanmamış!", flush=True)
 
 print("🤖 Akıllı Asistan Başlatılıyor...", flush=True)
 
 # ==========================================
-# ☁️ BULUT HAFIZA (JSONBIN) FONKSİYONLARI
+# ☁️ MONGODB VERİTABANI BAĞLANTISI
 # ==========================================
+try:
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    db = client["VatandaslikBot"]
+    koleksiyon = db["Hafiza"]
+    client.admin.command('ping')
+    print("✅ MongoDB Atlas veritabanı bağlantısı başarıyla kuruldu!", flush=True)
+except Exception as e:
+    print(f"❌ MongoDB Bağlantı Hatası: {e}", flush=True)
+
 def get_bulut_verisi():
-    headers = {"X-Master-Key": JSONBIN_KEY}
-    
-    for deneme in range(4): # Deneme sayısını 4'e çıkardık
-        try:
-            url = f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}/latest?t={datetime.datetime.now().timestamp()}"
-            # Timeout'u okuma için (bağlantı=15s, okuma=45s) olarak tuple yapıyoruz
-            res = requests.get(url, headers=headers, timeout=(15, 45))
-            if res.status_code == 200:
-                return res.json().get("record", {"bekleyenler": [], "son_durum": {}})
-            else:
-                print(f"⚠️ Bulut Okuma Hatası (Kod: {res.status_code}) - Yanıt: {res.text} - Deneme {deneme+1}", flush=True)
-        except Exception as e:
-            print(f"⚠️ Bulut Bağlantı Sorunu (Okuma Hatası: {e}) - Deneme {deneme+1}", flush=True)
-        
-        # Eğer Cloudflare engeli yiyorsak aralığı açarak bekleyelim
-        time.sleep(4)
-        
-    print("❌ 4 denemeye rağmen buluttan veri çekilemedi! Verileri ezmemek için sistem duraklatılıyor.", flush=True)
-    return None
+    try:
+        veri = koleksiyon.find_one({"_id": "bulut_hafiza"})
+        if veri:
+            return {"bekleyenler": veri.get("bekleyenler", []), "son_durum": veri.get("son_durum", {})}
+        return {"bekleyenler": [], "son_durum": {}}
+    except Exception as e:
+        print(f"⚠️ MongoDB Okuma Hatası: {e}", flush=True)
+        return None
 
-def set_bulut_verisi(bekleyenler, son_durum):
-    if len(bekleyenler) < 0:
-        print(f"⚠️ GÜVENLİK KİLİDİ DEVREDE! Listede sadece {len(bekleyenler)} kişi var. Veri ezilme riskine karşı kayıt YAPILMADI!", flush=True)
-        return False
-
-    headers = {
-        "X-Master-Key": JSONBIN_KEY, 
-        "Content-Type": "application/json"
-    }
-    
-    # 100 KB kota aşımını önlemek için en güncel İLK 20 belgeyi tutuyoruz
-    temiz_son_durum = dict(son_durum) if son_durum else {}
-    if "m10_belgeler" in temiz_son_durum and isinstance(temiz_son_durum["m10_belgeler"], list):
-        temiz_son_durum["m10_belgeler"] = temiz_son_durum["m10_belgeler"][:20]
-    if "m11_belgeler" in temiz_son_durum and isinstance(temiz_son_durum["m11_belgeler"], list):
-        temiz_son_durum["m11_belgeler"] = temiz_son_durum["m11_belgeler"][:20]
-
-    payload = {"bekleyenler": bekleyenler, "son_durum": temiz_son_durum}
-    
-    for deneme in range(3):
-        try:
-            res = requests.put(f"https://api.jsonbin.io/v3/b/{JSONBIN_ID}", json=payload, headers=headers, timeout=45)
-            
-            if res.status_code == 200:
-                return True
-            else:
-                print(f"⚠️ JSONBin Kayıt Hatası (Kod: {res.status_code}) - Yanıt: {res.text} - Deneme {deneme+1}", flush=True)
-        except Exception as e:
-            print(f"⚠️ Bulut Hafıza bağlantı sorunu (Yazma Zaman Aşımı: {e}) - Deneme {deneme+1}", flush=True)
-        
-        time.sleep(2)
-        
-    print("❌ 3 denemeye rağmen JSONBin'e kayıt yapılamadı!", flush=True)
-    return False
-
+# (KODUN KALAN KISMI AYNI ŞEKİLDE DEVAM EDECEK...)
 # ==========================================
 # 🧠 CANLI HAFIZA (RAM) VE ESNEK VERİ YÜKLEME
 # ==========================================
