@@ -363,8 +363,8 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                     else:
                         sadece_sayi = re.search(r'(\d+)', str(gosterilecek_karar))
                         gosterilecek_karar = f"{sadece_sayi.group(1)}/P" if sadece_sayi else str(gosterilecek_karar)
-            else:
-                gosterilecek_karar = "Belirtilmemiş"
+                else:
+                    gosterilecek_karar = "Belirtilmemiş"
                 
                 karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data', 'Karar Tarihi'])
                 if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none", ""]: 
@@ -940,14 +940,14 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         gosterilecek_karar = f"{sadece_sayi.group(1)}/P" if sadece_sayi else str(gosterilecek_karar)
             else:
                 gosterilecek_karar = "Belirtilmemiş"
-            
-            karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data', 'Karar Tarihi'])
-            if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none", ""]: 
-                date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
-                if date_match:
-                    karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.')
-                else:
-                    karar_tarihi = "Belirtilmemiş"
+                
+                karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data', 'Karar Tarihi'])
+                if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none", ""]: 
+                    date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
+                    if date_match:
+                        karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.')
+                    else:
+                        karar_tarihi = "Belirtilmemiş"
 
             yanit += f"🎉 ✅ <b>TEBRİKLER! Kararınız yayımlandı.</b> 💚\n\n📜 <b>Karar No:</b> {gosterilecek_karar}\n📅 <b>Tarih:</b> {karar_tarihi}\n📂 <b>Kaynak:</b> {kaynak_belge_adi}"
         else:
