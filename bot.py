@@ -687,10 +687,6 @@ def veritabanini_kontrol_et(app_context=None):
             eklenen_m11 = list(set(yeni_m11_belgeler) - set(eski_m11))
             dosya_tarih_degisti = (dosya_tarih != eski_dosya_tarih and dosya_tarih not in ["Bilinmiyor", "Veri Yok", "Tarih Bulunamadı"])
 
-            # Tüm liste yerine sadece son eklenen 20 belgeyi alıyoruz:
-            son_20_m10 = yeni_m10_belgeler[-20:] if len(yeni_m10_belgeler) > 20 else yeni_m10_belgeler
-            son_20_m11 = yeni_m11_belgeler[-20:] if len(yeni_m11_belgeler) > 20 else yeni_m11_belgeler
-
             # 20 belge sınırını sildik, TÜM LİSTEYİ MongoDB'ye kaydediyoruz
             yeni_durum = {
                 "dosya_tarih": dosya_tarih, 
