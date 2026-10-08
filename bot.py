@@ -68,7 +68,7 @@ DIL_SOZLUGU = {
         "bugun_doluyor": "🚨 <b>DİKKAT! Yasal süreniz BUGÜN DOLUYOR!</b>",
         "sure_doldu": "❌ <b>SÜRE DOLDU!</b> ({gun} gün geçmiş). Acilen evrakları iletin.",
         "mujde_onay": "🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya}</b> numaralı dosyanız onaylandı! 💚\n\n📜 Karar No: {karar}\n📅 Tarih: {tarih}\n📂 Kaynak: {kaynak}",
-        "guncelleme_sistem": "🔔 <b>Sistem Güncellemesi:</b>\nSisteme yeni kararlar eklendi. Sizin dosyanız ({dosya}) bu listelerde görünmemiştir. Takip etmeye devam ediyorum!",
+        "guncelleme_sistem": "🔔 <b>Sistem Güncellemesi:</b>\nANC sistemine sizin dosya türünüzle ilgili yeni kararlar (ordin) yüklenmiştir:\n{yeni_dosyalar}\n\nMaalesef sizin dosyanız (<b>{dosya}</b>) bu yeni listelerde görünmemiştir. Takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏",
         "termen_degisti": "🔄 <b>ÖNEMLİ: İnceleme Tarihiniz (Termen) Değişti!</b>\n\nTakip ettiğiniz <b>{dosya}</b> dosyasının tarihi güncellendi:\nEski: <del>{eski}</del>\nYeni: {yeni}",
         "stadiu_guncellendi": "🔔 <b>Sistem Güncellemesi:</b>\nANC Stadiu Dosar listesi güncellendi ({tarih}). Durumunuzu kontrol edebilirsiniz.",
         "takip_baslik": "🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>"
@@ -127,7 +127,7 @@ DIL_SOZLUGU = {
         "bugun_doluyor": "🚨 <b>ВНИМАНИЕ! Срок истекает СЕГОДНЯ!</b>",
         "sure_doldu": "❌ <b>СРОК ИСТЕК!</b> (прошло {gun} дней).",
         "mujde_onay": "🎉 <b>ОТЛИЧНЫЕ НОВОСТИ!</b> Досье <b>{dosya}</b> одобрено! 💚\n\n📜 Приказ №: {karar}\n📅 Дата: {tarih}\n📂 Источник: {kaynak}",
-        "guncelleme_sistem": "🔔 <b>Обновление системы:</b>\nДобавлены новые приказы. Ваше досье ({dosya}) в них не найдено. Продолжаю отслеживание!",
+        "guncelleme_sistem": "🔔 <b>Обновление системы:</b>\nВ систему ANC добавлены новые приказы (ordin):\n{yeni_dosyalar}\n\nК сожалению, ваше досье (<b>{dosya}</b>) в этих новых списках не найдено. Продолжаю отслеживание, не теряйте надежду! 🙏",
         "termen_degisti": "🔄 <b>ВАЖНО: Дата рассмотрения (Termen) изменена!</b>\n\nДосье: <b>{dosya}</b>\nСтарая: <del>{eski}</del>\nНовая: {yeni}",
         "stadiu_guncellendi": "🔔 <b>Обновление системы:</b>\nСписки Stadiu Dosar обновлены ({tarih}). Проверьте свой статус.",
         "takip_baslik": "🔔 <b>Отслеживаемые досье:</b>"
@@ -186,7 +186,7 @@ DIL_SOZLUGU = {
         "bugun_doluyor": "🚨 <b>ATENȚIE! Termenul expiră ASTĂZI!</b>",
         "sure_doldu": "❌ <b>TERMEN EXPIRAT!</b> (au trecut {gun} zile).",
         "mujde_onay": "🎉 <b>VEȘTI BUNE!</b> Dosarul <b>{dosya}</b> a fost aprobat! 💚\n\n📜 Ordin Nr: {karar}\n📅 Data: {tarih}\n📂 Sursă: {kaynak}",
-        "guncelleme_sistem": "🔔 <b>Actualizare sistem:</b>\nAu fost adăugate ordine noi. Dosarul dvs. ({dosya}) nu a apărut încă. Urmărim în continuare!",
+        "guncelleme_sistem": "🔔 <b>Actualizare sistem:</b>\nAu fost adăugate noi ordine (ordin) în sistemul ANC:\n{yeni_dosyalar}\n\nDin păcate, dosarul dvs. (<b>{dosya}</b>) nu a apărut în aceste noi liste. Urmăresc în continuare, nu vă pierdeți speranța! 🙏",
         "termen_degisti": "🔄 <b>IMPORTANT: Termenul a fost modificat!</b>\n\nDosar: <b>{dosya}</b>\nVechi: <del>{eski}</del>\nNou: {yeni}",
         "stadiu_guncellendi": "🔔 <b>Actualizare sistem:</b>\nListele Stadiu Dosar au fost actualizate ({tarih}).",
         "takip_baslik": "🔔 <b>Dosarele urmărite:</b>"
@@ -590,7 +590,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                 
                 # ✅ MÜJDE MESAJINA BUTON EKLENDİ
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=oner_klavye)
-                admin_onay_listesi.append(f"<code>{dosya_tam}</code>") 
+                admin_onay_listesi.append(f"<code>{dosya_tam}</code> - 📄 <i>{kaynak_belge_adi}</i>") 
                 
                 kisi['onaylandi'] = True
                 kalan_bekleyenler.append(kisi) 
@@ -632,6 +632,14 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                             termen_degisti_mi = True
                     
                     if ilgili_ordin_eklendi_mi:
+                        # Hangi PDF'lerin eklendiğini bul ve listele
+                        eklenen_pdf_listesi = []
+                        if is_m10 and eklenen_m10:
+                            eklenen_pdf_listesi.extend([f"🔹 Madde 10: <i>{pdf}</i>" for pdf in eklenen_m10])
+                        if is_m11 and eklenen_m11:
+                            eklenen_pdf_listesi.extend([f"🔹 Madde 11: <i>{pdf}</i>" for pdf in eklenen_m11])
+                        eklenen_pdf_str = "\n".join(eklenen_pdf_listesi)
+                        
                         msg = dil_paketi["guncelleme_sistem"].format(dosya=dosya_tam)
                         if termen_degisti_mi:
                             msg += f"\n\n" + dil_paketi["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str)
