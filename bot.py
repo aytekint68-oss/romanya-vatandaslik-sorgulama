@@ -68,7 +68,10 @@ DIL_SOZLUGU = {
         "bugun_doluyor": "🚨 <b>DİKKAT! Yasal süreniz BUGÜN DOLUYOR!</b>",
         "sure_doldu": "❌ <b>SÜRE DOLDU!</b> ({gun} gün geçmiş). Acilen evrakları iletin.",
         "mujde_onay": "🎉 <b>MÜJDE!</b> Takip ettiğiniz <b>{dosya}</b> numaralı dosyanız onaylandı! 💚\n\n📜 Karar No: {karar}\n📅 Tarih: {tarih}\n📂 Kaynak: {kaynak}",
-        "guncelleme_sistem": "🔔 <b>Sistem Güncellemesi:</b>\nANC sistemine sizin dosya türünüzle ilgili yeni kararlar (ordin) yüklenmiştir:\n{yeni_dosyalar}\n\nMaalesef sizin dosyanız (<b>{dosya}</b>) bu yeni listelerde görünmemiştir. Takip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏",
+        "guncelleme_1_karar_1_dosya": "🔔 <b>Sistem Güncellemesi:</b>\nANC sistemine yeni bir karar (ordin) yüklenmiştir:\n{yeni_dosyalar}\n\nMaalesef takip ettiğiniz şu dosya bu yeni listede görünmemiştir:\n{dosyalar}\n\nTakip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏",
+        "guncelleme_1_karar_cok_dosya": "🔔 <b>Sistem Güncellemesi:</b>\nANC sistemine yeni bir karar (ordin) yüklenmiştir:\n{yeni_dosyalar}\n\nMaalesef takip ettiğiniz şu dosyalar bu yeni listede görünmemiştir:\n{dosyalar}\n\nTakip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏",
+        "guncelleme_cok_karar_1_dosya": "🔔 <b>Sistem Güncellemesi:</b>\nANC sistemine yeni kararlar (ordin) yüklenmiştir:\n{yeni_dosyalar}\n\nMaalesef takip ettiğiniz şu dosya bu yeni listelerde görünmemiştir:\n{dosyalar}\n\nTakip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏",
+        "guncelleme_cok_karar_cok_dosya": "🔔 <b>Sistem Güncellemesi:</b>\nANC sistemine yeni kararlar (ordin) yüklenmiştir:\n{yeni_dosyalar}\n\nMaalesef takip ettiğiniz şu dosyalar bu yeni listelerde görünmemiştir:\n{dosyalar}\n\nTakip etmeye devam ediyorum, lütfen umudunuzu kaybetmeyin! 🙏",
         "termen_degisti": "🔄 <b>ÖNEMLİ: İnceleme Tarihiniz (Termen) Değişti!</b>\n\nTakip ettiğiniz <b>{dosya}</b> dosyasının tarihi güncellendi:\nEski: <del>{eski}</del>\nYeni: {yeni}",
         "stadiu_guncellendi": "🔔 <b>Sistem Güncellemesi:</b>\nANC Stadiu Dosar listesi güncellendi ({tarih}). Durumunuzu kontrol edebilirsiniz.",
         "takip_baslik": "🔔 <b>Takip Ettiğiniz Dosyalarınız:</b>"
@@ -127,7 +130,10 @@ DIL_SOZLUGU = {
         "bugun_doluyor": "🚨 <b>ВНИМАНИЕ! Срок истекает СЕГОДНЯ!</b>",
         "sure_doldu": "❌ <b>СРОК ИСТЕК!</b> (прошло {gun} дней).",
         "mujde_onay": "🎉 <b>ОТЛИЧНЫЕ НОВОСТИ!</b> Досье <b>{dosya}</b> одобрено! 💚\n\n📜 Приказ №: {karar}\n📅 Дата: {tarih}\n📂 Источник: {kaynak}",
-        "guncelleme_sistem": "🔔 <b>Обновление системы:</b>\nВ систему ANC добавлены новые приказы (ordin):\n{yeni_dosyalar}\n\nК сожалению, ваше досье (<b>{dosya}</b>) в этих новых списках не найдено. Продолжаю отслеживание, не теряйте надежду! 🙏",
+        "guncelleme_1_karar_1_dosya": "🔔 <b>Обновление системы:</b>\nВ систему ANC добавлен новый приказ (ordin):\n{yeni_dosyalar}\n\nК сожалению, отслеживаемое вами досье не найдено в этом новом списке:\n{dosyalar}\n\nПродолжаю отслеживание, не теряйте надежду! 🙏",
+        "guncelleme_1_karar_cok_dosya": "🔔 <b>Обновление системы:</b>\nВ систему ANC добавлен новый приказ (ordin):\n{yeni_dosyalar}\n\nК сожалению, отслеживаемые вами досье не найдены в этом новом списке:\n{dosyalar}\n\nПродолжаю отслеживание, не теряйте надежду! 🙏",
+        "guncelleme_cok_karar_1_dosya": "🔔 <b>Обновление системы:</b>\nВ систему ANC добавлены новые приказы (ordin):\n{yeni_dosyalar}\n\nК сожалению, отслеживаемое вами досье не найдено в этих новых списках:\n{dosyalar}\n\nПродолжаю отслеживание, не теряйте надежду! 🙏",
+        "guncelleme_cok_karar_cok_dosya": "🔔 <b>Обновление системы:</b>\nВ систему ANC добавлены новые приказы (ordin):\n{yeni_dosyalar}\n\nК сожалению, отслеживаемые вами досье не найдены в этих новых списках:\n{dosyalar}\n\nПродолжаю отслеживание, не теряйте надежду! 🙏",
         "termen_degisti": "🔄 <b>ВАЖНО: Дата рассмотрения (Termen) изменена!</b>\n\nДосье: <b>{dosya}</b>\nСтарая: <del>{eski}</del>\nНовая: {yeni}",
         "stadiu_guncellendi": "🔔 <b>Обновление системы:</b>\nСписки Stadiu Dosar обновлены ({tarih}). Проверьте свой статус.",
         "takip_baslik": "🔔 <b>Отслеживаемые досье:</b>"
@@ -186,7 +192,10 @@ DIL_SOZLUGU = {
         "bugun_doluyor": "🚨 <b>ATENȚIE! Termenul expiră ASTĂZI!</b>",
         "sure_doldu": "❌ <b>TERMEN EXPIRAT!</b> (au trecut {gun} zile).",
         "mujde_onay": "🎉 <b>VEȘTI BUNE!</b> Dosarul <b>{dosya}</b> a fost aprobat! 💚\n\n📜 Ordin Nr: {karar}\n📅 Data: {tarih}\n📂 Sursă: {kaynak}",
-        "guncelleme_sistem": "🔔 <b>Actualizare sistem:</b>\nAu fost adăugate noi ordine (ordin) în sistemul ANC:\n{yeni_dosyalar}\n\nDin păcate, dosarul dvs. (<b>{dosya}</b>) nu a apărut în aceste noi liste. Urmăresc în continuare, nu vă pierdeți speranța! 🙏",
+        "guncelleme_1_karar_1_dosya": "🔔 <b>Actualizare sistem:</b>\nA fost adăugat un nou ordin în sistemul ANC:\n{yeni_dosyalar}\n\nDin păcate, dosarul pe care îl urmăriți nu a apărut în această nouă listă:\n{dosyalar}\n\nUrmăresc în continuare, nu vă pierdeți speranța! 🙏",
+        "guncelleme_1_karar_cok_dosya": "🔔 <b>Actualizare sistem:</b>\nA fost adăugat un nou ordin în sistemul ANC:\n{yeni_dosyalar}\n\nDin păcate, dosarele pe care le urmăriți nu au apărut în această nouă listă:\n{dosyalar}\n\nUrmăresc în continuare, nu vă pierdeți speranța! 🙏",
+        "guncelleme_cok_karar_1_dosya": "🔔 <b>Actualizare sistem:</b>\nAu fost adăugate noi ordine în sistemul ANC:\n{yeni_dosyalar}\n\nDin păcate, dosarul pe care îl urmăriți nu a apărut în aceste noi liste:\n{dosyalar}\n\nUrmăresc în continuare, nu vă pierdeți speranța! 🙏",
+        "guncelleme_cok_karar_cok_dosya": "🔔 <b>Actualizare sistem:</b>\nAu fost adăugate noi ordine în sistemul ANC:\n{yeni_dosyalar}\n\nDin păcate, dosarele pe care le urmăriți nu au apărut în aceste noi liste:\n{dosyalar}\n\nUrmăresc în continuare, nu vă pierdeți speranța! 🙏",
         "termen_degisti": "🔄 <b>IMPORTANT: Termenul a fost modificat!</b>\n\nDosar: <b>{dosya}</b>\nVechi: <del>{eski}</del>\nNou: {yeni}",
         "stadiu_guncellendi": "🔔 <b>Actualizare sistem:</b>\nListele Stadiu Dosar au fost actualizate ({tarih}).",
         "takip_baslik": "🔔 <b>Dosarele urmărite:</b>"
@@ -448,9 +457,8 @@ def en_guncel_belgeler(df, dosya_yolu=None):
 def tum_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return []
     return df['Kaynak Belge'].dropna().unique().tolist()
-
 # ==========================================
-# 🎯 HEDEFLİ BİLDİRİM DAĞITIM MOTORU
+# 🎯 HEDEFLİ BİLDİRİM DAĞITIM MOTORU (GRUPLANDIRILMIŞ)
 # ==========================================
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, ilk_calistirma=False):
     df_karar = hafiza['df_karar_birlesik']
@@ -467,9 +475,8 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
     arama_sutunu = df_dosya['Dosya No'].astype(str).str.strip() if not df_dosya.empty and 'Dosya No' in df_dosya.columns else (df_dosya.iloc[:, 0].astype(str).str.strip() if not df_dosya.empty else pd.Series(dtype=str))
     ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])
     
-    # 📢 PAYLAŞ BUTONU HAZIRLIĞI
-    bot_username = app_context.bot.username
-    share_url = f"https://t.me/share/url?url=https://t.me/{bot_username}&text=🇹🇩%20Romanya%20Vatandaslik%20Dosya%20Sorgulama%20ve%20Takip%20Botunu%20kesinlikle%20tavsiye%20ederim!"
+    # 📢 Kullanıcı bazlı mesajları biriktirmek için sözlük (Sepet)
+    toplu_mesajlar = {}
 
     for kisi in bekleyenler:
         chat_id = kisi['chat_id']
@@ -478,11 +485,23 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
         kullanici_dili = hafiza['kullanici_dilleri'].get(chat_id, "tr")
         dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])
         
-        # Dil bazlı buton metni ayarı
+        # Kullanıcı için sepeti başlat
+        if chat_id not in toplu_mesajlar:
+            toplu_mesajlar[chat_id] = {
+                "bulunamayanlar": [],
+                "termen_degisenler": [],
+                "stadiu_guncellendi": False,
+                "eklenen_pdfler": set(),
+                "kullanici_dili": kullanici_dili
+            }
+        
+        # Paylaş butonu hazırlığı
         buton_metni = "📢 Botu Arkadaşına Öner"
         if kullanici_dili == "ru": buton_metni = "📢 Порекомендуй бота другу"
         elif kullanici_dili == "ro": buton_metni = "📢 Recomandă botul unui prieten"
         
+        bot_username = app_context.bot.username
+        share_url = f"https://t.me/share/url?url=https://t.me/{bot_username}&text=🇹🇩%20Romanya%20Vatandaslik%20Dosya%20Sorgulama%20ve%20Takip%20Botunu%20kesinlikle%20tavsiye%20ederim!"
         oner_klavye = InlineKeyboardMarkup([[InlineKeyboardButton(buton_metni, url=share_url)]])
         
         if kisi.get('onaylandi', False):
@@ -588,7 +607,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
                 msg = dil_paketi["mujde_onay"].format(dosya=dosya_tam, karar=gosterilecek_karar, tarih=karar_tarihi, kaynak=kaynak_belge_adi)
                 
-                # ✅ MÜJDE MESAJINA BUTON EKLENDİ
+                # ✅ MÜJDE MESAJINA BUTON EKLENDİ (Müjdeler toplu atılmaz, tek tek kutlanır)
                 await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=oner_klavye)
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> - 📄 <i>{kaynak_belge_adi}</i>") 
                 
@@ -631,34 +650,77 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str:
                             termen_degisti_mi = True
                     
+                    # 📌 DEĞİŞİKLİKLERİ KULLANICININ TOPLU MESAJ SEPETİNE EKLE
+                    if termen_degisti_mi:
+                        toplu_mesajlar[chat_id]["termen_degisenler"].append(
+                            dil_paketi["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str)
+                        )
+
                     if ilgili_ordin_eklendi_mi:
-                        # Hangi PDF'lerin eklendiğini bul ve listele
-                        eklenen_pdf_listesi = []
                         if is_m10 and eklenen_m10:
-                            eklenen_pdf_listesi.extend([f"🔹 Madde 10: <i>{pdf}</i>" for pdf in eklenen_m10])
+                            for pdf in eklenen_m10: toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde 10: <i>{pdf}</i>")
                         if is_m11 and eklenen_m11:
-                            eklenen_pdf_listesi.extend([f"🔹 Madde 11: <i>{pdf}</i>" for pdf in eklenen_m11])
-                        eklenen_pdf_str = "\n".join(eklenen_pdf_listesi)
+                            for pdf in eklenen_m11: toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde 11: <i>{pdf}</i>")
                         
-                        msg = dil_paketi["guncelleme_sistem"].format(dosya=dosya_tam)
-                        if termen_degisti_mi:
-                            msg += f"\n\n" + dil_paketi["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str)
-                    else:
-                        if termen_degisti_mi:
-                            msg = dil_paketi["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str)
-                        else:
-                            msg = dil_paketi["stadiu_guncellendi"].format(tarih=dosya_tarih)
+                        toplu_mesajlar[chat_id]["bulunamayanlar"].append(f"🔸 <code>{dosya_tam}</code>")
                     
-                    # ✅ SİSTEM GÜNCELLEME MESAJLARINA BUTON EKLENDİ
-                    await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=oner_klavye)
-                    
-                    await asyncio.sleep(1.5)
+                    elif dosya_tarih_degisti and not termen_degisti_mi:
+                        toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True
                 
                 kalan_bekleyenler.append(kisi) 
         except Exception as e:
             kalan_bekleyenler.append(kisi)
 
         await asyncio.sleep(0)
+
+    # =================================================================
+    # 📩 SADECE 1 KEZ GÖNDER: KULLANICI BAZLI SEPETLERİ DAĞIT
+    # =================================================================
+    for ch_id, data in toplu_mesajlar.items():
+        dil_pak = DIL_SOZLUGU.get(data["kullanici_dili"], DIL_SOZLUGU["tr"])
+        
+        b_metni = "📢 Botu Arkadaşına Öner"
+        if data["kullanici_dili"] == "ru": b_metni = "📢 Порекомендуй бота другу"
+        elif data["kullanici_dili"] == "ro": b_metni = "📢 Recomandă botul unui prieten"
+        klav = InlineKeyboardMarkup([[InlineKeyboardButton(b_metni, url=share_url)]])
+        
+        msg_parcalari = []
+        
+        # 1. Onaylanmayan Dosyalar (Toplu Liste ve Gramer Seçimi)
+        if data["bulunamayanlar"]:
+            pdf_sayisi = len(data["eklenen_pdfler"])
+            dosya_sayisi = len(data["bulunamayanlar"])
+            
+            if pdf_sayisi == 1 and dosya_sayisi == 1:
+                mesaj_anahtari = "guncelleme_1_karar_1_dosya"
+            elif pdf_sayisi == 1 and dosya_sayisi > 1:
+                mesaj_anahtari = "guncelleme_1_karar_cok_dosya"
+            elif pdf_sayisi > 1 and dosya_sayisi == 1:
+                mesaj_anahtari = "guncelleme_cok_karar_1_dosya"
+            else:
+                mesaj_anahtari = "guncelleme_cok_karar_cok_dosya"
+
+            pdf_str = "\n".join(sorted(list(data["eklenen_pdfler"])))
+            dosyalar_str = "\n".join(data["bulunamayanlar"])
+            
+            msg_parcalari.append(dil_pak[mesaj_anahtari].format(dosyalar=dosyalar_str, yeni_dosyalar=pdf_str))
+            
+        # 2. Termen Değişen Dosyalar (Toplu Liste)
+        if data["termen_degisenler"]:
+            msg_parcalari.extend(data["termen_degisenler"])
+            
+        # 3. Genel Stadiu Güncellemesi
+        if data["stadiu_guncellendi"] and not data["bulunamayanlar"] and not data["termen_degisenler"]:
+            msg_parcalari.append(dil_pak["stadiu_guncellendi"].format(tarih=dosya_tarih))
+            
+        # Birleştir ve Gönder
+        if msg_parcalari:
+            final_msg = "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari)
+            try:
+                await app_context.bot.send_message(chat_id=ch_id, text=final_msg, parse_mode='HTML', reply_markup=klav, disable_web_page_preview=True)
+                await asyncio.sleep(1.5)
+            except Exception:
+                pass
 
     if admin_onay_listesi and ADMIN_CHAT_ID:
         admin_msg = "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n🎉 Yeni listelerde takipteki şu dosyaların kararı çıkmıştır:\n"
@@ -670,8 +732,8 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
     hafiza['bekleyenler'] = kalan_bekleyenler
     hafiza['son_durum'] = yeni_durum
     set_bulut_verisi(kalan_bekleyenler, yeni_durum, hafiza['kullanici_dilleri'])
-    print("✅ Hedefli bildirim dağıtımı tamamlandı, bulut durumu tam senkronize edildi.", flush=True)
-
+    print("✅ Hedefli bildirim dağıtımı (Gruplandırılmış ve Gramer Uyumlu) tamamlandı.", flush=True)
+    
 # ==========================================
 # 🔍 VERİTABANI KONTROL MERKEZİ
 # ==========================================
