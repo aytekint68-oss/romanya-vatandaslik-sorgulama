@@ -8,6 +8,7 @@ import time
 from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+from telegram.error import RetryAfter
 
 # ==========================================
 # 🌐 ÇOKLU DİL SÖZLÜĞÜ (i18n)
@@ -458,9 +459,30 @@ def tum_belgeler(df):
     if df.empty or 'Kaynak Belge' not in df.columns: return []
     return df['Kaynak Belge'].dropna().unique().tolist()
 # ==========================================
-# 🎯 HEDEFLİ BİLDİRİM DAĞITIM MOTORU (GRUPLANDIRILMIŞ)
+# 🎯 HEDEFLİ BİLDİRİM DAĞITIM MOTORU (JET HIZLI VE AKILLI)
 # ==========================================
 async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, ilk_calistirma=False):
+    
+    # --- 🚀 AKILLI VE HIZLI MESAJ GÖNDERİCİ (YENİ) ---
+    async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
+        while True:
+            try:
+                await app_context.bot.send_message(
+                    chat_id=g_chat_id, 
+                    text=g_text, 
+                    parse_mode='HTML', 
+                    reply_markup=g_klavye, 
+                    disable_web_page_preview=True
+                )
+                await asyncio.sleep(0.05) # Saniyede 20 mesaj (Jet hızı)
+                break
+            except RetryAfter as e:
+                print(f"⚠️ Telegram Hız Sınırı! {e.retry_after} sn dinleniyor...", flush=True)
+                await asyncio.sleep(e.retry_after + 1)
+            except Exception as e:
+                break # Botu engelleyenler veya silenler için sessizce geç
+    # ------------------------------------------------
+
     df_karar = hafiza['df_karar_birlesik']
     df_dosya = hafiza['df_dosya']
     df_ozel = hafiza['df_ozel_durum']
@@ -542,12 +564,9 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_mesaji
                     )
                     
-                    try:
-                        await app_context.bot.send_message(chat_id=chat_id, text=msg_ozel, parse_mode='HTML', disable_web_page_preview=True)
-                        ozel_bildirim_gecmisi.append(bildirim_key)
-                        await asyncio.sleep(1.5)
-                    except Exception:
-                        pass
+                    # 🚀 YENİ MOTOR KULLANILDI
+                    await guvenli_mesaj_gonder(chat_id, msg_ozel)
+                    ozel_bildirim_gecmisi.append(bildirim_key)
 
         is_m10, is_m11, p_numarasi = False, True, None
         
@@ -607,14 +626,12 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
 
                 msg = dil_paketi["mujde_onay"].format(dosya=dosya_tam, karar=gosterilecek_karar, tarih=karar_tarihi, kaynak=kaynak_belge_adi)
                 
-                # ✅ MÜJDE MESAJINA BUTON EKLENDİ (Müjdeler toplu atılmaz, tek tek kutlanır)
-                await app_context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=oner_klavye)
+                # 🚀 YENİ MOTOR KULLANILDI (Müjde Mesajı)
+                await guvenli_mesaj_gonder(chat_id, msg, oner_klavye)
                 admin_onay_listesi.append(f"<code>{dosya_tam}</code> - 📄 <i>{kaynak_belge_adi}</i>") 
                 
                 kisi['onaylandi'] = True
                 kalan_bekleyenler.append(kisi) 
-                
-                await asyncio.sleep(1.5)
                 
             else:
                 ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)
@@ -650,7 +667,6 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
                         if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str:
                             termen_degisti_mi = True
                     
-                    # 📌 DEĞİŞİKLİKLERİ KULLANICININ TOPLU MESAJ SEPETİNE EKLE
                     if termen_degisti_mi:
                         toplu_mesajlar[chat_id]["termen_degisenler"].append(
                             dil_paketi["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str)
@@ -671,7 +687,7 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
         except Exception as e:
             kalan_bekleyenler.append(kisi)
 
-        await asyncio.sleep(0)
+        await asyncio.sleep(0) # Döngü nefes alsın
 
     # =================================================================
     # 📩 SADECE 1 KEZ GÖNDER: KULLANICI BAZLI SEPETLERİ DAĞIT
@@ -713,26 +729,21 @@ async def bildirimleri_dagit(app_context, eklenen_m10, eklenen_m11, dosya_tarih_
         if data["stadiu_guncellendi"] and not data["bulunamayanlar"] and not data["termen_degisenler"]:
             msg_parcalari.append(dil_pak["stadiu_guncellendi"].format(tarih=dosya_tarih))
             
-        # Birleştir ve Gönder
+        # Birleştir ve 🚀 YENİ MOTOR İLE Gönder
         if msg_parcalari:
             final_msg = "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari)
-            try:
-                await app_context.bot.send_message(chat_id=ch_id, text=final_msg, parse_mode='HTML', reply_markup=klav, disable_web_page_preview=True)
-                await asyncio.sleep(1.5)
-            except Exception:
-                pass
+            await guvenli_mesaj_gonder(ch_id, final_msg, klav)
 
     if admin_onay_listesi and ADMIN_CHAT_ID:
         admin_msg = "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n🎉 Yeni listelerde takipteki şu dosyaların kararı çıkmıştır:\n"
         for d in admin_onay_listesi: admin_msg += f"✅ {d}\n"
-        try: await app_context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, parse_mode='HTML')
-        except Exception: pass
+        await guvenli_mesaj_gonder(ADMIN_CHAT_ID, admin_msg)
 
     yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi
     hafiza['bekleyenler'] = kalan_bekleyenler
     hafiza['son_durum'] = yeni_durum
     set_bulut_verisi(kalan_bekleyenler, yeni_durum, hafiza['kullanici_dilleri'])
-    print("✅ Hedefli bildirim dağıtımı (Gruplandırılmış ve Gramer Uyumlu) tamamlandı.", flush=True)
+    print("✅ Hedefli bildirim dağıtımı (Jet Hızında ve Gramer Uyumlu) tamamlandı.", flush=True)
     
 # ==========================================
 # 🔍 VERİTABANI KONTROL MERKEZİ
