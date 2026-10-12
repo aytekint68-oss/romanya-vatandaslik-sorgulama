@@ -272,35 +272,57 @@ def sutun_degeri_al(row_dict, olasi_isimler, haric_kelimeler=None):
                 if val.lower() not in ['nan', 'none']: return val
     return ""
 
-def pano_istatistiklerini_getir():
-    """Bot başlangıcında gösterilecek pano verilerini hafifçe çeker"""
+# ==========================================
+# ⚡ HIZLI PANO ÖNBELLEĞİ (RAM CACHE)
+# ==========================================
+PANO_CACHE = {
+    "tarih": "Bilinmiyor",
+    "m10_liste": ["Veri Yok"],
+    "m11_liste": ["Veri Yok"],
+    "son_guncelleme": 0
+}
+
+def pano_istatistiklerini_getir(zorla_guncelle=False):
+    """Verileri RAM'de tutar, sadece gerektiğinde veya 30 dakikada bir hafifçe günceller."""
+    suan = time.time()
+    
+    # 30 dakika dolmadıysa ve zorlama yoksa doğrudan hafızadan ver (0.001 saniye)
+    if not zorla_guncelle and (suan - PANO_CACHE["son_guncelleme"] < 1800) and PANO_CACHE["tarih"] != "Bilinmiyor":
+        return PANO_CACHE["tarih"], PANO_CACHE["m10_liste"], PANO_CACHE["m11_liste"]
+
     d_tarih = "Bilinmiyor"
     
-    stadiu_kaynaklar = db_anc.stadiu_dosar.distinct("Kaynak Belge")
-    valid_dates = []
-    for k in stadiu_kaynaklar:
-        match = re.search(r'(\d{2}[\.\-\_]\d{2}[\.\-\_]\d{4})', str(k))
+    # 1. Stadiu Dosar Tarihi (Tüm tabloyu taramak yerine son 10 kaydı çeker)
+    son_stadiu_kayitlari = db_anc.stadiu_dosar.find({}, {"Kaynak Belge": 1, "_id": 0}).sort("_id", -1).limit(10)
+    for k_doc in son_stadiu_kayitlari:
+        kb = str(k_doc.get("Kaynak Belge", ""))
+        match = re.search(r'(\d{2}[\.\-\_]\d{2}[\.\-\_]\d{4})', kb)
         if match:
-            try:
-                dt_str = match.group(1).replace('_', '.').replace('-', '.')
-                valid_dates.append(datetime.datetime.strptime(dt_str, '%d.%m.%Y'))
-            except: pass
-    if valid_dates: d_tarih = max(valid_dates).strftime('%d.%m.%Y')
+            d_tarih = match.group(1).replace('_', '.').replace('-', '.')
+            break
 
-    def son_belgeler(koleksiyon_adi):
-        sample = db_anc[koleksiyon_adi].find_one()
-        if not sample: return ["Veri Yok"]
-        ordin_col = next((col for col in sample.keys() if 'ordin' in str(col).lower() or 'karar' in str(col).lower()), None)
-        proj = {"Kaynak Belge": 1, "_id": 0}
-        if ordin_col: proj[ordin_col] = 1
-        docs = list(db_anc[koleksiyon_adi].find({}, proj))
+    # 2. Son Kararlar (Yüz binlerce satır yerine sadece son eklenen ilk 20 kaydı çeker)
+    def son_belgeler_hizli(koleksiyon_adi):
+        docs = db_anc[koleksiyon_adi].find({}, {"Kaynak Belge": 1, "_id": 0}).sort("_id", -1).limit(20)
         unique_list = []
         for d in docs:
             kb = str(d.get("Kaynak Belge", "")).strip()
-            if kb and kb.lower() not in ['nan', 'none'] and kb not in unique_list: unique_list.append(kb)
-        return unique_list[:5] if unique_list else ["Veri Yok"]
+            if kb and kb.lower() not in ['nan', 'none', ''] and kb not in unique_list:
+                unique_list.append(kb)
+            if len(unique_list) >= 5:
+                break
+        return unique_list if unique_list else ["Veri Yok"]
 
-    return d_tarih, son_belgeler("kararlar_m10"), son_belgeler("kararlar_m11")
+    m10_son = son_belgeler_hizli("kararlar_m10")
+    m11_son = son_belgeler_hizli("kararlar_m11")
+
+    # Önbelleğe yaz
+    PANO_CACHE["tarih"] = d_tarih
+    PANO_CACHE["m10_liste"] = m10_son
+    PANO_CACHE["m11_liste"] = m11_son
+    PANO_CACHE["son_guncelleme"] = suan
+
+    return d_tarih, m10_son, m11_son
 
 # ==========================================
 # 💬 TELEGRAM ARAMA VE YANIT MANTIĞI
@@ -571,6 +593,9 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 🚀 ARKA PLAN KONTROL MERKEZİ (POLLING)
 # ==========================================
 async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
+    # Güncel MongoDB durumunu çek (Önbelleği tazeleyerek)
+    d_tarih, yeni_m10, yeni_m11 = pano_istatistiklerini_getir(zorla_guncelle=True)
+    
     """MongoDB'de değişiklik var mı diye saniyeler içinde tarar."""
     bulut = get_bulut_verisi()
     if not bulut: return
