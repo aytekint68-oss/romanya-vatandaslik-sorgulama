@@ -27,7 +27,7 @@ DIL_SOZLUGU = {
             "━━━━━━━━━━━━━━━━━━\n"
             "⚖️ <b>Yasal Bilgilendirme:</b>\n\n"
             "<i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan bağımsız bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla hiçbir resmi bağı veya ortaklığı bulunmamaktadır.\n\n"
-            "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan sau ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
+            "Sistemde sunulan veriler tamamen bilgilendirme amaçlıdır ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan ve ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>"
         ),
         "secim": "🇹🇷 Lütfen dil seçin:\n\n🇷🇺 Пожалуйста, выберите язык:\n\n🇷🇴 Vă rugăm să selectați limba:",
         "secildi": "🇹🇷 Dil Türkçe olarak ayarlandı.\nLütfen dosya numaranızı gönderin (Örn: 1234/2023).",
