@@ -718,6 +718,8 @@ async def bildirimleri_dagit(app_context, bekleyenler, eklenen_m10, eklenen_m11,
     
     yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi
     set_bulut_verisi(kalan_bekleyenler, yeni_durum, diller)
+    # EKLENEN LOG SATIRI:
+    print("✅ Hedefli bildirim dağıtımı (Jet Hızında ve Gramer Uyumlu) tamamlandı.", flush=True)
 
 async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.message.chat_id) != str(ADMIN_CHAT_ID): return 
