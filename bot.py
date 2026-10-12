@@ -660,9 +660,22 @@ async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
     if (eklenen_m10 or eklenen_m11 or dosya_tarih_degisti) or ilk_calistirma:
         set_bulut_verisi(bulut['bekleyenler'], yeni_durum, bulut['kullanici_dilleri'])
         if not ilk_calistirma:
-            context.application.create_task(bildirimleri_dagit(context.application, bulut['bekleyenler'], eklenen_m10, eklenen_m11, dosya_tarih_degisti, d_tarih, yeni_durum, bulut['kullanici_dilleri']))
+            context.application.create_task(
+                bildirimleri_dagit(
+                    context.application,
+                    bulut['bekleyenler'],
+                    eklenen_m10,
+                    eklenen_m11,
+                    dosya_tarih_degisti,
+                    d_tarih,
+                    yeni_durum,
+                    bulut['kullanici_dilleri']
+                )
+            )
         else:
-            print("✅ Sessiz başlangıç (İlk Çalıştırma) başarıyla tamamlandı. Kimseye bildirim atılmadı.", flush=True)
+            print("✅ İlk çalıştırma tamamlandı: Mevcut veritabanı referans alındı, kullanıcılara bildirim gönderilmedi.", flush=True)
+    else:
+        print(f"ℹ️ Veritabanı kontrolü tamamlandı ({datetime.datetime.now().strftime('%H:%M:%S')}): Yeni bir karar veya tarih değişikliği tespit edilmedi.", flush=True)
 
 async def bildirimleri_dagit(app_context, bekleyenler, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, diller):
     async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
@@ -779,38 +792,32 @@ async def bildirimleri_dagit(app_context, bekleyenler, eklenen_m10, eklenen_m11,
     # EKLENEN LOG SATIRI:
     print("✅ Hedefli bildirim dağıtımı (Jet Hızında ve Gramer Uyumlu) tamamlandı.", flush=True)
 
-async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.message.chat_id) != str(ADMIN_CHAT_ID): return 
-    bulut = get_bulut_verisi()
-    b_len = len(bulut.get("bekleyenler", [])) if bulut else 0
-    await update.message.reply_text(f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n👥 Bot veritabanında anlık olarak takip edilen <b>toplam dosya sayısı:</b> <code>{b_len}</code>\n\n<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>", parse_mode='HTML')
-
 # ==========================================
-# 📈 YÖNETİCİYE ÖZEL GÜNLÜK ÖZET RAPOR (TSİ 20:00)
+# 📊 YÖNETİCİYE ÖZEL DETAYLI SİSTEM RAPORU MOTORU
 # ==========================================
-async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
-    if not ADMIN_CHAT_ID:
-        return
-
+async def rapor_metnini_hazirla():
+    """Veritabanını tarayarak zengin rapor çıktısını üretir."""
     bulut = get_bulut_verisi()
     bekleyenler = bulut.get("bekleyenler", []) if bulut else []
 
     count_m10, count_m11 = 0, 0
     onaylanan_listesi = []
 
+    sample_dosya = db_anc.stadiu_dosar.find_one()
+    dosya_no_col = None
+    if sample_dosya:
+        dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
+
     for kisi in bekleyenler:
-        dosya_tam = kisi.get('dosya_no', '')
+        dosya_tam = str(kisi.get('dosya_no', '')).strip()
         if not dosya_tam or '/' not in dosya_tam:
             continue
 
         ana_no, ana_yil = dosya_tam.split('/')
         arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
 
-        # Dosyanın Madde türünü MongoDB stadiu_dosar tablosundan bul
-        sample_dosya = db_anc.stadiu_dosar.find_one()
         madde_etiketi = "Madde 11"
-        if sample_dosya:
-            dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
+        if dosya_no_col:
             user_doc = db_anc.stadiu_dosar.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}})
             if user_doc:
                 kaynak_metin = sutun_degeri_al(user_doc, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
@@ -818,11 +825,11 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
                     madde_etiketi = "Madde 10"
 
         if kisi.get('onaylandi', False):
-            # Karar belgesi adını bul
             karar_pdf = kisi.get('karar_belgesi', "")
+            
             if not karar_pdf:
                 karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
-                for col_name in ["kararlar_m11", "kararlar_m10"]:
+                for col_name in ["kararlar_m10", "kararlar_m11"]:
                     sample_k = db_anc[col_name].find_one()
                     if sample_k:
                         k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
@@ -862,12 +869,27 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
         rapor_msg += "\n"
 
     rapor_msg += f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
+    return rapor_msg
 
+# --- 1. Manuel Komut: /rapor ---
+async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.message.chat_id)
+    if chat_id != str(ADMIN_CHAT_ID):
+        return
+    
+    rapor_msg = await rapor_metnini_hazirla()
+    await update.message.reply_text(rapor_msg, parse_mode='HTML')
+
+# --- 2. Otomatik Gönderim (Her Gün Saat 20:00 TSİ) ---
+async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
+    if not ADMIN_CHAT_ID:
+        return
     try:
+        rapor_msg = await rapor_metnini_hazirla()
         await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')
-        print(f"✅ Günlük admin özet raporu ({saat_metni}) başarıyla iletildi.", flush=True)
+        print("✅ Günlük admin özet raporu (TSİ 20:00) başarıyla iletildi.", flush=True)
     except Exception as e:
-        print(f"Günlük rapor gönderilirken hata oluştu: {e}", flush=True)
+        print(f"Günlük rapor gönderilirken hata: {e}", flush=True)
         
         
 # ==========================================
