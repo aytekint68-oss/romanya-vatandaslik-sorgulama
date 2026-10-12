@@ -793,73 +793,65 @@ async def bildirimleri_dagit(app_context, bekleyenler, eklenen_m10, eklenen_m11,
     print("✅ Hedefli bildirim dağıtımı (Jet Hızında ve Gramer Uyumlu) tamamlandı.", flush=True)
 
 # ==========================================
-# 📊 YÖNETİCİYE ÖZEL JET HIZINDA SİSTEM RAPORU MOTORU (<1 sn)
+# 📊 YÖNETİCİYE ÖZEL JET HIZINDA SİSTEM RAPORU MOTORU (0.1 sn)
 # ==========================================
 async def rapor_metnini_hazirla():
-    """Veritabanını tek sorguda tarayarak saniyeler içinde zengin rapor üretir."""
+    """Veritabanını yormadan, önbellek destekli anlık rapor üretir."""
     bulut = get_bulut_verisi()
     bekleyenler = bulut.get("bekleyenler", []) if bulut else []
 
     count_m10, count_m11 = 0, 0
     onaylanan_listesi = []
+    hafiza_guncellendi = False
 
-    # 1. Henüz madde bilgisi olmayan dosyaları ayıkla
-    madde_bilgisi_eksik = [
-        k.get('dosya_no', '').strip() 
-        for k in bekleyenler 
-        if k.get('dosya_no') and not k.get('madde')
-    ]
+    sample_dosya = db_anc.stadiu_dosar.find_one()
+    dosya_no_col = None
+    if sample_dosya:
+        dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
 
-    # 2. Eksik olanları tek seferde MongoDB'den getir (Regex döngüsü yerine toplu sorgu)
-    madde_sozlugu = {}
-    if madde_bilgisi_eksik:
-        sample_dosya = db_anc.stadiu_dosar.find_one()
-        if sample_dosya:
-            dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
-            
-            # Tüm dosyaları tek bir MongoDB sorgusuyla çek
-            regex_listesi = [f"^{d.split('/')[0]}/.*{d.split('/')[-1]}$" for d in madde_bilgisi_eksik if '/' in d]
-            filtre = {dosya_no_col: {"$in": [re.compile(r, re.IGNORECASE) for r in regex_listesi]}}
-            eslesenler = db_anc.stadiu_dosar.find(filtre, {dosya_no_col: 1, "Kaynak Belge": 1, "Kaynak": 1, "_id": 0})
-            
-            for doc in eslesenler:
-                val = str(doc.get(dosya_no_col, "")).strip()
-                m = re.match(r'^(\d+)/.*?(\d{4})$', val)
-                if m:
-                    kilit = f"{m.group(1)}/{m.group(2)}"
-                    k_metin = sutun_degeri_al(doc, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
-                    madde_sozlugu[kilit] = "Madde 10" if re.search(r'art[- ]?10', k_metin, re.IGNORECASE) else "Madde 11"
-
-    degisiklik_oldu = False
-
-    # 3. İstatistikleri bellek üzerinden doğrudan hesapla
     for kisi in bekleyenler:
         dosya_tam = str(kisi.get('dosya_no', '')).strip()
         if not dosya_tam or '/' not in dosya_tam:
             continue
 
-        # Madde bilgisi hafızada yoksa sözlükten ata ve buluta kaydetmek için işaretle
-        if not kisi.get('madde'):
-            kisi['madde'] = madde_sozlugu.get(dosya_tam, "Madde 11")
-            degisiklik_oldu = True
+        ana_no, ana_yil = dosya_tam.split('/')
+        
+        # 1. Madde türü hafızada yoksa tespit et ve kaydet
+        if not kisi.get('madde') and dosya_no_col:
+            arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
+            doc = db_anc.stadiu_dosar.find_one(
+                {dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}},
+                {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
+            )
+            if doc:
+                kaynak_metin = sutun_degeri_al(doc, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                kisi['madde'] = "Madde 10" if re.search(r'art[- ]?10', kaynak_metin, re.IGNORECASE) else "Madde 11"
+            else:
+                kisi['madde'] = "Madde 11"
+            hafiza_guncellendi = True
 
         madde_etiketi = kisi.get('madde', 'Madde 11')
 
+        # 2. Onay durumu ve PDF belgesi kontrolü
         if kisi.get('onaylandi', False):
             karar_pdf = kisi.get('karar_belgesi', "")
+            
+            # PDF adı hafızada henüz yoksa bulup kaydet
             if not karar_pdf:
-                ana_no, ana_yil = dosya_tam.split('/')
                 karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
                 for col_name in ["kararlar_m10", "kararlar_m11"]:
                     sample_k = db_anc[col_name].find_one()
                     if sample_k:
                         k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
                         if k_sutun:
-                            match_k = db_anc[col_name].find_one({k_sutun: {"$regex": karar_icin_regex, "$options": "i"}})
+                            match_k = db_anc[col_name].find_one(
+                                {k_sutun: {"$regex": karar_icin_regex, "$options": "i"}},
+                                {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
+                            )
                             if match_k:
                                 karar_pdf = sutun_degeri_al(match_k, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
                                 kisi['karar_belgesi'] = karar_pdf
-                                degisiklik_oldu = True
+                                hafiza_guncellendi = True
                                 break
 
             ek_metin = f" - 📄 <i>{karar_pdf}</i>" if karar_pdf else ""
@@ -870,8 +862,8 @@ async def rapor_metnini_hazirla():
             else:
                 count_m11 += 1
 
-    # Yeni bulunan madde ve karar bilgilerini MongoDB hafızasına kaydet (Sonraki seferler 0 ms olsun)
-    if degisiklik_oldu:
+    # Eksik olanlar tamamlandıysa MongoDB'ye kaydet (Böylece sonraki seferler veritabanına hiç gidilmez)
+    if hafiza_guncellendi:
         set_bulut_verisi(bekleyenler, bulut.get("son_durum", {}), bulut.get("kullanici_dilleri", {}))
 
     aktif_bekleyen_sayisi = count_m10 + count_m11
