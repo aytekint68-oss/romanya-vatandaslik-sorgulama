@@ -678,10 +678,20 @@ async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
     else:
         print(f"ℹ️ Veritabanı kontrolü tamamlandı ({datetime.datetime.now().strftime('%H:%M:%S')}): Yeni bir karar veya tarih değişikliği tespit edilmedi.", flush=True)
 
-async def bildirimleri_dagit(app_context, bekleyenler, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, diller):
-    async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
-        try: await app_context.bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
-        except: pass
+async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
+    try: 
+        await app_context.bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
+        # Telegram API hız limitine takılmamak için her mesaj sonrası 0.05 saniye (saniyede en fazla 20 mesaj) bekleme
+        await asyncio.sleep(0.05)
+    except RetryAfter as e:
+        # Telegram yine de bekle derse, belirtilen süre kadar uyuyup tekrar dener
+        await asyncio.sleep(e.retry_after)
+        try:
+            await app_context.bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
+        except:
+            pass
+    except: 
+        pass
 
     ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])
     toplu_mesajlar, kalan_bekleyenler, admin_onay_listesi = {}, [], []
