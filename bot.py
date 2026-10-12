@@ -230,7 +230,7 @@ except Exception as e:
     print(f"❌ MongoDB Bağlantı Hatası: {e}", flush=True)
 
 # ==========================================
-# 🧠 KULLANICI HAFIZA YÖNETİMİ (Değişmedi)
+# 🧠 KULLANICI HAFIZA YÖNETİMİ
 # ==========================================
 def get_bulut_verisi():
     try:
@@ -273,7 +273,7 @@ def sutun_degeri_al(row_dict, olasi_isimler, haric_kelimeler=None):
     return ""
 
 # ==========================================
-# ⚡ HIZLI PANO ÖNBELLEĞİ (RAM CACHE & DOĞRU SIRALAMA)
+# ⚡ HIZLI PANO ÖNBELLEĞİ (RAM CACHE)
 # ==========================================
 PANO_CACHE = {
     "tarih": "Bilinmiyor",
@@ -283,11 +283,8 @@ PANO_CACHE = {
 }
 
 def dosya_tarih_ve_no_skoru(dosya_adi):
-    """Belge adından yıl ve ordin numarasını çıkararak en günceli belirler."""
     metin = str(dosya_adi)
     yil = 2017
-    
-    # 1. Tarih formatından yılı bul (08.10.2026 vb.)
     tm = re.search(r'(\d{2})[\.\-_](\d{2})[\.\-_](202\d)', metin)
     if tm:
         yil = int(tm.group(3))
@@ -296,7 +293,6 @@ def dosya_tarih_ve_no_skoru(dosya_adi):
         if ym:
             yil = int(ym[-1])
 
-    # 2. Ordin/Karar numarasını bul (3234P, 3228 vb.)
     m_no = re.search(r'(?:ordin|op|nr)[^\d]*(\d{1,5})', metin, re.IGNORECASE)
     ordin_no = int(m_no.group(1)) if m_no else 0
     if ordin_no == 0:
@@ -306,16 +302,11 @@ def dosya_tarih_ve_no_skoru(dosya_adi):
     return (yil, ordin_no)
 
 def pano_istatistiklerini_getir(zorla_guncelle=False):
-    """Verileri RAM'de tutar, 2 dakikada bir veya istendiğinde günceller."""
     suan = time.time()
-    
-    # 1800 yerine 120 saniye (2 dakika)
     if not zorla_guncelle and (suan - PANO_CACHE["son_guncelleme"] < 120) and PANO_CACHE["tarih"] != "Bilinmiyor":
         return PANO_CACHE["tarih"], PANO_CACHE["m10_liste"], PANO_CACHE["m11_liste"]
 
     d_tarih = "Bilinmiyor"
-    
-    # 1. Stadiu Dosar Tarihi (Tarih içeren gerçek kaynak adını bulur)
     kaynaklar_stadiu = db_anc.stadiu_dosar.distinct("Kaynak Belge")
     valid_dates = []
     for k in kaynaklar_stadiu:
@@ -329,26 +320,20 @@ def pano_istatistiklerini_getir(zorla_guncelle=False):
     if valid_dates:
         d_tarih = max(valid_dates).strftime('%d.%m.%Y')
 
-    # 2. Kararlar M10 ve M11 (Distinct ile sadece dosya adlarını alır, milisaniyede sıralar)
     def son_belgeleri_ayikla(koleksiyon_adi):
         try:
-            # distinct ile 300.000 satır yerine sadece ~500 adet benzersiz dosya adını çeker (Çok hafif)
             benzersiz_dosyalar = db_anc[koleksiyon_adi].distinct("Kaynak Belge")
             temiz_dosyalar = [f for f in benzersiz_dosyalar if f and str(f).strip().lower() not in ['nan', 'none', '']]
-            
             if not temiz_dosyalar:
                 return ["Veri Yok"]
-                
-            # Yıl ve Ordin numarasına göre büyükten küçüğe sırala (2026 en başta olur)
             sirali = sorted(temiz_dosyalar, key=dosya_tarih_ve_no_skoru, reverse=True)
             return sirali[:5]
-        except Exception as e:
+        except Exception:
             return ["Veri Yok"]
 
     m10_son = son_belgeleri_ayikla("kararlar_m10")
     m11_son = son_belgeleri_ayikla("kararlar_m11")
 
-    # Önbelleğe al
     PANO_CACHE["tarih"] = d_tarih
     PANO_CACHE["m10_liste"] = m10_son
     PANO_CACHE["m11_liste"] = m11_son
@@ -431,7 +416,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(dil_paketi["bulunamadi"], parse_mode='HTML')
         return
 
-    row = sonuclar[0] # İlk sonucu al
+    row = sonuclar[0]
     ana_no, ana_yil = str(row.get(dosya_no_col, "")).strip().split('/')[0].strip(), str(row.get(dosya_no_col, "")).strip().split('/')[-1].strip()
     bulut_takip_formati = f"{ana_no}/{ana_yil}"
     
@@ -439,26 +424,26 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ozel_mesaj_baslik = ""
     sample_ozel = db_anc.ozel_durumlar.find_one()
     if sample_ozel:
-        or_cond = [{k: {"$regex": arama_kriteri, "$options": "i"}} for k in sample_ozel.keys() if k != "_id"]
-        ozel_doc = db_anc.ozel_durumlar.find_one({"$or": or_cond})
-        if ozel_doc:
-            vals = [v for k, v in ozel_doc.items() if k != "_id"]
-            ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"
-            kalan_gun_mesaji = ""
-            try:
-                gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days
-                kalan_gun = 40 - gecen_gun
-                if kalan_gun > 0: kalan_gun_mesaji = dil_paketi["gun_kaldi"].format(gun=kalan_gun)
-                elif kalan_gun == 0: kalan_gun_mesaji = dil_paketi["bugun_doluyor"]
-                else: kalan_gun_mesaji = dil_paketi["sure_doldu"].format(gun=gecen_gun)
-            except: pass
-            ozel_mesaj_baslik = dil_paketi["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_mesaji) + "\n━━━━━━━━━━━━━━━━━━\n\n"
+        ozel_col = next((c for c in sample_ozel.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+        if ozel_col:
+            ozel_doc = db_anc.ozel_durumlar.find_one({ozel_col: {"$regex": arama_kriteri, "$options": "i"}})
+            if ozel_doc:
+                vals = [v for k, v in ozel_doc.items() if k != "_id"]
+                ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"
+                kalan_gun_mesaji = ""
+                try:
+                    gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days
+                    kalan_gun = 40 - gecen_gun
+                    if kalan_gun > 0: kalan_gun_mesaji = dil_paketi["gun_kaldi"].format(gun=kalan_gun)
+                    elif kalan_gun == 0: kalan_gun_mesaji = dil_paketi["bugun_doluyor"]
+                    else: kalan_gun_mesaji = dil_paketi["sure_doldu"].format(gun=gecen_gun)
+                except: pass
+                ozel_mesaj_baslik = dil_paketi["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_mesaji) + "\n━━━━━━━━━━━━━━━━━━\n\n"
 
     # 3. MongoDB - Karar Listeleri Araması
     karar_bulundu_mu, k_row = False, None
     karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
     
-    # Önce Madde 11'de ara (daha yaygın), yoksa Madde 10'da ara
     for col_name in ["kararlar_m11", "kararlar_m10"]:
         sample_k = db_anc[col_name].find_one()
         if sample_k:
@@ -469,7 +454,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     karar_bulundu_mu, k_row = True, match_k
                     break
 
-    # Değerleri Parse Etme
     solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
     termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])
     
@@ -479,7 +463,6 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     termen = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni) else (termen_metni if termen_metni else "-")
 
-    # MongoDB - Eski Termen Araması
     eski_termen = ""
     sample_eski = db_anc.stadiu_dosar_eski.find_one()
     if sample_eski:
@@ -491,7 +474,8 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 et_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter)
                 eski_termen = et_m.group(1).replace('/', '.').replace('-', '.') if et_m else str(e_ter).strip()
 
-    if eski_termen and eski_termen != termen and eski_termen.lower() not in ['nan', 'none']: termen = f"{termen} <i>({eski_termen})</i> 🔄"
+    if eski_termen and eski_termen != termen and eski_termen.lower() not in ['nan', 'none']: 
+        termen = f"{termen} <i>({eski_termen})</i> 🔄"
 
     kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
     kurum_notu = solutie_metni if solutie_metni else "-"
@@ -538,7 +522,7 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye), disable_web_page_preview=True)
 
 # ==========================================
-# 🔘 BUTON TIKLAMA VE KVKK (Değişmedi, MongoDB Entegreli)
+# 🔘 BUTON TIKLAMA VE KVKK
 # ==========================================
 async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -622,48 +606,63 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')
 
 # ==========================================
-# 🚀 ARKA PLAN KONTROL MERKEZİ (POLLING)
+# 🚀 ARKA PLAN KONTROL MERKEZİ (SİNYAL ODAKLI)
 # ==========================================
 async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
-    # Güncel MongoDB durumunu çek (Önbelleği tazeleyerek)
-    d_tarih, yeni_m10, yeni_m11 = pano_istatistiklerini_getir(zorla_guncelle=True)
-    
-    """MongoDB'de değişiklik var mı diye saniyeler içinde tarar."""
-    bulut = get_bulut_verisi()
-    if not bulut: return
-    
-    eski_durum = bulut.get("son_durum", {})
-    eski_m10, eski_m11, eski_dosya_tarih = eski_durum.get("m10_belgeler", []), eski_durum.get("m11_belgeler", []), eski_durum.get("dosya_tarih", "")
-    
-    # Güncel MongoDB durumunu çek (Çok hafif sorgu)
-    d_tarih, yeni_m10, yeni_m11 = pano_istatistiklerini_getir()
-    
-    # Sadece ilk 5 belgeye bakmak yerine, veritabanındaki TÜM unique kaynak belgeleri çekip kıyaslar (M10/M11 için)
-    tum_yeni_m10 = db_anc.kararlar_m10.distinct("Kaynak Belge") if db_anc.kararlar_m10.count_documents({}) > 0 else []
-    tum_yeni_m11 = db_anc.kararlar_m11.distinct("Kaynak Belge") if db_anc.kararlar_m11.count_documents({}) > 0 else []
-    
-    eklenen_m10 = list(set(tum_yeni_m10) - set(eski_m10)) if eski_m10 else []
-    eklenen_m11 = list(set(tum_yeni_m11) - set(eski_m11)) if eski_m11 else []
-    
-    dosya_tarih_degisti = bool(eski_dosya_tarih) and (d_tarih != eski_dosya_tarih) and (d_tarih not in ["Bilinmiyor", "Veri Yok"])
-    ilk_calistirma = not bool(eski_durum) or not bool(eski_dosya_tarih)
-    
-    if ilk_calistirma or len(eklenen_m10) > 15 or len(eklenen_m11) > 15:
-        ilk_calistirma = True # Çok fazla yeni dosya varsa toplu eklemedir, bildirim atma sus.
+    try:
+        bulut = get_bulut_verisi()
+        if not bulut:
+            return
 
-    yeni_durum = {
-        "dosya_tarih": d_tarih, 
-        "m10_belgeler": tum_yeni_m10, 
-        "m11_belgeler": tum_yeni_m11,
-        "ozel_bildirimler": eski_durum.get("ozel_bildirimler", [])
-    }
+        eski_durum = bulut.get("son_durum", {})
+        ilk_calistirma = not bool(eski_durum) or not bool(eski_durum.get("dosya_tarih"))
+        
+        # 1. PC'den gelen tetikleme bayrağına (sinyale) bak
+        sinyal = db_anc["sistem_sinyalleri"].find_one({"_id": "yeni_karar_tetikleyici"})
+        
+        # Eğer ilk çalıştırmaysa veya PC'den yeni bir sinyal geldiyse çalıştır
+        if not ilk_calistirma:
+            if not sinyal:
+                return
+            son_islenen_zaman = eski_durum.get("son_sinyal_zamani", 0)
+            gelen_sinyal_zamani = sinyal.get("son_guncelleme", 0)
+            if gelen_sinyal_zamani <= son_islenen_zaman:
+                return
+            sinyal_turu = sinyal.get("tur", "bilinmiyor")
+            print(f"⚡ PC'den yeni sinyal algılandı! Tür: {sinyal_turu} (Zaman: {gelen_sinyal_zamani})", flush=True)
+        else:
+            gelen_sinyal_zamani = sinyal.get("son_guncelleme", time.time()) if sinyal else time.time()
+            print("🚀 Bot ilk kez başlatılıyor, mevcut veritabanı referans olarak kaydediliyor...", flush=True)
 
-    if (eklenen_m10 or eklenen_m11 or dosya_tarih_degisti) or ilk_calistirma:
+        # 2. Yeni Verileri ve Değişiklikleri Çek
+        d_tarih, yeni_m10, yeni_m11 = pano_istatistiklerini_getir(zorla_guncelle=True)
+        eski_dosya_tarih = eski_durum.get("dosya_tarih", "")
+        dosya_tarih_degisti = bool(eski_dosya_tarih) and (d_tarih != eski_dosya_tarih) and (d_tarih not in ["Bilinmiyor", "Veri Yok"])
+
+        tum_yeni_m10 = db_anc.kararlar_m10.distinct("Kaynak Belge") if db_anc.kararlar_m10.count_documents({}) > 0 else []
+        tum_yeni_m11 = db_anc.kararlar_m11.distinct("Kaynak Belge") if db_anc.kararlar_m11.count_documents({}) > 0 else []
+
+        eski_m10 = eski_durum.get("m10_belgeler", [])
+        eski_m11 = eski_durum.get("m11_belgeler", [])
+
+        eklenen_m10 = list(set(tum_yeni_m10) - set(eski_m10)) if eski_m10 else []
+        eklenen_m11 = list(set(tum_yeni_m11) - set(eski_m11)) if eski_m11 else []
+
+        # 3. Yeni Durumu ve Sinyal Zamanını Kaydet
+        yeni_durum = {
+            "dosya_tarih": d_tarih,
+            "m10_belgeler": tum_yeni_m10,
+            "m11_belgeler": tum_yeni_m11,
+            "ozel_bildirimler": eski_durum.get("ozel_bildirimler", []),
+            "son_sinyal_zamani": gelen_sinyal_zamani
+        }
         set_bulut_verisi(bulut['bekleyenler'], yeni_durum, bulut['kullanici_dilleri'])
+
+        # 4. Bildirimleri Sadece Gerçek Güncellemede Dağıt (İlk çalıştırmada spam yapma)
         if not ilk_calistirma:
             context.application.create_task(
                 bildirimleri_dagit(
-                    context.application,
+                    context.bot,
                     bulut['bekleyenler'],
                     eklenen_m10,
                     eklenen_m11,
@@ -674,24 +673,24 @@ async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
                 )
             )
         else:
-            print("✅ İlk çalıştırma tamamlandı: Mevcut veritabanı referans alındı, kullanıcılara bildirim gönderilmedi.", flush=True)
-    else:
-        print(f"ℹ️ Veritabanı kontrolü tamamlandı ({datetime.datetime.now().strftime('%H:%M:%S')}): Yeni bir karar veya tarih değişikliği tespit edilmedi.", flush=True)
+            print("✅ İlk çalıştırma referans verisi hafızaya alındı, kullanıcılara bildirim gönderilmedi.", flush=True)
 
-async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
-    try: 
-        await app_context.bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
-        # Telegram API hız limitine takılmamak için her mesaj sonrası 0.05 saniye (saniyede en fazla 20 mesaj) bekleme
-        await asyncio.sleep(0.05)
-    except RetryAfter as e:
-        # Telegram yine de bekle derse, belirtilen süre kadar uyuyup tekrar dener
-        await asyncio.sleep(e.retry_after)
-        try:
-            await app_context.bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
-        except:
+    except Exception as e:
+        print(f"⚠️ Sinyal kontrol hatası: {e}", flush=True)
+
+async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, diller):
+    async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
+        try: 
+            await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
+            await asyncio.sleep(0.05)
+        except RetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+            try:
+                await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
+            except:
+                pass
+        except: 
             pass
-    except: 
-        pass
 
     ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])
     toplu_mesajlar, kalan_bekleyenler, admin_onay_listesi = {}, [], []
@@ -701,8 +700,11 @@ async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
         k_dili = diller.get(chat_id, "tr")
         dil_pak = DIL_SOZLUGU.get(k_dili, DIL_SOZLUGU["tr"])
         
-        if chat_id not in toplu_mesajlar: toplu_mesajlar[chat_id] = {"bulunamayanlar": [], "termen_degisenler": [], "stadiu_guncellendi": False, "eklenen_pdfler": set(), "dil": k_dili}
-        if kisi.get('onaylandi', False): kalan_bekleyenler.append(kisi); continue
+        if chat_id not in toplu_mesajlar: 
+            toplu_mesajlar[chat_id] = {"bulunamayanlar": [], "termen_degisenler": [], "stadiu_guncellendi": False, "eklenen_pdfler": set(), "dil": k_dili}
+        if kisi.get('onaylandi', False): 
+            kalan_bekleyenler.append(kisi)
+            continue
         
         ana_no, ana_yil = dosya_tam.split('/')
         arama_kriteri, karar_icin_regex = f"^{ana_no}/.*{ana_yil}$", rf"\b{ana_no}\b.*?\b{ana_yil}\b"
@@ -710,20 +712,21 @@ async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
         # 40 GÜN KONTROLÜ
         sample_ozel = db_anc.ozel_durumlar.find_one()
         if sample_ozel:
-            or_cond = [{k: {"$regex": arama_kriteri, "$options": "i"}} for k in sample_ozel.keys() if k != "_id"]
-            ozel_doc = db_anc.ozel_durumlar.find_one({"$or": or_cond})
-            if ozel_doc and f"{chat_id}_{dosya_tam}_40gun" not in ozel_bildirim_gecmisi:
-                vals = [v for k, v in ozel_doc.items() if k != "_id"]
-                ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"
-                kalan_gun_msg = "Lütfen kurumla iletişime geçin."
-                try:
-                    gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days
-                    if (40 - gecen_gun) > 0: kalan_gun_msg = dil_pak["gun_kaldi"].format(gun=40 - gecen_gun)
-                    elif (40 - gecen_gun) == 0: kalan_gun_msg = dil_pak["bugun_doluyor"]
-                    else: kalan_gun_msg = dil_pak["sure_doldu"].format(gun=gecen_gun)
-                except: pass
-                await guvenli_mesaj_gonder(chat_id, dil_pak["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_msg))
-                ozel_bildirim_gecmisi.append(f"{chat_id}_{dosya_tam}_40gun")
+            ozel_col = next((c for c in sample_ozel.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+            if ozel_col:
+                ozel_doc = db_anc.ozel_durumlar.find_one({ozel_col: {"$regex": arama_kriteri, "$options": "i"}})
+                if ozel_doc and f"{chat_id}_{dosya_tam}_40gun" not in ozel_bildirim_gecmisi:
+                    vals = [v for k, v in ozel_doc.items() if k != "_id"]
+                    ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"
+                    kalan_gun_msg = "Lütfen kurumla iletişime geçin."
+                    try:
+                        gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days
+                        if (40 - gecen_gun) > 0: kalan_gun_msg = dil_pak["gun_kaldi"].format(gun=40 - gecen_gun)
+                        elif (40 - gecen_gun) == 0: kalan_gun_msg = dil_pak["bugun_doluyor"]
+                        else: kalan_gun_msg = dil_pak["sure_doldu"].format(gun=gecen_gun)
+                    except: pass
+                    await guvenli_mesaj_gonder(chat_id, dil_pak["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_msg))
+                    ozel_bildirim_gecmisi.append(f"{chat_id}_{dosya_tam}_40gun")
 
         # KARAR KONTROLÜ (MongoDB)
         karar_bulundu_mu, k_row = False, None
@@ -733,12 +736,15 @@ async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
                 k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
                 if k_sutun:
                     match_k = db_anc[col_name].find_one({k_sutun: {"$regex": karar_icin_regex, "$options": "i"}})
-                    if match_k: karar_bulundu_mu, k_row = True, match_k; break
+                    if match_k: 
+                        karar_bulundu_mu, k_row = True, match_k
+                        break
 
         if karar_bulundu_mu:
             kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
             g_karar = next((str(k_row[col]).strip() for col in k_row.keys() if 'ordin' in col.lower() or 'karar' in col.lower()), "")
-            if not g_karar: g_karar = f"{re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE).group(1)}/P" if re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE) else "-"
+            if not g_karar: 
+                g_karar = f"{re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE).group(1)}/P" if re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE) else "-"
             k_tarih = sutun_degeri_al(k_row, ['Tarih', 'Data']) or "-"
             
             await guvenli_mesaj_gonder(chat_id, dil_pak["mujde_onay"].format(dosya=dosya_tam, karar=g_karar, tarih=k_tarih, kaynak=kaynak_belge_adi))
@@ -753,7 +759,8 @@ async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
                 
                 if user_row:
                     kaynak_dosya_metni = sutun_degeri_al(user_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
-                    is_m10, is_m11 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE)), not bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
+                    is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
+                    is_m11 = not is_m10
                     ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)
 
                     if ilgili_ordin_eklendi_mi or dosya_tarih_degisti:
@@ -762,7 +769,8 @@ async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
                             y_sol = sutun_degeri_al(user_row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
                             y_ter = sutun_degeri_al(user_row, ['TERMEN', 'Termen'])
                             y_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_sol)
-                            if y_sol_m and not re.search(r'\d+\s*/?\s*P', y_sol, re.IGNORECASE): y_ter = y_sol_m.group(1)
+                            if y_sol_m and not re.search(r'\d+\s*/?\s*P', y_sol, re.IGNORECASE): 
+                                y_ter = y_sol_m.group(1)
                             yeni_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter) else str(y_ter).strip()
 
                             eski_match = db_anc.stadiu_dosar_eski.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}}) if db_anc.stadiu_dosar_eski.count_documents({}) > 0 else None
@@ -770,44 +778,49 @@ async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
                                 e_sol = sutun_degeri_al(eski_match, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
                                 e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])
                                 e_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_sol)
-                                if e_sol_m and not re.search(r'\d+\s*/?\s*P', e_sol, re.IGNORECASE): e_ter = e_sol_m.group(1)
-                                eski_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter) else str(e_ter).strip()
+                                if e_sol_m and not re.search(r'\d+\s*/?\s*P', e_sol, re.IGNORECASE): 
+                                    e_ter = e_sol_m.group(1)
+                                eski_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter).group(1).replace('/', '.').replace('-', '.') if e_ter else str(e_ter).strip()
 
-                            if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str: termen_degisti_mi = True
+                            if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str: 
+                                termen_degisti_mi = True
                         
-                        if termen_degisti_mi: toplu_mesajlar[chat_id]["termen_degisenler"].append(dil_pak["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str))
+                        if termen_degisti_mi: 
+                            toplu_mesajlar[chat_id]["termen_degisenler"].append(dil_pak["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str))
                         if ilgili_ordin_eklendi_mi:
-                            for pdf in (eklenen_m10 if is_m10 else eklenen_m11): toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde {'10' if is_m10 else '11'}: <i>{pdf}</i>")
+                            for pdf in (eklenen_m10 if is_m10 else eklenen_m11): 
+                                toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde {'10' if is_m10 else '11'}: <i>{pdf}</i>")
                             toplu_mesajlar[chat_id]["bulunamayanlar"].append(f"🔸 <code>{dosya_tam}</code>")
                         elif dosya_tarih_degisti and not termen_degisti_mi:
                             toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True
 
         kalan_bekleyenler.append(kisi)
 
-    # TOPLU MESAJLARI DAĞIT
     for ch_id, data in toplu_mesajlar.items():
         dil_pak = DIL_SOZLUGU.get(data["dil"], DIL_SOZLUGU["tr"])
         msg_parcalari = []
         if data["bulunamayanlar"]:
             m_key = "guncelleme_1_karar_1_dosya" if len(data["eklenen_pdfler"]) == 1 and len(data["bulunamayanlar"]) == 1 else ("guncelleme_1_karar_cok_dosya" if len(data["eklenen_pdfler"]) == 1 else ("guncelleme_cok_karar_1_dosya" if len(data["bulunamayanlar"]) == 1 else "guncelleme_cok_karar_cok_dosya"))
             msg_parcalari.append(dil_pak[m_key].format(dosyalar="\n".join(data["bulunamayanlar"]), yeni_dosyalar="\n".join(sorted(list(data["eklenen_pdfler"])))))
-        if data["termen_degisenler"]: msg_parcalari.extend(data["termen_degisenler"])
-        if data["stadiu_guncellendi"] and not data["bulunamayanlar"] and not data["termen_degisenler"]: msg_parcalari.append(dil_pak["stadiu_guncellendi"].format(tarih=dosya_tarih))
+        if data["termen_degisenler"]: 
+            msg_parcalari.extend(data["termen_degisenler"])
+        if data["stadiu_guncellendi"] and not data["bulunamayanlar"] and not data["termen_degisenler"]: 
+            msg_parcalari.append(dil_pak["stadiu_guncellendi"].format(tarih=dosya_tarih))
         
-        if msg_parcalari: await guvenli_mesaj_gonder(ch_id, "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari))
+        if msg_parcalari: 
+            await guvenli_mesaj_gonder(ch_id, "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari))
 
-    if admin_onay_listesi and ADMIN_CHAT_ID: await guvenli_mesaj_gonder(ADMIN_CHAT_ID, "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n" + "\n".join([f"✅ {d}" for d in admin_onay_listesi]))
+    if admin_onay_listesi and ADMIN_CHAT_ID: 
+        await guvenli_mesaj_gonder(ADMIN_CHAT_ID, "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n" + "\n".join([f"✅ {d}" for d in admin_onay_listesi]))
     
     yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi
     set_bulut_verisi(kalan_bekleyenler, yeni_durum, diller)
-    # EKLENEN LOG SATIRI:
-    print("✅ Hedefli bildirim dağıtımı (Jet Hızında ve Gramer Uyumlu) tamamlandı.", flush=True)
+    print("✅ Hedefli bildirim dağıtımı tamamlandı.", flush=True)
 
 # ==========================================
-# 📊 YÖNETİCİYE ÖZEL JET HIZINDA SİSTEM RAPORU MOTORU (0.1 sn)
+# 📊 YÖNETİCİ SİSTEM RAPORU
 # ==========================================
 async def rapor_metnini_hazirla():
-    """Veritabanını yormadan, önbellek destekli anlık rapor üretir."""
     bulut = get_bulut_verisi()
     bekleyenler = bulut.get("bekleyenler", []) if bulut else []
 
@@ -827,7 +840,6 @@ async def rapor_metnini_hazirla():
 
         ana_no, ana_yil = dosya_tam.split('/')
         
-        # 1. Madde türü hafızada yoksa tespit et ve kaydet
         if not kisi.get('madde') and dosya_no_col:
             arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
             doc = db_anc.stadiu_dosar.find_one(
@@ -843,11 +855,8 @@ async def rapor_metnini_hazirla():
 
         madde_etiketi = kisi.get('madde', 'Madde 11')
 
-        # 2. Onay durumu ve PDF belgesi kontrolü
         if kisi.get('onaylandi', False):
             karar_pdf = kisi.get('karar_belgesi', "")
-            
-            # PDF adı hafızada henüz yoksa bulup kaydet
             if not karar_pdf:
                 karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
                 for col_name in ["kararlar_m10", "kararlar_m11"]:
@@ -873,7 +882,6 @@ async def rapor_metnini_hazirla():
             else:
                 count_m11 += 1
 
-    # Eksik olanlar tamamlandıysa MongoDB'ye kaydet (Böylece sonraki seferler veritabanına hiç gidilmez)
     if hafiza_guncellendi:
         set_bulut_verisi(bekleyenler, bulut.get("son_durum", {}), bulut.get("kullanici_dilleri", {}))
 
@@ -900,16 +908,13 @@ async def rapor_metnini_hazirla():
     rapor_msg += f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
     return rapor_msg
 
-# --- 1. Manuel Komut: /rapor ---
 async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.message.chat_id)
     if chat_id != str(ADMIN_CHAT_ID):
         return
-    
     rapor_msg = await rapor_metnini_hazirla()
     await update.message.reply_text(rapor_msg, parse_mode='HTML')
 
-# --- 2. Otomatik Gönderim (Her Gün Saat 20:00 TSİ) ---
 async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
     if not ADMIN_CHAT_ID:
         return
@@ -930,10 +935,8 @@ if __name__ == '__main__':
         async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
             await veritabanini_kontrol_et(context)
             
-        # Her 2 dakikada bir (120 sn) MongoDB kontrol edilir, açılışta 2. saniyede ilk tarama yapılır
         application.job_queue.run_repeating(baslangic_taramasi, interval=120, first=2)
         
-        # Her gün TSİ 20:00 (UTC 17:00) otomatik yönetici raporu
         hedef_zaman_utc = datetime.time(hour=17, minute=0, tzinfo=datetime.timezone.utc)
         application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_zaman_utc)
         
