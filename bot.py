@@ -306,10 +306,11 @@ def dosya_tarih_ve_no_skoru(dosya_adi):
     return (yil, ordin_no)
 
 def pano_istatistiklerini_getir(zorla_guncelle=False):
-    """Verileri RAM'de tutar, 30 dakikada bir veya istendiğinde günceller."""
+    """Verileri RAM'de tutar, 2 dakikada bir veya istendiğinde günceller."""
     suan = time.time()
     
-    if not zorla_guncelle and (suan - PANO_CACHE["son_guncelleme"] < 1800) and PANO_CACHE["tarih"] != "Bilinmiyor":
+    # 1800 yerine 120 saniye (2 dakika)
+    if not zorla_guncelle and (suan - PANO_CACHE["son_guncelleme"] < 120) and PANO_CACHE["tarih"] != "Bilinmiyor":
         return PANO_CACHE["tarih"], PANO_CACHE["m10_liste"], PANO_CACHE["m11_liste"]
 
     d_tarih = "Bilinmiyor"
@@ -909,7 +910,6 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"Günlük rapor gönderilirken hata: {e}", flush=True)
         
-        
 # ==========================================
 # ⚙️ ANA ÇALIŞTIRMA (POLLING)
 # ==========================================
@@ -920,8 +920,8 @@ if __name__ == '__main__':
         async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
             await veritabanini_kontrol_et(context)
             
-        # Bot ayağa kalktıktan 2 sn sonra ilk kontrol, ardından her 1 saatte bir döngü
-        application.job_queue.run_repeating(baslangic_taramasi, interval=3600, first=2)
+        # Her 2 dakikada bir (120 sn) MongoDB kontrol edilir, açılışta 2. saniyede ilk tarama yapılır
+        application.job_queue.run_repeating(baslangic_taramasi, interval=120, first=2)
         
         # Her gün TSİ 20:00 (UTC 17:00) otomatik yönetici raporu
         hedef_zaman_utc = datetime.time(hour=17, minute=0, tzinfo=datetime.timezone.utc)
