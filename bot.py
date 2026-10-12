@@ -786,14 +786,106 @@ async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n👥 Bot veritabanında anlık olarak takip edilen <b>toplam dosya sayısı:</b> <code>{b_len}</code>\n\n<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>", parse_mode='HTML')
 
 # ==========================================
+# 📈 YÖNETİCİYE ÖZEL GÜNLÜK ÖZET RAPOR (TSİ 20:00)
+# ==========================================
+async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
+    if not ADMIN_CHAT_ID:
+        return
+
+    bulut = get_bulut_verisi()
+    bekleyenler = bulut.get("bekleyenler", []) if bulut else []
+
+    count_m10, count_m11 = 0, 0
+    onaylanan_listesi = []
+
+    for kisi in bekleyenler:
+        dosya_tam = kisi.get('dosya_no', '')
+        if not dosya_tam or '/' not in dosya_tam:
+            continue
+
+        ana_no, ana_yil = dosya_tam.split('/')
+        arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
+
+        # Dosyanın Madde türünü MongoDB stadiu_dosar tablosundan bul
+        sample_dosya = db_anc.stadiu_dosar.find_one()
+        madde_etiketi = "Madde 11"
+        if sample_dosya:
+            dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
+            user_doc = db_anc.stadiu_dosar.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}})
+            if user_doc:
+                kaynak_metin = sutun_degeri_al(user_doc, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                if re.search(r'art[- ]?10', kaynak_metin, re.IGNORECASE):
+                    madde_etiketi = "Madde 10"
+
+        if kisi.get('onaylandi', False):
+            # Karar belgesi adını bul
+            karar_pdf = kisi.get('karar_belgesi', "")
+            if not karar_pdf:
+                karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+                for col_name in ["kararlar_m11", "kararlar_m10"]:
+                    sample_k = db_anc[col_name].find_one()
+                    if sample_k:
+                        k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+                        if k_sutun:
+                            match_k = db_anc[col_name].find_one({k_sutun: {"$regex": karar_icin_regex, "$options": "i"}})
+                            if match_k:
+                                karar_pdf = sutun_degeri_al(match_k, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                                kisi['karar_belgesi'] = karar_pdf
+                                break
+
+            ek_metin = f" - 📄 <i>{karar_pdf}</i>" if karar_pdf else ""
+            onaylanan_listesi.append(f"▪️ <code>{dosya_tam}</code> ({madde_etiketi}){ek_metin}")
+        else:
+            if madde_etiketi == "Madde 10":
+                count_m10 += 1
+            else:
+                count_m11 += 1
+
+    aktif_bekleyen_sayisi = count_m10 + count_m11
+    onaylanan_sayisi = len(onaylanan_listesi)
+
+    tsi_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
+    saat_metni = tsi_now.strftime("%H:%M")
+
+    rapor_msg = (
+        f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
+        f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
+        f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{aktif_bekleyen_sayisi}</code>\n\n"
+        f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
+        f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
+        f"✅ <b>Şu ana kadar onayı çıkan dosya sayısı:</b> <code>{onaylanan_sayisi}</code>\n"
+    )
+
+    if onaylanan_sayisi > 0:
+        rapor_msg += f"\n<b>🏆 Onaylanan Dosyalar:</b>\n" + "\n".join(onaylanan_listesi) + "\n\n"
+    else:
+        rapor_msg += "\n"
+
+    rapor_msg += f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
+
+    try:
+        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')
+        print(f"✅ Günlük admin özet raporu ({saat_metni}) başarıyla iletildi.", flush=True)
+    except Exception as e:
+        print(f"Günlük rapor gönderilirken hata oluştu: {e}", flush=True)
+        
+        
+# ==========================================
 # ⚙️ ANA ÇALIŞTIRMA (POLLING)
 # ==========================================
 if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def post_init(application: Application):
-        async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE): await veritabanini_kontrol_et(context)
-        application.job_queue.run_repeating(baslangic_taramasi, interval=3600, first=2) # Her 1 saatte bir DB'yi sessizce kontrol eder
+        async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
+            await veritabanini_kontrol_et(context)
+            
+        # Bot ayağa kalktıktan 2 sn sonra ilk kontrol, ardından her 1 saatte bir döngü
+        application.job_queue.run_repeating(baslangic_taramasi, interval=3600, first=2)
+        
+        # Her gün TSİ 20:00 (UTC 17:00) otomatik yönetici raporu
+        hedef_zaman_utc = datetime.time(hour=17, minute=0, tzinfo=datetime.timezone.utc)
+        application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_zaman_utc)
         
     app.post_init = post_init
     app.add_handler(CommandHandler("start", start_command))    
