@@ -539,7 +539,10 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         secilen_dil = query.data.split("_")[1] 
         bulut['kullanici_dilleri'][chat_id] = secilen_dil
         set_bulut_verisi(bulut['bekleyenler'], bulut['son_durum'], bulut['kullanici_dilleri'])
-        await query.edit_message_text(text=DIL_SOZLUGU[secilen_dil]["secildi"], parse_mode='HTML')
+        try:
+            await query.edit_message_text(text=DIL_SOZLUGU[secilen_dil]["secildi"], parse_mode='HTML')
+        except Exception:
+            pass  # Kullanıcı aynı butona çift tıklarsa hatayı yut ve logları kirletme
         return
 
     if query.data.startswith("kvkk_"):
