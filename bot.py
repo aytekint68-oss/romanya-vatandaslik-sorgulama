@@ -273,7 +273,7 @@ def sutun_degeri_al(row_dict, olasi_isimler, haric_kelimeler=None):
     return ""
 
 # ==========================================
-# ⚡ HIZLI PANO ÖNBELLEĞİ (RAM CACHE)
+# ⚡ HIZLI PANO ÖNBELLEĞİ (RAM CACHE & DOĞRU SIRALAMA)
 # ==========================================
 PANO_CACHE = {
     "tarih": "Bilinmiyor",
@@ -282,41 +282,72 @@ PANO_CACHE = {
     "son_guncelleme": 0
 }
 
+def dosya_tarih_ve_no_skoru(dosya_adi):
+    """Belge adından yıl ve ordin numarasını çıkararak en günceli belirler."""
+    metin = str(dosya_adi)
+    yil = 2017
+    
+    # 1. Tarih formatından yılı bul (08.10.2026 vb.)
+    tm = re.search(r'(\d{2})[\.\-_](\d{2})[\.\-_](202\d)', metin)
+    if tm:
+        yil = int(tm.group(3))
+    else:
+        ym = re.findall(r'\b(20[12]\d)\b', metin)
+        if ym:
+            yil = int(ym[-1])
+
+    # 2. Ordin/Karar numarasını bul (3234P, 3228 vb.)
+    m_no = re.search(r'(?:ordin|op|nr)[^\d]*(\d{1,5})', metin, re.IGNORECASE)
+    ordin_no = int(m_no.group(1)) if m_no else 0
+    if ordin_no == 0:
+        m_fallback = re.search(r'(\d{1,5})', metin)
+        ordin_no = int(m_fallback.group(1)) if m_fallback else 0
+
+    return (yil, ordin_no)
+
 def pano_istatistiklerini_getir(zorla_guncelle=False):
-    """Verileri RAM'de tutar, sadece gerektiğinde veya 30 dakikada bir hafifçe günceller."""
+    """Verileri RAM'de tutar, 30 dakikada bir veya istendiğinde günceller."""
     suan = time.time()
     
-    # 30 dakika dolmadıysa ve zorlama yoksa doğrudan hafızadan ver (0.001 saniye)
     if not zorla_guncelle and (suan - PANO_CACHE["son_guncelleme"] < 1800) and PANO_CACHE["tarih"] != "Bilinmiyor":
         return PANO_CACHE["tarih"], PANO_CACHE["m10_liste"], PANO_CACHE["m11_liste"]
 
     d_tarih = "Bilinmiyor"
     
-    # 1. Stadiu Dosar Tarihi (Tüm tabloyu taramak yerine son 10 kaydı çeker)
-    son_stadiu_kayitlari = db_anc.stadiu_dosar.find({}, {"Kaynak Belge": 1, "_id": 0}).sort("_id", -1).limit(10)
-    for k_doc in son_stadiu_kayitlari:
-        kb = str(k_doc.get("Kaynak Belge", ""))
-        match = re.search(r'(\d{2}[\.\-\_]\d{2}[\.\-\_]\d{4})', kb)
+    # 1. Stadiu Dosar Tarihi (Tarih içeren gerçek kaynak adını bulur)
+    kaynaklar_stadiu = db_anc.stadiu_dosar.distinct("Kaynak Belge")
+    valid_dates = []
+    for k in kaynaklar_stadiu:
+        match = re.search(r'(\d{2}[\.\-\_]\d{2}[\.\-\_]\d{4})', str(k))
         if match:
-            d_tarih = match.group(1).replace('_', '.').replace('-', '.')
-            break
+            try:
+                dt_str = match.group(1).replace('_', '.').replace('-', '.')
+                valid_dates.append(datetime.datetime.strptime(dt_str, '%d.%m.%Y'))
+            except:
+                pass
+    if valid_dates:
+        d_tarih = max(valid_dates).strftime('%d.%m.%Y')
 
-    # 2. Son Kararlar (Yüz binlerce satır yerine sadece son eklenen ilk 20 kaydı çeker)
-    def son_belgeler_hizli(koleksiyon_adi):
-        docs = db_anc[koleksiyon_adi].find({}, {"Kaynak Belge": 1, "_id": 0}).sort("_id", -1).limit(20)
-        unique_list = []
-        for d in docs:
-            kb = str(d.get("Kaynak Belge", "")).strip()
-            if kb and kb.lower() not in ['nan', 'none', ''] and kb not in unique_list:
-                unique_list.append(kb)
-            if len(unique_list) >= 5:
-                break
-        return unique_list if unique_list else ["Veri Yok"]
+    # 2. Kararlar M10 ve M11 (Distinct ile sadece dosya adlarını alır, milisaniyede sıralar)
+    def son_belgeleri_ayikla(koleksiyon_adi):
+        try:
+            # distinct ile 300.000 satır yerine sadece ~500 adet benzersiz dosya adını çeker (Çok hafif)
+            benzersiz_dosyalar = db_anc[koleksiyon_adi].distinct("Kaynak Belge")
+            temiz_dosyalar = [f for f in benzersiz_dosyalar if f and str(f).strip().lower() not in ['nan', 'none', '']]
+            
+            if not temiz_dosyalar:
+                return ["Veri Yok"]
+                
+            # Yıl ve Ordin numarasına göre büyükten küçüğe sırala (2026 en başta olur)
+            sirali = sorted(temiz_dosyalar, key=dosya_tarih_ve_no_skoru, reverse=True)
+            return sirali[:5]
+        except Exception as e:
+            return ["Veri Yok"]
 
-    m10_son = son_belgeler_hizli("kararlar_m10")
-    m11_son = son_belgeler_hizli("kararlar_m11")
+    m10_son = son_belgeleri_ayikla("kararlar_m10")
+    m11_son = son_belgeleri_ayikla("kararlar_m11")
 
-    # Önbelleğe yaz
+    # Önbelleğe al
     PANO_CACHE["tarih"] = d_tarih
     PANO_CACHE["m10_liste"] = m10_son
     PANO_CACHE["m11_liste"] = m11_son
