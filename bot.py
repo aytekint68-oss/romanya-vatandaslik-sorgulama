@@ -605,6 +605,8 @@ async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
         set_bulut_verisi(bulut['bekleyenler'], yeni_durum, bulut['kullanici_dilleri'])
         if not ilk_calistirma:
             context.application.create_task(bildirimleri_dagit(context.application, bulut['bekleyenler'], eklenen_m10, eklenen_m11, dosya_tarih_degisti, d_tarih, yeni_durum, bulut['kullanici_dilleri']))
+        else:
+            print("✅ Sessiz başlangıç (İlk Çalıştırma) başarıyla tamamlandı. Kimseye bildirim atılmadı.", flush=True)
 
 async def bildirimleri_dagit(app_context, bekleyenler, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, diller):
     async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
