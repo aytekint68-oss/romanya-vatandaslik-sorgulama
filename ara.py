@@ -451,5 +451,17 @@ with tab2:
     st.write("Aşağıdaki aracı kullanarak atalarınızın göç bilgilerine göre Madde 10 veya Madde 11 kapsamında olup olmadığınızı inceleyebilirsiniz.")
     components.html(MADDE_SORGULAMA_HTML, height=850, scrolling=True)
 
-footer_metni = """<div style='color: gray; font-size: 0.9em; line-height: 1.5; margin-top: 30px;'><div style='text-align: left; margin-bottom: 15px;'><i>Bu platform bağımsız bir otomasyon sistemidir...</i></div><div style='text-align: center;'><span style='font-size: 1em;'><b>© 2026 Tasarım ve Geliştirme: <a href="mailto:aytekint@hotmail.com" style="color: #4F8BF9; text-decoration: none;">Aytekin Topçu</a></b></span></div></div>"""
+# --- YASAL VE ALMANAK ALT BİLGİ (FOOTER) ---
+footer_metni = """
+<div style='color: gray; font-size: 0.9em; line-height: 1.5; margin-top: 30px;'>
+    <div style='text-align: left; margin-bottom: 15px;'>
+        <i>Bu platform, Romanya Adalet Bakanlığı Ulusal Vatandaşlık Kurumu (ANC) tarafından yayımlanan herkese açık dosya durum (Stadiu Dosar) ve karar (Ordin) listelerini tarayarak çalışan <b>bağımsız</b> bir otomasyon sistemidir. Platformumuzun Romanya Devleti veya herhangi bir resmi kurumla <b>hiçbir resmi bağı veya ortaklığı bulunmamaktadır.</b><br><br>
+        Sistemde sunulan veriler tamamen <b>bilgilendirme amaçlıdır</b> ve hiçbir şekilde resmi tebligat, onay veya hukuki belge niteliği taşımaz. Veri senkronizasyonunda yaşanabilecek teknik gecikmelerden, hatalardan veya ANC listelerindeki tipografik yanlışlardan platform sorumlu tutulamaz. Nihai ve kesin teyit için her zaman resmi kurum kaynaklarını referans alınız.</i>
+    </div>
+    <div style='text-align: center;'>
+        <span style='font-size: 1em;'><b>© 2026 Tasarım ve Geliştirme: <a href="mailto:aytekint@hotmail.com" style="color: #4F8BF9; text-decoration: none;">Aytekin Topçu</a></b></span>
+    </div>
+</div>
+"""
+
 st.markdown(footer_metni, unsafe_allow_html=True)
