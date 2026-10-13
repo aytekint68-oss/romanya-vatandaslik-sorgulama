@@ -189,11 +189,16 @@ MADDE_SORGULAMA_HTML = """
 </body>
 </html>
 """
+
 # --- ÖZEL CSS: Sekme Yazı Boyutunu Artırma ---
 st.markdown("""
 <style>
-    /* Sekme butonlarının yazı boyutunu ve kalınlığını ayarlar */
-    button[data-baseweb="tab"] div p {
+    /* Hem doğrudan butonun hem de içindeki tüm metin/p etiketlerinin fontunu büyütür */
+    button[data-baseweb="tab"] {
+        font-size: 20px !important;
+        font-weight: 600 !important;
+    }
+    button[data-baseweb="tab"] * {
         font-size: 20px !important;
         font-weight: 600 !important;
     }
