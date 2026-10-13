@@ -189,12 +189,27 @@ MADDE_SORGULAMA_HTML = """
 </body>
 </html>
 """
+# --- ÖZEL CSS: Sekme Yazı Boyutunu Artırma ---
+st.markdown("""
+<style>
+    /* Sekme butonlarının yazı boyutunu ve kalınlığını ayarlar */
+    button[data-baseweb="tab"] div p {
+        font-size: 20px !important;
+        font-weight: 600 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# --- ARAYÜZ TASARIMI ---
 st.title("Romanya Vatandaşlık Sorgulama")
 st.markdown("Uygulamamıza hoş geldiniz. İşlem yapmak istediğiniz aracı sekmelerden seçebilirsiniz.")
 
 tab1, tab2 = st.tabs(["🔍 Dosya ve Karar Sorgulama", "📋 Madde 10/11 Uygunluk Testi"])
+
+with tab1:
+    st.write("Sorgulama alanı...")
+
+with tab2:
+    st.write("Test alanı...")
 
 # =========================================================
 # 1. SEKME: DOSYA VE KARAR SORGULAMA
