@@ -193,23 +193,28 @@ MADDE_SORGULAMA_HTML = """
 # --- ÖZEL CSS: Sekme Yazı Boyutunu Artırma ---
 st.markdown("""
 <style>
-    /* 1. Sekme butonunun kendisini ve genel metin boyutunu büyüt */
-    div[data-testid="stTabs"] button[role="tab"] {
-        font-size: 22px !important;
+    /* Sekmelerin bulunduğu üst bar ve tüm butonlar */
+    .stTabs [data-baseweb="tab-list"] button,
+    .stTabs [data-baseweb="tab"],
+    div[data-testid="stTabs"] button {
+        font-size: 24px !important;
         font-weight: 700 !important;
-        padding: 10px 16px !important;
+        height: auto !important;
+        padding: 12px 20px !important;
     }
 
-    /* 2. Sekme başlığı içerisindeki metin, p, span ve emojilerin boyutunu zorla büyüt */
-    div[data-testid="stTabs"] button[role="tab"] * {
-        font-size: 22px !important;
+    /* Buton içindeki tüm alt elemanlar (p, span, div, metinler, emojiler) */
+    .stTabs [data-baseweb="tab-list"] button *,
+    .stTabs [data-baseweb="tab"] *,
+    div[data-testid="stTabs"] button * {
+        font-size: 24px !important;
         font-weight: 700 !important;
-        line-height: 1.4 !important;
+        line-height: 1.5 !important;
     }
 
-    /* 3. Streamlit Markdown kapsayıcısını hedef al */
-    div[data-testid="stTabs"] button[role="tab"] div[data-testid="stMarkdownContainer"] p {
-        font-size: 22px !important;
+    /* Streamlit iç markdown metin kapsayıcısı */
+    div[data-testid="stTabs"] [data-testid="stMarkdownContainer"] p {
+        font-size: 24px !important;
         font-weight: 700 !important;
     }
 </style>
