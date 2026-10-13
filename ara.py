@@ -194,7 +194,7 @@ st.markdown("""
 <style>
     /* Sekme butonlarının yazı boyutunu ve kalınlığını ayarlar */
     button[data-baseweb="tab"] div p {
-        font-size: 28px !important;
+        font-size: 2px !important;
         font-weight: 600 !important;
     }
 </style>
