@@ -208,14 +208,14 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] *,
     div[data-testid="stTabs"] button * {
         font-size: 20px !important;
-        font-weight: 700 !important;
+        font-weight: 500 !important;
         line-height: 1.5 !important;
     }
 
     /* Streamlit iç markdown metin kapsayıcısı */
     div[data-testid="stTabs"] [data-testid="stMarkdownContainer"] p {
         font-size: 20px !important;
-        font-weight: 700 !important;
+        font-weight: 500 !important;
     }
 </style>
 """, unsafe_allow_html=True)
