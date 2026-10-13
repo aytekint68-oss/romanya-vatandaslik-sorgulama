@@ -193,14 +193,24 @@ MADDE_SORGULAMA_HTML = """
 # --- ÖZEL CSS: Sekme Yazı Boyutunu Artırma ---
 st.markdown("""
 <style>
-    /* Hem doğrudan butonun hem de içindeki tüm metin/p etiketlerinin fontunu büyütür */
-    button[data-baseweb="tab"] {
-        font-size: 20px !important;
-        font-weight: 600 !important;
+    /* 1. Sekme butonunun kendisini ve genel metin boyutunu büyüt */
+    div[data-testid="stTabs"] button[role="tab"] {
+        font-size: 22px !important;
+        font-weight: 700 !important;
+        padding: 10px 16px !important;
     }
-    button[data-baseweb="tab"] * {
-        font-size: 20px !important;
-        font-weight: 600 !important;
+
+    /* 2. Sekme başlığı içerisindeki metin, p, span ve emojilerin boyutunu zorla büyüt */
+    div[data-testid="stTabs"] button[role="tab"] * {
+        font-size: 22px !important;
+        font-weight: 700 !important;
+        line-height: 1.4 !important;
+    }
+
+    /* 3. Streamlit Markdown kapsayıcısını hedef al */
+    div[data-testid="stTabs"] button[role="tab"] div[data-testid="stMarkdownContainer"] p {
+        font-size: 22px !important;
+        font-weight: 700 !important;
     }
 </style>
 """, unsafe_allow_html=True)
