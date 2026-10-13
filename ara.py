@@ -194,7 +194,7 @@ st.markdown("""
 <style>
     /* Sekme butonlarının yazı boyutunu ve kalınlığını ayarlar */
     button[data-baseweb="tab"] div p {
-        font-size: 20px !important;
+        font-size: 24px !important;
         font-weight: 600 !important;
     }
 </style>
@@ -205,11 +205,6 @@ st.markdown("Uygulamamıza hoş geldiniz. İşlem yapmak istediğiniz aracı sek
 
 tab1, tab2 = st.tabs(["🔍 Dosya ve Karar Sorgulama", "📋 Madde 10/11 Uygunluk Testi"])
 
-with tab1:
-    st.write("Sorgulama alanı...")
-
-with tab2:
-    st.write("Test alanı...")
 
 # =========================================================
 # 1. SEKME: DOSYA VE KARAR SORGULAMA
