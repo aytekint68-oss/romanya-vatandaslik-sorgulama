@@ -1053,6 +1053,7 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
         app = Application.builder().token(BOT_TOKEN).build()
         
         async def post_init(application: Application):
+            print("⏳ Telegram sunucularına bağlantı deneniyor...", flush=True) # <-- BUNU EKLEYİN
             async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
                 await veritabanini_kontrol_et(context)
                 
