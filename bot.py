@@ -532,6 +532,10 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id, "tr")
     dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])
 
+    if query.data == "duyuru_start":
+        await start_command(query, context)
+        return
+
     if query.data.startswith("dil_"):
         if query.data == "dil_iptal":
             await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')
@@ -607,6 +611,83 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "silvazgec":
         context.user_data['secilenler'] = []
         await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')
+
+# ==========================================
+# 📢 YÖNETİCİ GENEL DUYURU MOTORU
+# ==========================================
+async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
+    
+    if chat_id != str(ADMIN_CHAT_ID):
+        await update.message.reply_text("⛔ Bu komutu kullanma yetkiniz bulunmamaktadır.")
+        return
+
+    bulut = get_bulut_verisi()
+    bekleyenler = bulut.get("bekleyenler", []) if bulut else []
+
+    hedef_chat_idleri = list(set([str(k['chat_id']) for k in bekleyenler if 'chat_id' in k]))
+
+    if not hedef_chat_idleri:
+        await update.message.reply_text("❌ Sistemde kayıtlı kullanıcı bulunamadı.")
+        return
+
+    duyuru_metni = (
+        "📢 <b>Bilgilendirme: Botumuz Kesintisiz Çalışmaya Devam Ediyor</b>\n\n"
+        "Değerli Takipçilerimiz,\n\n"
+        "Romanya Vatandaşlık Kurumu (ANC) resmi sayfalarında <b>8 Ekim 2026</b> tarihinden bu yana yeni bir karar (Ordin) yayımlanmamıştır.\n\n"
+        "Sistemimiz 7/24 aktif bir şekilde resmi listeleri izlemeye ve takibe devam etmektedir. Kurum tarafından yeni bir karar listesi yayımlandığı veya dosya durumunuz güncellendiği anda otomatik bildiriminiz iletilecektir.\n\n"
+        "Dosyanızın güncel durumunu dilediğiniz zaman bota dosya numaranızı ve yılını yazarak (Örn: <code>1234/2023</code>) sorgulayabilirsiniz. 🇹🇩"
+    )
+    
+    klavye = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔎 Dosyamın Durumunu Sorgula", callback_data="duyuru_start")]
+    ])
+
+    gorsel_yolu = "duyuru.png"
+    basarili = 0
+    hatali = 0
+    
+    await update.message.reply_text(f"📢 Bilgilendirme duyurusu {len(hedef_chat_idleri)} kayıtlı kullanıcıya iletilmeye başlanıyor. Lütfen bitene kadar bekleyin...")
+
+    for hedef_id in hedef_chat_idleri:
+        try:
+            if os.path.exists(gorsel_yolu):
+                with open(gorsel_yolu, 'rb') as photo:
+                    await context.bot.send_photo(
+                        chat_id=hedef_id,
+                        photo=photo,
+                        caption=duyuru_metni,
+                        parse_mode='HTML',
+                        reply_markup=klavye
+                    )
+            else:
+                await context.bot.send_message(
+                    chat_id=hedef_id,
+                    text=duyuru_metni,
+                    parse_mode='HTML',
+                    reply_markup=klavye,
+                    disable_web_page_preview=True
+                )
+            basarili += 1
+        except RetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+            try:
+                await context.bot.send_message(chat_id=hedef_id, text=duyuru_metni, parse_mode='HTML', reply_markup=klavye)
+                basarili += 1
+            except Exception:
+                hatali += 1
+        except Exception as e:
+            hatali += 1
+            print(f"Duyuru iletilemedi ({hedef_id}): {e}", flush=True)
+
+        await asyncio.sleep(0.05)
+
+    await update.message.reply_text(
+        f"✅ <b>Duyuru Başarıyla Dağıtıldı!</b>\n\n"
+        f"📤 Başarılı İletim: {basarili}\n"
+        f"🚫 Ulaşılamayan / Botu Engelleyen: {hatali}",
+        parse_mode='HTML'
+    )
 
 # ==========================================
 # 🚀 ARKA PLAN KONTROL MERKEZİ (SİNYAL ODAKLI)
@@ -947,6 +1028,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", start_command))    
     app.add_handler(CommandHandler("setlanguage", dil_komutu))
     app.add_handler(CommandHandler("rapor", rapor_komutu)) 
+    app.add_handler(CommandHandler("duyuru", duyuru_gonder))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
     app.add_handler(CallbackQueryHandler(buton_tiklama))
     app.run_polling(drop_pending_updates=True)
