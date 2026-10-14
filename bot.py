@@ -207,43 +207,43 @@ MONGO_URI = os.getenv("MONGO_URI")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 
 if not BOT_TOKEN or not MONGO_URI:
-    print("❌ HATA: Çevre değişkenleri tanımlanmamış! (Render ayarlarınızı kontrol edin)", flush=True)[cite: 3]
+    print("❌ HATA: Çevre değişkenleri tanımlanmamış! (Render ayarlarınızı kontrol edin)", flush=True)
 
-print("🤖 Akıllı Asistan (MongoDB Destekli) Başlatılıyor...", flush=True)[cite: 3]
+print("🤖 Akıllı Asistan (MongoDB Destekli) Başlatılıyor...", flush=True)
 
 # ==========================================
 # ☁️ MONGODB BAĞLANTILARI
 # ==========================================
 try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)[cite: 3]
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     
     # KULLANICI HAFIZASI İÇİN (Geçmişteki tüm abonelerin tutulduğu db)
-    db_kullanici = client["VatandaslikBot"][cite: 3]
-    koleksiyon_hafiza = db_kullanici["Hafiza"][cite: 3]
+    db_kullanici = client["VatandaslikBot"]
+    koleksiyon_hafiza = db_kullanici["Hafiza"]
     
     # ANC VERİLERİ İÇİN (Yeni aktardığımız db)
-    db_anc = client["anc_veritabani"][cite: 3]
+    db_anc = client["anc_veritabani"]
     
-    client.admin.command('ping')[cite: 3]
-    print("✅ MongoDB Atlas bağlantısı kusursuz kuruldu!", flush=True)[cite: 3]
+    client.admin.command('ping')
+    print("✅ MongoDB Atlas bağlantısı kusursuz kuruldu!", flush=True)
 except Exception as e:
-    print(f"❌ MongoDB Bağlantı Hatası: {e}", flush=True)[cite: 3]
+    print(f"❌ MongoDB Bağlantı Hatası: {e}", flush=True)
 
 # ==========================================
 # 🧠 KULLANICI HAFIZA YÖNETİMİ
 # ==========================================
 def get_bulut_verisi():
     try:
-        veri = koleksiyon_hafiza.find_one({"_id": "bulut_hafiza"})[cite: 3]
+        veri = koleksiyon_hafiza.find_one({"_id": "bulut_hafiza"})
         if veri:
             return {
                 "bekleyenler": veri.get("bekleyenler", []), 
                 "son_durum": veri.get("son_durum", {}),
                 "kullanici_dilleri": veri.get("kullanici_dilleri", {})
-            }[cite: 3]
-        return {"bekleyenler": [], "son_durum": {}, "kullanici_dilleri": {}}[cite: 3]
+            }
+        return {"bekleyenler": [], "son_durum": {}, "kullanici_dilleri": {}}
     except Exception as e:
-        print(f"⚠️ Hafıza Okuma Hatası: {e}", flush=True)[cite: 3]
+        print(f"⚠️ Hafıza Okuma Hatası: {e}", flush=True)
         return None 
 
 def set_bulut_verisi(bekleyenler, son_durum, kullanici_dilleri):
@@ -252,25 +252,25 @@ def set_bulut_verisi(bekleyenler, son_durum, kullanici_dilleri):
             {"_id": "bulut_hafiza"}, 
             {"$set": {"bekleyenler": bekleyenler, "son_durum": son_durum, "kullanici_dilleri": kullanici_dilleri}}, 
             upsert=True
-        )[cite: 3]
-        return True[cite: 3]
+        )
+        return True
     except Exception as e:
-        print(f"❌ Hafıza Kayıt Hatası: {e}", flush=True)[cite: 3]
-        return False[cite: 3]
+        print(f"❌ Hafıza Kayıt Hatası: {e}", flush=True)
+        return False
 
 # ==========================================
 # 🔍 VERİTABANI İSTATİSTİK YARDIMCILARI
 # ==========================================
 def sutun_degeri_al(row_dict, olasi_isimler, haric_kelimeler=None):
-    if haric_kelimeler is None: haric_kelimeler = [][cite: 3]
+    if haric_kelimeler is None: haric_kelimeler = []
     for col in row_dict.keys():
-        col_clean = str(col).strip().lower()[cite: 3]
-        if any(h.lower() in col_clean for h in haric_kelimeler): continue[cite: 3]
+        col_clean = str(col).strip().lower()
+        if any(h.lower() in col_clean for h in haric_kelimeler): continue
         for hedef in olasi_isimler:
             if hedef.lower() in col_clean:
-                val = str(row_dict[col]).strip()[cite: 3]
-                if val.lower() not in ['nan', 'none']: return val[cite: 3]
-    return ""[cite: 3]
+                val = str(row_dict[col]).strip()
+                if val.lower() not in ['nan', 'none']: return val
+    return ""
 
 # ==========================================
 # ⚡ HIZLI PANO ÖNBELLEĞİ (RAM CACHE)
@@ -280,66 +280,66 @@ PANO_CACHE = {
     "m10_liste": ["Veri Yok"],
     "m11_liste": ["Veri Yok"],
     "son_guncelleme": 0
-}[cite: 3]
+}
 
 def dosya_tarih_ve_no_skoru(dosya_adi):
-    metin = str(dosya_adi)[cite: 3]
-    yil = 2017[cite: 3]
-    tm = re.search(r'(\d{2})[\.\-_](\d{2})[\.\-_](202\d)', metin)[cite: 3]
+    metin = str(dosya_adi)
+    yil = 2017
+    tm = re.search(r'(\d{2})[\.\-_](\d{2})[\.\-_](202\d)', metin)
     if tm:
-        yil = int(tm.group(3))[cite: 3]
+        yil = int(tm.group(3))
     else:
-        ym = re.findall(r'\b(20[12]\d)\b', metin)[cite: 3]
+        ym = re.findall(r'\b(20[12]\d)\b', metin)
         if ym:
-            yil = int(ym[-1])[cite: 3]
+            yil = int(ym[-1])
 
-    m_no = re.search(r'(?:ordin|op|nr)[^\d]*(\d{1,5})', metin, re.IGNORECASE)[cite: 3]
-    ordin_no = int(m_no.group(1)) if m_no else 0[cite: 3]
+    m_no = re.search(r'(?:ordin|op|nr)[^\d]*(\d{1,5})', metin, re.IGNORECASE)
+    ordin_no = int(m_no.group(1)) if m_no else 0
     if ordin_no == 0:
-        m_fallback = re.search(r'(\d{1,5})', metin)[cite: 3]
-        ordin_no = int(m_fallback.group(1)) if m_fallback else 0[cite: 3]
+        m_fallback = re.search(r'(\d{1,5})', metin)
+        ordin_no = int(m_fallback.group(1)) if m_fallback else 0
 
-    return (yil, ordin_no)[cite: 3]
+    return (yil, ordin_no)
 
 def pano_istatistiklerini_getir(zorla_guncelle=False):
-    suan = time.time()[cite: 3]
-    if not zorla_guncelle and (suan - PANO_CACHE["son_guncelleme"] < 120) and PANO_CACHE["tarih"] != "Bilinmiyor":[cite: 3]
-        return PANO_CACHE["tarih"], PANO_CACHE["m10_liste"], PANO_CACHE["m11_liste"][cite: 3]
+    suan = time.time()
+    if not zorla_guncelle and (suan - PANO_CACHE["son_guncelleme"] < 120) and PANO_CACHE["tarih"] != "Bilinmiyor":
+        return PANO_CACHE["tarih"], PANO_CACHE["m10_liste"], PANO_CACHE["m11_liste"]
 
-    d_tarih = "Bilinmiyor"[cite: 3]
-    kaynaklar_stadiu = db_anc.stadiu_dosar.distinct("Kaynak Belge")[cite: 3]
-    valid_dates = [][cite: 3]
+    d_tarih = "Bilinmiyor"
+    kaynaklar_stadiu = db_anc.stadiu_dosar.distinct("Kaynak Belge")
+    valid_dates = []
     for k in kaynaklar_stadiu:
-        match = re.search(r'(\d{2}[\.\-\_]\d{2}[\.\-\_]\d{4})', str(k))[cite: 3]
+        match = re.search(r'(\d{2}[\.\-\_]\d{2}[\.\-\_]\d{4})', str(k))
         if match:
             try:
-                dt_str = match.group(1).replace('_', '.').replace('-', '.')[cite: 3]
-                valid_dates.append(datetime.datetime.strptime(dt_str, '%d.%m.%Y'))[cite: 3]
+                dt_str = match.group(1).replace('_', '.').replace('-', '.')
+                valid_dates.append(datetime.datetime.strptime(dt_str, '%d.%m.%Y'))
             except:
                 pass
     if valid_dates:
-        d_tarih = max(valid_dates).strftime('%d.%m.%Y')[cite: 3]
+        d_tarih = max(valid_dates).strftime('%d.%m.%Y')
 
     def son_belgeleri_ayikla(koleksiyon_adi):
         try:
-            benzersiz_dosyalar = db_anc[koleksiyon_adi].distinct("Kaynak Belge")[cite: 3]
-            temiz_dosyalar = [f for f in benzersiz_dosyalar if f and str(f).strip().lower() not in ['nan', 'none', '']][cite: 3]
+            benzersiz_dosyalar = db_anc[koleksiyon_adi].distinct("Kaynak Belge")
+            temiz_dosyalar = [f for f in benzersiz_dosyalar if f and str(f).strip().lower() not in ['nan', 'none', '']]
             if not temiz_dosyalar:
-                return ["Veri Yok"][cite: 3]
-            sirali = sorted(temiz_dosyalar, key=dosya_tarih_ve_no_skoru, reverse=True)[cite: 3]
-            return sirali[:5][cite: 3]
+                return ["Veri Yok"]
+            sirali = sorted(temiz_dosyalar, key=dosya_tarih_ve_no_skoru, reverse=True)
+            return sirali[:5]
         except Exception:
-            return ["Veri Yok"][cite: 3]
+            return ["Veri Yok"]
 
-    m10_son = son_belgeleri_ayikla("kararlar_m10")[cite: 3]
-    m11_son = son_belgeleri_ayikla("kararlar_m11")[cite: 3]
+    m10_son = son_belgeleri_ayikla("kararlar_m10")
+    m11_son = son_belgeleri_ayikla("kararlar_m11")
 
-    PANO_CACHE["tarih"] = d_tarih[cite: 3]
-    PANO_CACHE["m10_liste"] = m10_son[cite: 3]
-    PANO_CACHE["m11_liste"] = m11_son[cite: 3]
-    PANO_CACHE["son_guncelleme"] = suan[cite: 3]
+    PANO_CACHE["tarih"] = d_tarih
+    PANO_CACHE["m10_liste"] = m10_son
+    PANO_CACHE["m11_liste"] = m11_son
+    PANO_CACHE["son_guncelleme"] = suan
 
-    return d_tarih, m10_son, m11_son[cite: 3]
+    return d_tarih, m10_son, m11_son
 
 # ==========================================
 # 📢 YARDIMCI: PAYLAŞIM BUTONU ÜRETİCİ
@@ -364,150 +364,150 @@ def paylasim_butonu_uret(bot_username, kullanici_dili="tr"):
 # 💬 TELEGRAM ARAMA VE YANIT MANTIĞI
 # ==========================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = str(update.message.chat_id)[cite: 3]
-    bulut = get_bulut_verisi()[cite: 3]
+    chat_id = str(update.message.chat_id)
+    bulut = get_bulut_verisi()
     
-    kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id) if bulut else None[cite: 3]
+    kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id) if bulut else None
     if not kullanici_dili:
         klavye = [[InlineKeyboardButton("🇹🇷 Türkçe", callback_data="dil_tr")],
                   [InlineKeyboardButton("🇷🇺 Русский", callback_data="dil_ru")],
-                  [InlineKeyboardButton("🇷🇴 Română", callback_data="dil_ro")]][cite: 3]
-        await update.message.reply_text(DIL_SOZLUGU["tr"]["secim"], reply_markup=InlineKeyboardMarkup(klavye))[cite: 3]
-        return[cite: 3]
+                  [InlineKeyboardButton("🇷🇴 Română", callback_data="dil_ro")]]
+        await update.message.reply_text(DIL_SOZLUGU["tr"]["secim"], reply_markup=InlineKeyboardMarkup(klavye))
+        return
 
-    dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])[cite: 3]
-    d_tarih, m10_files, m11_files = pano_istatistiklerini_getir()[cite: 3]
+    dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])
+    d_tarih, m10_files, m11_files = pano_istatistiklerini_getir()
 
-    m10_metin = "\n".join([f"🔸 {b}" for b in m10_files]) if m10_files[0] != "Veri Yok" else "🔸 -"[cite: 3]
-    m11_metin = "\n".join([f"🔸 {b}" for b in m11_files]) if m11_files[0] != "Veri Yok" else "🔸 -"[cite: 3]
+    m10_metin = "\n".join([f"🔸 {b}" for b in m10_files]) if m10_files[0] != "Veri Yok" else "🔸 -"
+    m11_metin = "\n".join([f"🔸 {b}" for b in m11_files]) if m11_files[0] != "Veri Yok" else "🔸 -"
 
-    bekleyenler = bulut.get("bekleyenler", []) if bulut else [][cite: 3]
-    user_takip_objeleri = [k for k in bekleyenler if str(k.get('chat_id')) == chat_id][cite: 3]
+    bekleyenler = bulut.get("bekleyenler", []) if bulut else []
+    user_takip_objeleri = [k for k in bekleyenler if str(k.get('chat_id')) == chat_id]
     
-    takip_metni = ""[cite: 3]
+    takip_metni = ""
     klavye_satirlari = []
     
     if user_takip_objeleri:
-        dosyalar_alt_alta = "".join([f"🎉 <del>{k.get('dosya_no')}</del>\n" if k.get('onaylandi') else f"⏳ <code>{k.get('dosya_no')}</code>\n" for k in user_takip_objeleri])[cite: 3]
-        takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n{dil_paketi.get('takip_baslik', '🔔')}\n\n{dosyalar_alt_alta}\n"[cite: 3]
-        klavye_satirlari.append([InlineKeyboardButton(dil_paketi["buton_birak"], callback_data="menu_birak")])[cite: 3]
+        dosyalar_alt_alta = "".join([f"🎉 <del>{k.get('dosya_no')}</del>\n" if k.get('onaylandi') else f"⏳ <code>{k.get('dosya_no')}</code>\n" for k in user_takip_objeleri])
+        takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n{dil_paketi.get('takip_baslik', '🔔')}\n\n{dosyalar_alt_alta}\n"
+        klavye_satirlari.append([InlineKeyboardButton(dil_paketi["buton_birak"], callback_data="menu_birak")])
 
     # /start ekranına Paylaş butonu entegrasyonu
     share_btn = paylasim_butonu_uret(context.bot.username, kullanici_dili)
     klavye_satirlari.append([share_btn])
     reply_markup = InlineKeyboardMarkup(klavye_satirlari)
 
-    mesaj = dil_paketi["karsilama"].format(tarih=d_tarih, m10_liste=m10_metin, m11_liste=m11_metin, takip=takip_metni)[cite: 3]
-    await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)[cite: 3]
+    mesaj = dil_paketi["karsilama"].format(tarih=d_tarih, m10_liste=m10_metin, m11_liste=m11_metin, takip=takip_metni)
+    await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)
 
 async def dil_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     klavye = [[InlineKeyboardButton("🇹🇷 Türkçe", callback_data="dil_tr")],
               [InlineKeyboardButton("🇷🇺 Русский", callback_data="dil_ru")],
               [InlineKeyboardButton("🇷🇴 Română", callback_data="dil_ro")],
-              [InlineKeyboardButton("❌ Vazgeç / Отмена", callback_data="dil_iptal")]][cite: 3]
-    await update.message.reply_text("🌐 Lütfen yeni bir dil seçin / Выберите язык / Selectați limba:", reply_markup=InlineKeyboardMarkup(klavye))[cite: 3]
+              [InlineKeyboardButton("❌ Vazgeç / Отмена", callback_data="dil_iptal")]]
+    await update.message.reply_text("🌐 Lütfen yeni bir dil seçin / Выберите язык / Selectați limba:", reply_markup=InlineKeyboardMarkup(klavye))
 
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    aranan_kelime = update.message.text.strip().replace(" ", "")[cite: 3]
-    chat_id = str(update.message.chat_id)[cite: 3]
+    aranan_kelime = update.message.text.strip().replace(" ", "")
+    chat_id = str(update.message.chat_id)
     
-    bulut = get_bulut_verisi() or {"bekleyenler": [], "kullanici_dilleri": {}}[cite: 3]
-    kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id, "tr")[cite: 3]
-    dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])[cite: 3]
+    bulut = get_bulut_verisi() or {"bekleyenler": [], "kullanici_dilleri": {}}
+    kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id, "tr")
+    dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])
 
-    if not re.fullmatch(r'[a-zA-Z0-9/]+', aranan_kelime) or aranan_kelime.count("/") != 1:[cite: 3]
-        await update.message.reply_text(dil_paketi["format"], parse_mode='HTML')[cite: 3]
-        return[cite: 3]
+    if not re.fullmatch(r'[a-zA-Z0-9/]+', aranan_kelime) or aranan_kelime.count("/") != 1:
+        await update.message.reply_text(dil_paketi["format"], parse_mode='HTML')
+        return
         
-    parcalar = aranan_kelime.split("/")[cite: 3]
-    ilk_numara = "".join(filter(str.isdigit, parcalar[0]))[cite: 3]
-    son_yil = "".join(filter(str.isdigit, parcalar[-1]))[cite: 3]
+    parcalar = aranan_kelime.split("/")
+    ilk_numara = "".join(filter(str.isdigit, parcalar[0]))
+    son_yil = "".join(filter(str.isdigit, parcalar[-1]))
     
-    if len(ilk_numara) == 0 or int(ilk_numara) == 0 or len(son_yil) != 4:[cite: 3]
-        await update.message.reply_text(dil_paketi["gecersiz"])[cite: 3]
-        return[cite: 3]
+    if len(ilk_numara) == 0 or int(ilk_numara) == 0 or len(son_yil) != 4:
+        await update.message.reply_text(dil_paketi["gecersiz"])
+        return
 
-    arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"[cite: 3]
+    arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
     
     # 1. MongoDB - Stadiu Dosar Araması
-    sample_dosya = db_anc.stadiu_dosar.find_one()[cite: 3]
-    if not sample_dosya:[cite: 3]
-        await update.message.reply_text(dil_paketi["bos"])[cite: 3]
-        return[cite: 3]
+    sample_dosya = db_anc.stadiu_dosar.find_one()
+    if not sample_dosya:
+        await update.message.reply_text(dil_paketi["bos"])
+        return
         
-    dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])[cite: 3]
-    sonuclar = list(db_anc.stadiu_dosar.find({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}}))[cite: 3]
+    dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
+    sonuclar = list(db_anc.stadiu_dosar.find({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}}))
 
-    if not sonuclar:[cite: 3]
-        await update.message.reply_text(dil_paketi["bulunamadi"], parse_mode='HTML')[cite: 3]
-        return[cite: 3]
+    if not sonuclar:
+        await update.message.reply_text(dil_paketi["bulunamadi"], parse_mode='HTML')
+        return
 
-    row = sonuclar[0][cite: 3]
-    ana_no, ana_yil = str(row.get(dosya_no_col, "")).strip().split('/')[0].strip(), str(row.get(dosya_no_col, "")).strip().split('/')[-1].strip()[cite: 3]
-    bulut_takip_formati = f"{ana_no}/{ana_yil}"[cite: 3]
+    row = sonuclar[0]
+    ana_no, ana_yil = str(row.get(dosya_no_col, "")).strip().split('/')[0].strip(), str(row.get(dosya_no_col, "")).strip().split('/')[-1].strip()
+    bulut_takip_formati = f"{ana_no}/{ana_yil}"
     
     # 2. MongoDB - Özel Durum Kontrolü (40 Gün)
-    ozel_mesaj_baslik = ""[cite: 3]
-    sample_ozel = db_anc.ozel_durumlar.find_one()[cite: 3]
-    if sample_ozel:[cite: 3]
-        ozel_col = next((c for c in sample_ozel.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)[cite: 3]
-        if ozel_col:[cite: 3]
-            ozel_doc = db_anc.ozel_durumlar.find_one({ozel_col: {"$regex": arama_kriteri, "$options": "i"}})[cite: 3]
-            if ozel_doc:[cite: 3]
-                vals = [v for k, v in ozel_doc.items() if k != "_id"][cite: 3]
-                ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"[cite: 3]
-                kalan_gun_mesaji = ""[cite: 3]
+    ozel_mesaj_baslik = ""
+    sample_ozel = db_anc.ozel_durumlar.find_one()
+    if sample_ozel:
+        ozel_col = next((c for c in sample_ozel.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+        if ozel_col:
+            ozel_doc = db_anc.ozel_durumlar.find_one({ozel_col: {"$regex": arama_kriteri, "$options": "i"}})
+            if ozel_doc:
+                vals = [v for k, v in ozel_doc.items() if k != "_id"]
+                ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"
+                kalan_gun_mesaji = ""
                 try:
-                    gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days[cite: 3]
-                    kalan_gun = 40 - gecen_gun[cite: 3]
-                    if kalan_gun > 0: kalan_gun_mesaji = dil_paketi["gun_kaldi"].format(gun=kalan_gun)[cite: 3]
-                    elif kalan_gun == 0: kalan_gun_mesaji = dil_paketi["bugun_doluyor"][cite: 3]
-                    else: kalan_gun_mesaji = dil_paketi["sure_doldu"].format(gun=gecen_gun)[cite: 3]
-                except: pass[cite: 3]
-                ozel_mesaj_baslik = dil_paketi["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_mesaji) + "\n━━━━━━━━━━━━━━━━━━\n\n"[cite: 3]
+                    gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days
+                    kalan_gun = 40 - gecen_gun
+                    if kalan_gun > 0: kalan_gun_mesaji = dil_paketi["gun_kaldi"].format(gun=kalan_gun)
+                    elif kalan_gun == 0: kalan_gun_mesaji = dil_paketi["bugun_doluyor"]
+                    else: kalan_gun_mesaji = dil_paketi["sure_doldu"].format(gun=gecen_gun)
+                except: pass
+                ozel_mesaj_baslik = dil_paketi["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_mesaji) + "\n━━━━━━━━━━━━━━━━━━\n\n"
 
     # 3. MongoDB - Karar Listeleri Araması
-    karar_bulundu_mu, k_row = False, None[cite: 3]
-    karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"[cite: 3]
+    karar_bulundu_mu, k_row = False, None
+    karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
     
-    for col_name in ["kararlar_m11", "kararlar_m10"]:[cite: 3]
-        sample_k = db_anc[col_name].find_one()[cite: 3]
-        if sample_k:[cite: 3]
-            k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)[cite: 3]
-            if k_sutun:[cite: 3]
-                match_k = db_anc[col_name].find_one({k_sutun: {"$regex": karar_icin_regex, "$options": "i"}})[cite: 3]
-                if match_k:[cite: 3]
-                    karar_bulundu_mu, k_row = True, match_k[cite: 3]
-                    break[cite: 3]
+    for col_name in ["kararlar_m11", "kararlar_m10"]:
+        sample_k = db_anc[col_name].find_one()
+        if sample_k:
+            k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+            if k_sutun:
+                match_k = db_anc[col_name].find_one({k_sutun: {"$regex": karar_icin_regex, "$options": "i"}})
+                if match_k:
+                    karar_bulundu_mu, k_row = True, match_k
+                    break
 
-    solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])[cite: 3]
-    termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])[cite: 3]
+    solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+    termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])
     
-    sol_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', solutie_metni)[cite: 3]
-    if sol_tarih_match and not re.search(r'\d+\s*/?\s*P', solutie_metni, re.IGNORECASE):[cite: 3]
-        termen_metni, solutie_metni = sol_tarih_match.group(1), ""[cite: 3]
+    sol_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', solutie_metni)
+    if sol_tarih_match and not re.search(r'\d+\s*/?\s*P', solutie_metni, re.IGNORECASE):
+        termen_metni, solutie_metni = sol_tarih_match.group(1), ""
 
-    termen = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni) else (termen_metni if termen_metni else "-")[cite: 3]
+    termen = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni) else (termen_metni if termen_metni else "-")
 
-    eski_termen = ""[cite: 3]
-    sample_eski = db_anc.stadiu_dosar_eski.find_one()[cite: 3]
-    if sample_eski:[cite: 3]
-        eski_dosya_col = next((col for col in sample_eski.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), None)[cite: 3]
-        if eski_dosya_col:[cite: 3]
-            eski_match = db_anc.stadiu_dosar_eski.find_one({eski_dosya_col: {"$regex": arama_kriteri, "$options": "i"}})[cite: 3]
-            if eski_match:[cite: 3]
-                e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])[cite: 3]
-                et_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter)[cite: 3]
-                eski_termen = et_m.group(1).replace('/', '.').replace('-', '.') if et_m else str(e_ter).strip()[cite: 3]
+    eski_termen = ""
+    sample_eski = db_anc.stadiu_dosar_eski.find_one()
+    if sample_eski:
+        eski_dosya_col = next((col for col in sample_eski.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), None)
+        if eski_dosya_col:
+            eski_match = db_anc.stadiu_dosar_eski.find_one({eski_dosya_col: {"$regex": arama_kriteri, "$options": "i"}})
+            if eski_match:
+                e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])
+                et_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter)
+                eski_termen = et_m.group(1).replace('/', '.').replace('-', '.') if et_m else str(e_ter).strip()
 
-    if eski_termen and eski_termen != termen and eski_termen.lower() not in ['nan', 'none']:[cite: 3]
-        termen = f"{termen} <i>({eski_termen})</i> 🔄"[cite: 3]
+    if eski_termen and eski_termen != termen and eski_termen.lower() not in ['nan', 'none']: 
+        termen = f"{termen} <i>({eski_termen})</i> 🔄"
 
-    kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])[cite: 3]
-    kurum_notu = solutie_metni if solutie_metni else "-"[cite: 3]
-    basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'Tarih'])[cite: 3]
-    b_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', basvuru_tarihi)[cite: 3]
-    basvuru_tarihi = b_match.group(1).replace('/', '.').replace('-', '.') if b_match else (basvuru_tarihi if basvuru_tarihi else "-")[cite: 3]
+    kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+    kurum_notu = solutie_metni if solutie_metni else "-"
+    basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'Tarih'])
+    b_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', basvuru_tarihi)
+    basvuru_tarihi = b_match.group(1).replace('/', '.').replace('-', '.') if b_match else (basvuru_tarihi if basvuru_tarihi else "-")
 
     yanit = ozel_mesaj_baslik + (
         f"{dil_paketi['dosya_baslik']}\n\n<b>No:</b> {row.get(dosya_no_col, bulut_takip_formati)}\n━━━━━━━━━━━━━━━━━━\n"
@@ -516,132 +516,132 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📝 <b>{dil_paketi['solutie']}:</b> {kurum_notu}\n"
         f"📂 <b>{dil_paketi['kaynak']}:</b> {kaynak_dosya_metni}\n━━━━━━━━━━━━━━━━━━\n"
         f"⚖️ <b>{dil_paketi['karar_baslik']}</b>\n\n"
-    )[cite: 3]
+    )
 
-    buton_ekle, zaten_takipte = False, False[cite: 3]
-    if karar_bulundu_mu:[cite: 3]
-        kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])[cite: 3]
-        gosterilecek_karar = next((str(k_row[col]).strip() for col in k_row.keys() if 'ordin' in col.lower() or 'karar' in col.lower()), "")[cite: 3]
-        if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '']:[cite: 3]
-            pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)[cite: 3]
-            gosterilecek_karar = f"{pdf_match.group(1)}{'/P' if pdf_match.group(2) else ''}" if pdf_match else "-"[cite: 3]
+    buton_ekle, zaten_takipte = False, False
+    if karar_bulundu_mu:
+        kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+        gosterilecek_karar = next((str(k_row[col]).strip() for col in k_row.keys() if 'ordin' in col.lower() or 'karar' in col.lower()), "")
+        if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '']:
+            pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)
+            gosterilecek_karar = f"{pdf_match.group(1)}{'/P' if pdf_match.group(2) else ''}" if pdf_match else "-"
         
-        p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)[cite: 3]
-        gosterilecek_karar = f"{p_format_match.group(1)}/P" if p_format_match else gosterilecek_karar[cite: 3]
+        p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)
+        gosterilecek_karar = f"{p_format_match.group(1)}/P" if p_format_match else gosterilecek_karar
         
-        karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data'])[cite: 3]
-        if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none"]:[cite: 3]
-            d_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)[cite: 3]
-            karar_tarihi = d_match.group(1).replace('_', '.').replace('-', '.') if d_match else "-"[cite: 3]
+        karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data'])
+        if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none"]: 
+            d_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
+            karar_tarihi = d_match.group(1).replace('_', '.').replace('-', '.') if d_match else "-"
 
-        yanit += f"{dil_paketi['onay_var']}\n\n📜 <b>{dil_paketi['karar_no']}:</b> {gosterilecek_karar}\n📅 <b>{dil_paketi['tarih']}:</b> {karar_tarihi}\n📂 <b>{dil_paketi['kaynak']}:</b> {kaynak_belge_adi}"[cite: 3]
+        yanit += f"{dil_paketi['onay_var']}\n\n📜 <b>{dil_paketi['karar_no']}:</b> {gosterilecek_karar}\n📅 <b>{dil_paketi['tarih']}:</b> {karar_tarihi}\n📂 <b>{dil_paketi['kaynak']}:</b> {kaynak_belge_adi}"
     else:
-        takip_listesi = bulut.get('bekleyenler', [])[cite: 3]
-        zaten_takipte = any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(bulut_takip_formati) for k in takip_listesi)[cite: 3]
-        buton_ekle = not zaten_takipte[cite: 3]
-        yanit += dil_paketi["henuz_yok"] + ("\n━━━━━━━━━━━━━━━━━━\n" + dil_paketi["takipte"] if zaten_takipte else "")[cite: 3]
+        takip_listesi = bulut.get('bekleyenler', [])
+        zaten_takipte = any(str(k.get('chat_id')) == str(chat_id) and str(k.get('dosya_no')) == str(bulut_takip_formati) for k in takip_listesi)
+        buton_ekle = not zaten_takipte
+        yanit += dil_paketi["henuz_yok"] + ("\n━━━━━━━━━━━━━━━━━━\n" + dil_paketi["takipte"] if zaten_takipte else "")
 
     # Manuel sorgulama sonuç ekranı için buton klavyesi
     klavye = []
     if buton_ekle:
-        klavye.append([InlineKeyboardButton(dil_paketi["buton_takip"], callback_data=f"kvkk_{ana_no}_{ana_yil}")])[cite: 3]
+        klavye.append([InlineKeyboardButton(dil_paketi["buton_takip"], callback_data=f"kvkk_{ana_no}_{ana_yil}")])
     
     # Her sorgu sonucunun altına Paylaş butonu eklenir
     share_btn = paylasim_butonu_uret(context.bot.username, kullanici_dili)
     klavye.append([share_btn])
     
-    await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye), disable_web_page_preview=True)[cite: 3]
+    await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye), disable_web_page_preview=True)
 
 # ==========================================
 # 🔘 BUTON TIKLAMA VE KVKK
 # ==========================================
 async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query[cite: 3]
-    await query.answer()[cite: 3]
-    chat_id = str(query.message.chat_id)[cite: 3]
-    bulut = get_bulut_verisi() or {"bekleyenler": [], "son_durum": {}, "kullanici_dilleri": {}}[cite: 3]
-    kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id, "tr")[cite: 3]
-    dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])[cite: 3]
+    query = update.callback_query
+    await query.answer()
+    chat_id = str(query.message.chat_id)
+    bulut = get_bulut_verisi() or {"bekleyenler": [], "son_durum": {}, "kullanici_dilleri": {}}
+    kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id, "tr")
+    dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])
 
     if query.data == "duyuru_start":
         await start_command(query, context)
         return
 
-    if query.data.startswith("dil_"):[cite: 3]
-        if query.data == "dil_iptal":[cite: 3]
-            await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')[cite: 3]
-            return[cite: 3]
-        secilen_dil = query.data.split("_")[1][cite: 3]
-        bulut['kullanici_dilleri'][chat_id] = secilen_dil[cite: 3]
-        set_bulut_verisi(bulut['bekleyenler'], bulut['son_durum'], bulut['kullanici_dilleri'])[cite: 3]
+    if query.data.startswith("dil_"):
+        if query.data == "dil_iptal":
+            await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')
+            return
+        secilen_dil = query.data.split("_")[1]
+        bulut['kullanici_dilleri'][chat_id] = secilen_dil
+        set_bulut_verisi(bulut['bekleyenler'], bulut['son_durum'], bulut['kullanici_dilleri'])
         try:
-            await query.edit_message_text(text=DIL_SOZLUGU[secilen_dil]["secildi"], parse_mode='HTML')[cite: 3]
+            await query.edit_message_text(text=DIL_SOZLUGU[secilen_dil]["secildi"], parse_mode='HTML')
         except Exception:
-            pass[cite: 3]
-        return[cite: 3]
+            pass
+        return
 
-    if query.data.startswith("kvkk_"):[cite: 3]
-        _, ilk_no, son_yil = query.data.split('_')[cite: 3]
-        kvkk_metni = dil_paketi["kvkk"].format(dosya=f"{ilk_no}/{son_yil}")[cite: 3]
+    if query.data.startswith("kvkk_"):
+        _, ilk_no, son_yil = query.data.split('_')
+        kvkk_metni = dil_paketi["kvkk"].format(dosya=f"{ilk_no}/{son_yil}")
         klavye = [[InlineKeyboardButton(dil_paketi["onay_evet"], callback_data=f"takip_{ilk_no}_{son_yil}")],
-                  [InlineKeyboardButton(dil_paketi["onay_hayir"], callback_data="iptal_takip")]][cite: 3]
-        await query.edit_message_text(text=kvkk_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))[cite: 3]
-        return[cite: 3]
+                  [InlineKeyboardButton(dil_paketi["onay_hayir"], callback_data="iptal_takip")]]
+        await query.edit_message_text(text=kvkk_metni, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
+        return
 
-    if query.data == "iptal_takip":[cite: 3]
-        await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')[cite: 3]
-        return[cite: 3]
+    if query.data == "iptal_takip":
+        await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')
+        return
 
-    if query.data.startswith("takip_"):[cite: 3]
-        _, ilk_no, son_yil = query.data.split('_')[cite: 3]
-        dosya_no_temiz = f"{ilk_no}/{son_yil}"[cite: 3]
-        if any(str(k.get('chat_id')) == chat_id and str(k.get('dosya_no')) == dosya_no_temiz for k in bulut['bekleyenler']):[cite: 3]
-            await query.edit_message_text(text=dil_paketi["zaten_takip"].format(dosya=dosya_no_temiz))[cite: 3]
-            return[cite: 3]
-        bulut['bekleyenler'].append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})[cite: 3]
-        set_bulut_verisi(bulut['bekleyenler'], bulut['son_durum'], bulut['kullanici_dilleri'])[cite: 3]
-        await query.edit_message_text(text=dil_paketi["takip_basarili"].format(dosya=dosya_no_temiz), parse_mode='HTML')[cite: 3]
-        return[cite: 3]
+    if query.data.startswith("takip_"):
+        _, ilk_no, son_yil = query.data.split('_')
+        dosya_no_temiz = f"{ilk_no}/{son_yil}"
+        if any(str(k.get('chat_id')) == chat_id and str(k.get('dosya_no')) == dosya_no_temiz for k in bulut['bekleyenler']):
+            await query.edit_message_text(text=dil_paketi["zaten_takip"].format(dosya=dosya_no_temiz))
+            return
+        bulut['bekleyenler'].append({"chat_id": chat_id, "dosya_no": dosya_no_temiz})
+        set_bulut_verisi(bulut['bekleyenler'], bulut['son_durum'], bulut['kullanici_dilleri']) 
+        await query.edit_message_text(text=dil_paketi["takip_basarili"].format(dosya=dosya_no_temiz), parse_mode='HTML')
+        return
 
-    if query.data == "menu_birak":[cite: 3]
-        user_takip_listesi = [k.get('dosya_no') for k in bulut['bekleyenler'] if str(k.get('chat_id')) == chat_id][cite: 3]
-        if not user_takip_listesi: return await query.edit_message_text(text=dil_paketi["bos"], parse_mode='HTML')[cite: 3]
-        context.user_data['secilenler'] = [][cite: 3]
-        klavye = [[InlineKeyboardButton(f"⬜ {d}", callback_data=f"tsil_{d.replace('/', '_')}")] for d in user_takip_listesi][cite: 3]
-        klavye.append([InlineKeyboardButton(dil_paketi["ana_menu_don"], callback_data="silvazgec")])[cite: 3]
-        await query.edit_message_text(text=dil_paketi["menu_sil_baslik"], parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))[cite: 3]
-        return[cite: 3]
+    if query.data == "menu_birak":
+        user_takip_listesi = [k.get('dosya_no') for k in bulut['bekleyenler'] if str(k.get('chat_id')) == chat_id]
+        if not user_takip_listesi: return await query.edit_message_text(text=dil_paketi["bos"], parse_mode='HTML')
+        context.user_data['secilenler'] = []
+        klavye = [[InlineKeyboardButton(f"⬜ {d}", callback_data=f"tsil_{d.replace('/', '_')}")] for d in user_takip_listesi]
+        klavye.append([InlineKeyboardButton(dil_paketi["ana_menu_don"], callback_data="silvazgec")])
+        await query.edit_message_text(text=dil_paketi["menu_sil_baslik"], parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
+        return
 
-    if query.data.startswith("tsil_"):[cite: 3]
-        dosya_no_temiz = query.data.replace("tsil_", "").replace("_", "/")[cite: 3]
-        if dosya_no_temiz in context.user_data.get('secilenler', []): context.user_data['secilenler'].remove(dosya_no_temiz)[cite: 3]
-        else: context.user_data.setdefault('secilenler', []).append(dosya_no_temiz)[cite: 3]
-        secilenler = context.user_data['secilenler'][cite: 3]
-        user_takip_listesi = [k.get('dosya_no') for k in bulut['bekleyenler'] if str(k.get('chat_id')) == chat_id][cite: 3]
-        klavye = [[InlineKeyboardButton(f"{'✅' if d in secilenler else '⬜'} {d}", callback_data=f"tsil_{d.replace('/', '_')}")] for d in user_takip_listesi][cite: 3]
-        if secilenler: klavye.append([InlineKeyboardButton(dil_paketi["secilenleri_sil"].format(sayi=len(secilenler)), callback_data="toplusil_onay")])[cite: 3]
-        klavye.append([InlineKeyboardButton(dil_paketi["ana_menu_don"], callback_data="silvazgec")])[cite: 3]
-        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(klavye))[cite: 3]
-        return[cite: 3]
+    if query.data.startswith("tsil_"):
+        dosya_no_temiz = query.data.replace("tsil_", "").replace("_", "/")
+        if dosya_no_temiz in context.user_data.get('secilenler', []): context.user_data['secilenler'].remove(dosya_no_temiz)
+        else: context.user_data.setdefault('secilenler', []).append(dosya_no_temiz)
+        secilenler = context.user_data['secilenler']
+        user_takip_listesi = [k.get('dosya_no') for k in bulut['bekleyenler'] if str(k.get('chat_id')) == chat_id]
+        klavye = [[InlineKeyboardButton(f"{'✅' if d in secilenler else '⬜'} {d}", callback_data=f"tsil_{d.replace('/', '_')}")] for d in user_takip_listesi]
+        if secilenler: klavye.append([InlineKeyboardButton(dil_paketi["secilenleri_sil"].format(sayi=len(secilenler)), callback_data="toplusil_onay")])
+        klavye.append([InlineKeyboardButton(dil_paketi["ana_menu_don"], callback_data="silvazgec")])
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(klavye))
+        return
 
-    if query.data == "toplusil_onay":[cite: 3]
-        secilenler = context.user_data.get('secilenler', [])[cite: 3]
-        dosyalar_raporu = "\n".join([f"❌ <code>{d}</code>" for d in secilenler])[cite: 3]
-        klavye = [[InlineKeyboardButton(dil_paketi["evet_sil"], callback_data="toplusil_confirm")], [InlineKeyboardButton(dil_paketi["hayir_don"], callback_data="menu_birak")]][cite: 3]
-        await query.edit_message_text(text=dil_paketi["sil_onay_soru"].format(liste=dosyalar_raporu), parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))[cite: 3]
-        return[cite: 3]
+    if query.data == "toplusil_onay":
+        secilenler = context.user_data.get('secilenler', [])
+        dosyalar_raporu = "\n".join([f"❌ <code>{d}</code>" for d in secilenler])
+        klavye = [[InlineKeyboardButton(dil_paketi["evet_sil"], callback_data="toplusil_confirm")], [InlineKeyboardButton(dil_paketi["hayir_don"], callback_data="menu_birak")]]
+        await query.edit_message_text(text=dil_paketi["sil_onay_soru"].format(liste=dosyalar_raporu), parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye))
+        return
 
-    if query.data == "toplusil_confirm":[cite: 3]
-        secilenler = context.user_data.get('secilenler', [])[cite: 3]
-        bulut['bekleyenler'] = [k for k in bulut['bekleyenler'] if not (str(k.get('chat_id')) == chat_id and k.get('dosya_no') in secilenler)][cite: 3]
-        set_bulut_verisi(bulut['bekleyenler'], bulut['son_durum'], bulut['kullanici_dilleri'])[cite: 3]
-        context.user_data['secilenler'] = [][cite: 3]
-        await query.edit_message_text(text=dil_paketi["sil_basarili"], parse_mode='HTML')[cite: 3]
-        return[cite: 3]
+    if query.data == "toplusil_confirm":
+        secilenler = context.user_data.get('secilenler', [])
+        bulut['bekleyenler'] = [k for k in bulut['bekleyenler'] if not (str(k.get('chat_id')) == chat_id and k.get('dosya_no') in secilenler)]
+        set_bulut_verisi(bulut['bekleyenler'], bulut['son_durum'], bulut['kullanici_dilleri'])
+        context.user_data['secilenler'] = []
+        await query.edit_message_text(text=dil_paketi["sil_basarili"], parse_mode='HTML')
+        return
 
-    if query.data == "silvazgec":[cite: 3]
-        context.user_data['secilenler'] = [][cite: 3]
-        await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')[cite: 3]
+    if query.data == "silvazgec":
+        context.user_data['secilenler'] = []
+        await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')
 
 # ==========================================
 # 📢 YÖNETİCİ GENEL DUYURU MOTORU
@@ -725,42 +725,42 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==========================================
 async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
     try:
-        bulut = get_bulut_verisi()[cite: 3]
-        if not bulut:[cite: 3]
-            return[cite: 3]
+        bulut = get_bulut_verisi()
+        if not bulut:
+            return
 
-        eski_durum = bulut.get("son_durum", {})[cite: 3]
-        ilk_calistirma = not bool(eski_durum) or not bool(eski_durum.get("dosya_tarih"))[cite: 3]
+        eski_durum = bulut.get("son_durum", {})
+        ilk_calistirma = not bool(eski_durum) or not bool(eski_durum.get("dosya_tarih"))
         
         # 1. PC'den gelen tetikleme bayrağına (sinyale) bak
-        sinyal = db_anc["sistem_sinyalleri"].find_one({"_id": "yeni_karar_tetikleyici"})[cite: 3]
+        sinyal = db_anc["sistem_sinyalleri"].find_one({"_id": "yeni_karar_tetikleyici"})
         
-        if not ilk_calistirma:[cite: 3]
-            if not sinyal:[cite: 3]
-                return[cite: 3]
-            son_islenen_zaman = eski_durum.get("son_sinyal_zamani", 0)[cite: 3]
-            gelen_sinyal_zamani = sinyal.get("son_guncelleme", 0)[cite: 3]
-            if gelen_sinyal_zamani <= son_islenen_zaman:[cite: 3]
-                return[cite: 3]
-            sinyal_turu = sinyal.get("tur", "bilinmiyor")[cite: 3]
-            print(f"⚡ PC'den yeni sinyal algılandı! Tür: {sinyal_turu} (Zaman: {gelen_sinyal_zamani})", flush=True)[cite: 3]
+        if not ilk_calistirma:
+            if not sinyal:
+                return
+            son_islenen_zaman = eski_durum.get("son_sinyal_zamani", 0)
+            gelen_sinyal_zamani = sinyal.get("son_guncelleme", 0)
+            if gelen_sinyal_zamani <= son_islenen_zaman:
+                return
+            sinyal_turu = sinyal.get("tur", "bilinmiyor")
+            print(f"⚡ PC'den yeni sinyal algılandı! Tür: {sinyal_turu} (Zaman: {gelen_sinyal_zamani})", flush=True)
         else:
-            gelen_sinyal_zamani = sinyal.get("son_guncelleme", time.time()) if sinyal else time.time()[cite: 3]
-            print("🚀 Bot ilk kez başlatılıyor, mevcut veritabanı referans olarak kaydediliyor...", flush=True)[cite: 3]
+            gelen_sinyal_zamani = sinyal.get("son_guncelleme", time.time()) if sinyal else time.time()
+            print("🚀 Bot ilk kez başlatılıyor, mevcut veritabanı referans olarak kaydediliyor...", flush=True)
 
         # 2. Yeni Verileri ve Değişiklikleri Çek
-        d_tarih, yeni_m10, yeni_m11 = pano_istatistiklerini_getir(zorla_guncelle=True)[cite: 3]
-        eski_dosya_tarih = eski_durum.get("dosya_tarih", "")[cite: 3]
-        dosya_tarih_degisti = bool(eski_dosya_tarih) and (d_tarih != eski_dosya_tarih) and (d_tarih not in ["Bilinmiyor", "Veri Yok"])[cite: 3]
+        d_tarih, yeni_m10, yeni_m11 = pano_istatistiklerini_getir(zorla_guncelle=True)
+        eski_dosya_tarih = eski_durum.get("dosya_tarih", "")
+        dosya_tarih_degisti = bool(eski_dosya_tarih) and (d_tarih != eski_dosya_tarih) and (d_tarih not in ["Bilinmiyor", "Veri Yok"])
 
-        tum_yeni_m10 = db_anc.kararlar_m10.distinct("Kaynak Belge") if db_anc.kararlar_m10.count_documents({}) > 0 else [][cite: 3]
-        tum_yeni_m11 = db_anc.kararlar_m11.distinct("Kaynak Belge") if db_anc.kararlar_m11.count_documents({}) > 0 else [][cite: 3]
+        tum_yeni_m10 = db_anc.kararlar_m10.distinct("Kaynak Belge") if db_anc.kararlar_m10.count_documents({}) > 0 else []
+        tum_yeni_m11 = db_anc.kararlar_m11.distinct("Kaynak Belge") if db_anc.kararlar_m11.count_documents({}) > 0 else []
 
-        eski_m10 = eski_durum.get("m10_belgeler", [])[cite: 3]
-        eski_m11 = eski_durum.get("m11_belgeler", [])[cite: 3]
+        eski_m10 = eski_durum.get("m10_belgeler", [])
+        eski_m11 = eski_durum.get("m11_belgeler", [])
 
-        eklenen_m10 = list(set(tum_yeni_m10) - set(eski_m10)) if eski_m10 else [][cite: 3]
-        eklenen_m11 = list(set(tum_yeni_m11) - set(eski_m11)) if eski_m11 else [][cite: 3]
+        eklenen_m10 = list(set(tum_yeni_m10) - set(eski_m10)) if eski_m10 else []
+        eklenen_m11 = list(set(tum_yeni_m11) - set(eski_m11)) if eski_m11 else []
 
         # 3. Yeni Durumu ve Sinyal Zamanını Kaydet
         yeni_durum = {
@@ -769,11 +769,11 @@ async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
             "m11_belgeler": tum_yeni_m11,
             "ozel_bildirimler": eski_durum.get("ozel_bildirimler", []),
             "son_sinyal_zamani": gelen_sinyal_zamani
-        }[cite: 3]
-        set_bulut_verisi(bulut['bekleyenler'], yeni_durum, bulut['kullanici_dilleri'])[cite: 3]
+        }
+        set_bulut_verisi(bulut['bekleyenler'], yeni_durum, bulut['kullanici_dilleri'])
 
         # 4. Bildirimleri Sadece Gerçek Güncellemede Dağıt
-        if not ilk_calistirma:[cite: 3]
+        if not ilk_calistirma:
             context.application.create_task(
                 bildirimleri_dagit(
                     context.bot,
@@ -785,287 +785,287 @@ async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
                     yeni_durum,
                     bulut['kullanici_dilleri']
                 )
-            )[cite: 3]
+            )
         else:
-            print("✅ İlk çalıştırma referans verisi hafızaya alındı, kullanıcılara bildirim gönderilmedi.", flush=True)[cite: 3]
+            print("✅ İlk çalıştırma referans verisi hafızaya alındı, kullanıcılara bildirim gönderilmedi.", flush=True)
 
     except Exception as e:
-        print(f"⚠️ Sinyal kontrol hatası: {e}", flush=True)[cite: 3]
+        print(f"⚠️ Sinyal kontrol hatası: {e}", flush=True)
 
 async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_tarih_degisti, dosya_tarih, yeni_durum, diller):
     async def guvenli_mesaj_gonder(g_chat_id, g_text, g_klavye=None):
         try: 
-            await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)[cite: 3]
-            await asyncio.sleep(0.05)[cite: 3]
+            await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
+            await asyncio.sleep(0.05)
         except RetryAfter as e:
-            await asyncio.sleep(e.retry_after)[cite: 3]
+            await asyncio.sleep(e.retry_after)
             try:
-                await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)[cite: 3]
+                await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
             except:
-                pass[cite: 3]
+                pass
         except: 
-            pass[cite: 3]
+            pass
 
-    ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])[cite: 3]
-    toplu_mesajlar, kalan_bekleyenler, admin_onay_listesi = {}, [], [][cite: 3]
+    ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])
+    toplu_mesajlar, kalan_bekleyenler, admin_onay_listesi = {}, [], []
 
     for kisi in bekleyenler:
-        chat_id, dosya_tam = kisi['chat_id'], kisi['dosya_no'][cite: 3]
-        k_dili = diller.get(chat_id, "tr")[cite: 3]
-        dil_pak = DIL_SOZLUGU.get(k_dili, DIL_SOZLUGU["tr"])[cite: 3]
+        chat_id, dosya_tam = kisi['chat_id'], kisi['dosya_no']
+        k_dili = diller.get(chat_id, "tr")
+        dil_pak = DIL_SOZLUGU.get(k_dili, DIL_SOZLUGU["tr"])
         
         if chat_id not in toplu_mesajlar: 
-            toplu_mesajlar[chat_id] = {"bulunamayanlar": [], "termen_degisenler": [], "stadiu_guncellendi": False, "eklenen_pdfler": set(), "dil": k_dili}[cite: 3]
+            toplu_mesajlar[chat_id] = {"bulunamayanlar": [], "termen_degisenler": [], "stadiu_guncellendi": False, "eklenen_pdfler": set(), "dil": k_dili}
         if kisi.get('onaylandi', False): 
-            kalan_bekleyenler.append(kisi)[cite: 3]
-            continue[cite: 3]
+            kalan_bekleyenler.append(kisi)
+            continue
         
-        ana_no, ana_yil = dosya_tam.split('/')[cite: 3]
-        arama_kriteri, karar_icin_regex = f"^{ana_no}/.*{ana_yil}$", rf"\b{ana_no}\b.*?\b{ana_yil}\b"[cite: 3]
+        ana_no, ana_yil = dosya_tam.split('/')
+        arama_kriteri, karar_icin_regex = f"^{ana_no}/.*{ana_yil}$", rf"\b{ana_no}\b.*?\b{ana_yil}\b"
 
         # 40 GÜN KONTROLÜ
-        sample_ozel = db_anc.ozel_durumlar.find_one()[cite: 3]
-        if sample_ozel:[cite: 3]
-            ozel_col = next((c for c in sample_ozel.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)[cite: 3]
-            if ozel_col:[cite: 3]
-                ozel_doc = db_anc.ozel_durumlar.find_one({ozel_col: {"$regex": arama_kriteri, "$options": "i"}})[cite: 3]
-                if ozel_doc and f"{chat_id}_{dosya_tam}_40gun" not in ozel_bildirim_gecmisi:[cite: 3]
-                    vals = [v for k, v in ozel_doc.items() if k != "_id"][cite: 3]
-                    ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"[cite: 3]
-                    kalan_gun_msg = "Lütfen kurumla iletişime geçin."[cite: 3]
+        sample_ozel = db_anc.ozel_durumlar.find_one()
+        if sample_ozel:
+            ozel_col = next((c for c in sample_ozel.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+            if ozel_col:
+                ozel_doc = db_anc.ozel_durumlar.find_one({ozel_col: {"$regex": arama_kriteri, "$options": "i"}})
+                if ozel_doc and f"{chat_id}_{dosya_tam}_40gun" not in ozel_bildirim_gecmisi:
+                    vals = [v for k, v in ozel_doc.items() if k != "_id"]
+                    ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"
+                    kalan_gun_msg = "Lütfen kurumla iletişime geçin."
                     try:
-                        gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days[cite: 3]
-                        if (40 - gecen_gun) > 0: kalan_gun_msg = dil_pak["gun_kaldi"].format(gun=40 - gecen_gun)[cite: 3]
-                        elif (40 - gecen_gun) == 0: kalan_gun_msg = dil_pak["bugun_doluyor"][cite: 3]
-                        else: kalan_gun_msg = dil_pak["sure_doldu"].format(gun=gecen_gun)[cite: 3]
-                    except: pass[cite: 3]
-                    await guvenli_mesaj_gonder(chat_id, dil_pak["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_msg))[cite: 3]
-                    ozel_bildirim_gecmisi.append(f"{chat_id}_{dosya_tam}_40gun")[cite: 3]
+                        gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days
+                        if (40 - gecen_gun) > 0: kalan_gun_msg = dil_pak["gun_kaldi"].format(gun=40 - gecen_gun)
+                        elif (40 - gecen_gun) == 0: kalan_gun_msg = dil_pak["bugun_doluyor"]
+                        else: kalan_gun_msg = dil_pak["sure_doldu"].format(gun=gecen_gun)
+                    except: pass
+                    await guvenli_mesaj_gonder(chat_id, dil_pak["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_msg))
+                    ozel_bildirim_gecmisi.append(f"{chat_id}_{dosya_tam}_40gun")
 
         # KARAR KONTROLÜ (MongoDB)
-        karar_bulundu_mu, k_row = False, None[cite: 3]
-        for col_name in ["kararlar_m11", "kararlar_m10"]:[cite: 3]
-            sample_k = db_anc[col_name].find_one()[cite: 3]
-            if sample_k:[cite: 3]
-                k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)[cite: 3]
-                if k_sutun:[cite: 3]
-                    match_k = db_anc[col_name].find_one({k_sutun: {"$regex": karar_icin_regex, "$options": "i"}})[cite: 3]
-                    if match_k:[cite: 3]
-                        karar_bulundu_mu, k_row = True, match_k[cite: 3]
-                        break[cite: 3]
+        karar_bulundu_mu, k_row = False, None
+        for col_name in ["kararlar_m11", "kararlar_m10"]:
+            sample_k = db_anc[col_name].find_one()
+            if sample_k:
+                k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+                if k_sutun:
+                    match_k = db_anc[col_name].find_one({k_sutun: {"$regex": karar_icin_regex, "$options": "i"}})
+                    if match_k: 
+                        karar_bulundu_mu, k_row = True, match_k
+                        break
 
-        if karar_bulundu_mu:[cite: 3]
-            kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])[cite: 3]
-            g_karar = next((str(k_row[col]).strip() for col in k_row.keys() if 'ordin' in col.lower() or 'karar' in col.lower()), "")[cite: 3]
-            if not g_karar:[cite: 3]
-                g_karar = f"{re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE).group(1)}/P" if re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE) else "-"[cite: 3]
-            k_tarih = sutun_degeri_al(k_row, ['Tarih', 'Data']) or "-"[cite: 3]
+        if karar_bulundu_mu:
+            kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+            g_karar = next((str(k_row[col]).strip() for col in k_row.keys() if 'ordin' in col.lower() or 'karar' in col.lower()), "")
+            if not g_karar: 
+                g_karar = f"{re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE).group(1)}/P" if re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE) else "-"
+            k_tarih = sutun_degeri_al(k_row, ['Tarih', 'Data']) or "-"
             
             # Müjde mesajının altına Paylaş butonu eklenir
             mujde_share_btn = paylasim_butonu_uret(bot.username, k_dili)
             mujde_klavye = InlineKeyboardMarkup([[mujde_share_btn]])
             
-            await guvenli_mesaj_gonder(chat_id, dil_pak["mujde_onay"].format(dosya=dosya_tam, karar=g_karar, tarih=k_tarih, kaynak=kaynak_belge_adi), g_klavye=mujde_klavye)[cite: 3]
-            admin_onay_listesi.append(f"<code>{dosya_tam}</code> - 📄 <i>{kaynak_belge_adi}</i>")[cite: 3]
-            kisi['onaylandi'] = True[cite: 3]
+            await guvenli_mesaj_gonder(chat_id, dil_pak["mujde_onay"].format(dosya=dosya_tam, karar=g_karar, tarih=k_tarih, kaynak=kaynak_belge_adi), g_klavye=mujde_klavye)
+            admin_onay_listesi.append(f"<code>{dosya_tam}</code> - 📄 <i>{kaynak_belge_adi}</i>") 
+            kisi['onaylandi'] = True
             
         else:
-            sample_dosya = db_anc.stadiu_dosar.find_one()[cite: 3]
-            if sample_dosya:[cite: 3]
-                dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])[cite: 3]
-                user_row = db_anc.stadiu_dosar.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}})[cite: 3]
+            sample_dosya = db_anc.stadiu_dosar.find_one()
+            if sample_dosya:
+                dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
+                user_row = db_anc.stadiu_dosar.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}})
                 
-                if user_row:[cite: 3]
-                    kaynak_dosya_metni = sutun_degeri_al(user_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])[cite: 3]
-                    is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))[cite: 3]
-                    is_m11 = not is_m10[cite: 3]
-                    ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)[cite: 3]
+                if user_row:
+                    kaynak_dosya_metni = sutun_degeri_al(user_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                    is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
+                    is_m11 = not is_m10
+                    ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)
 
-                    if ilgili_ordin_eklendi_mi or dosya_tarih_degisti:[cite: 3]
-                        termen_degisti_mi, eski_termen_str, yeni_termen_str = False, "", ""[cite: 3]
-                        if dosya_tarih_degisti:[cite: 3]
-                            y_sol = sutun_degeri_al(user_row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])[cite: 3]
-                            y_ter = sutun_degeri_al(user_row, ['TERMEN', 'Termen'])[cite: 3]
-                            y_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_sol)[cite: 3]
-                            if y_sol_m and not re.search(r'\d+\s*/?\s*P', y_sol, re.IGNORECASE):[cite: 3]
-                                y_ter = y_sol_m.group(1)[cite: 3]
-                            yeni_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter) else str(y_ter).strip()[cite: 3]
+                    if ilgili_ordin_eklendi_mi or dosya_tarih_degisti:
+                        termen_degisti_mi, eski_termen_str, yeni_termen_str = False, "", ""
+                        if dosya_tarih_degisti:
+                            y_sol = sutun_degeri_al(user_row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+                            y_ter = sutun_degeri_al(user_row, ['TERMEN', 'Termen'])
+                            y_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_sol)
+                            if y_sol_m and not re.search(r'\d+\s*/?\s*P', y_sol, re.IGNORECASE): 
+                                y_ter = y_sol_m.group(1)
+                            yeni_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter) else str(y_ter).strip()
 
-                            eski_match = db_anc.stadiu_dosar_eski.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}}) if db_anc.stadiu_dosar_eski.count_documents({}) > 0 else None[cite: 3]
-                            if eski_match:[cite: 3]
-                                e_sol = sutun_degeri_al(eski_match, ['SOLUTIE', 'Solutie', 'Kurum Notu'])[cite: 3]
-                                e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])[cite: 3]
-                                e_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_sol)[cite: 3]
-                                if e_sol_m and not re.search(r'\d+\s*/?\s*P', e_sol, re.IGNORECASE):[cite: 3]
-                                    e_ter = e_sol_m.group(1)[cite: 3]
-                                eski_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter).group(1).replace('/', '.').replace('-', '.') if e_ter else str(e_ter).strip()[cite: 3]
+                            eski_match = db_anc.stadiu_dosar_eski.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}}) if db_anc.stadiu_dosar_eski.count_documents({}) > 0 else None
+                            if eski_match:
+                                e_sol = sutun_degeri_al(eski_match, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+                                e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])
+                                e_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_sol)
+                                if e_sol_m and not re.search(r'\d+\s*/?\s*P', e_sol, re.IGNORECASE): 
+                                    e_ter = e_sol_m.group(1)
+                                eski_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter).group(1).replace('/', '.').replace('-', '.') if e_ter else str(e_ter).strip()
 
-                            if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str:[cite: 3]
-                                termen_degisti_mi = True[cite: 3]
+                            if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str: 
+                                termen_degisti_mi = True
                         
-                        if termen_degisti_mi:[cite: 3]
-                            toplu_mesajlar[chat_id]["termen_degisenler"].append(dil_pak["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str))[cite: 3]
-                        if ilgili_ordin_eklendi_mi:[cite: 3]
-                            for pdf in (eklenen_m10 if is_m10 else eklenen_m11):[cite: 3]
-                                toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde {'10' if is_m10 else '11'}: <i>{pdf}</i>")[cite: 3]
-                            toplu_mesajlar[chat_id]["bulunamayanlar"].append(f"🔸 <code>{dosya_tam}</code>")[cite: 3]
-                        elif dosya_tarih_degisti and not termen_degisti_mi:[cite: 3]
-                            toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True[cite: 3]
+                        if termen_degisti_mi: 
+                            toplu_mesajlar[chat_id]["termen_degisenler"].append(dil_pak["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str))
+                        if ilgili_ordin_eklendi_mi:
+                            for pdf in (eklenen_m10 if is_m10 else eklenen_m11): 
+                                toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde {'10' if is_m10 else '11'}: <i>{pdf}</i>")
+                            toplu_mesajlar[chat_id]["bulunamayanlar"].append(f"🔸 <code>{dosya_tam}</code>")
+                        elif dosya_tarih_degisti and not termen_degisti_mi:
+                            toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True
 
-        kalan_bekleyenler.append(kisi)[cite: 3]
+            kalan_bekleyenler.append(kisi)
 
-    for ch_id, data in toplu_mesajlar.items():[cite: 3]
-        dil_pak = DIL_SOZLUGU.get(data["dil"], DIL_SOZLUGU["tr"])[cite: 3]
-        msg_parcalari = [][cite: 3]
-        if data["bulunamayanlar"]:[cite: 3]
-            m_key = "guncelleme_1_karar_1_dosya" if len(data["eklenen_pdfler"]) == 1 and len(data["bulunamayanlar"]) == 1 else ("guncelleme_1_karar_cok_dosya" if len(data["eklenen_pdfler"]) == 1 else ("guncelleme_cok_karar_1_dosya" if len(data["bulunamayanlar"]) == 1 else "guncelleme_cok_karar_cok_dosya"))[cite: 3]
-            msg_parcalari.append(dil_pak[m_key].format(dosyalar="\n".join(data["bulunamayanlar"]), yeni_dosyalar="\n".join(sorted(list(data["eklenen_pdfler"])))))[cite: 3]
-        if data["termen_degisenler"]:[cite: 3]
-            msg_parcalari.extend(data["termen_degisenler"])[cite: 3]
-        if data["stadiu_guncellendi"] and not data["bulunamayanlar"] and not data["termen_degisenler"]:[cite: 3]
-            msg_parcalari.append(dil_pak["stadiu_guncellendi"].format(tarih=dosya_tarih))[cite: 3]
-        
-        if msg_parcalari:[cite: 3]
-            # Güncelleme bildirimlerinin altına Paylaş butonu eklenir
-            guncelleme_share_btn = paylasim_butonu_uret(bot.username, data["dil"])
-            guncelleme_klavye = InlineKeyboardMarkup([[guncelleme_share_btn]])
-            await guvenli_mesaj_gonder(ch_id, "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari), g_klavye=guncelleme_klavye)[cite: 3]
-
-    if admin_onay_listesi and ADMIN_CHAT_ID:[cite: 3]
-        await guvenli_mesaj_gonder(ADMIN_CHAT_ID, "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n" + "\n".join([f"✅ {d}" for d in admin_onay_listesi]))[cite: 3]
-    
-    yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi[cite: 3]
-    set_bulut_verisi(kalan_bekleyenler, yeni_durum, diller)[cite: 3]
-    print("✅ Hedefli bildirim dağıtımı tamamlandı.", flush=True)[cite: 3]
-
-# ==========================================
-# 📊 YÖNETİCİ SİSTEM RAPORU
-# ==========================================
-async def rapor_metnini_hazirla():
-    bulut = get_bulut_verisi()[cite: 3]
-    bekleyenler = bulut.get("bekleyenler", []) if bulut else [][cite: 3]
-
-    count_m10, count_m11 = 0, 0[cite: 3]
-    onaylanan_listesi = [][cite: 3]
-    hafiza_guncellendi = False[cite: 3]
-
-    sample_dosya = db_anc.stadiu_dosar.find_one()[cite: 3]
-    dosya_no_col = None[cite: 3]
-    if sample_dosya:[cite: 3]
-        dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])[cite: 3]
-
-    for kisi in bekleyenler:
-        dosya_tam = str(kisi.get('dosya_no', '')).strip()[cite: 3]
-        if not dosya_tam or '/' not in dosya_tam:[cite: 3]
-            continue[cite: 3]
-
-        ana_no, ana_yil = dosya_tam.split('/')[cite: 3]
-        
-        if not kisi.get('madde') and dosya_no_col:[cite: 3]
-            arama_kriteri = f"^{ana_no}/.*{ana_yil}$"[cite: 3]
-            doc = db_anc.stadiu_dosar.find_one(
-                {dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}},
-                {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
-            )[cite: 3]
-            if doc:[cite: 3]
-                kaynak_metin = sutun_degeri_al(doc, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])[cite: 3]
-                kisi['madde'] = "Madde 10" if re.search(r'art[- ]?10', kaynak_metin, re.IGNORECASE) else "Madde 11"[cite: 3]
-            else:
-                kisi['madde'] = "Madde 11"[cite: 3]
-            hafiza_guncellendi = True[cite: 3]
-
-        madde_etiketi = kisi.get('madde', 'Madde 11')[cite: 3]
-
-        if kisi.get('onaylandi', False):[cite: 3]
-            karar_pdf = kisi.get('karar_belgesi', "")[cite: 3]
-            if not karar_pdf:[cite: 3]
-                karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"[cite: 3]
-                for col_name in ["kararlar_m10", "kararlar_m11"]:[cite: 3]
-                    sample_k = db_anc[col_name].find_one()[cite: 3]
-                    if sample_k:[cite: 3]
-                        k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)[cite: 3]
-                        if k_sutun:[cite: 3]
-                            match_k = db_anc[col_name].find_one(
-                                {k_sutun: {"$regex": karar_icin_regex, "$options": "i"}},
-                                {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
-                            )[cite: 3]
-                            if match_k:[cite: 3]
-                                karar_pdf = sutun_degeri_al(match_k, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])[cite: 3]
-                                kisi['karar_belgesi'] = karar_pdf[cite: 3]
-                                hafiza_guncellendi = True[cite: 3]
-                                break[cite: 3]
-
-            ek_metin = f" - 📄 <i>{karar_pdf}</i>" if karar_pdf else ""[cite: 3]
-            onaylanan_listesi.append(f"▪️ <code>{dosya_tam}</code> ({madde_etiketi}){ek_metin}")[cite: 3]
-        else:
-            if madde_etiketi == "Madde 10":[cite: 3]
-                count_m10 += 1[cite: 3]
-            else:
-                count_m11 += 1[cite: 3]
-
-    if hafiza_guncellendi:[cite: 3]
-        set_bulut_verisi(bekleyenler, bulut.get("son_durum", {}), bulut.get("kullanici_dilleri", {}))[cite: 3]
-
-    aktif_bekleyen_sayisi = count_m10 + count_m11[cite: 3]
-    onaylanan_sayisi = len(onaylanan_listesi)[cite: 3]
-
-    tsi_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)[cite: 3]
-    saat_metni = tsi_now.strftime("%H:%M")[cite: 3]
-
-    rapor_msg = (
-        f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
-        f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
-        f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{aktif_bekleyen_sayisi}</code>\n\n"
-        f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
-        f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
-        f"✅ <b>Şu ana kadar onayı çıkan dosya sayısı:</b> <code>{onaylanan_sayisi}</code>\n"
-    )[cite: 3]
-
-    if onaylanan_sayisi > 0:[cite: 3]
-        rapor_msg += f"\n<b>🏆 Onaylanan Dosyalar:</b>\n" + "\n".join(onaylanan_listesi) + "\n\n"[cite: 3]
-    else:
-        rapor_msg += "\n"[cite: 3]
-
-    rapor_msg += f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"[cite: 3]
-    return rapor_msg[cite: 3]
-
-async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = str(update.message.chat_id)[cite: 3]
-    if chat_id != str(ADMIN_CHAT_ID):[cite: 3]
-        return[cite: 3]
-    rapor_msg = await rapor_metnini_hazirla()[cite: 3]
-    await update.message.reply_text(rapor_msg, parse_mode='HTML')[cite: 3]
-
-async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
-    if not ADMIN_CHAT_ID:[cite: 3]
-        return[cite: 3]
-    try:
-        rapor_msg = await rapor_metnini_hazirla()[cite: 3]
-        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')[cite: 3]
-        print("✅ Günlük admin özet raporu (TSİ 20:00) başarıyla iletildi.", flush=True)[cite: 3]
-    except Exception as e:
-        print(f"Günlük rapor gönderilirken hata: {e}", flush=True)[cite: 3]
-        
-# ==========================================
-# ⚙️ ANA ÇALIŞTIRMA (POLLING)
-# ==========================================
-if __name__ == '__main__':
-    app = Application.builder().token(BOT_TOKEN).build()
-    
-    async def post_init(application: Application):
-        async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
-            await veritabanini_kontrol_et(context)
+        for ch_id, data in toplu_mesajlar.items():
+            dil_pak = DIL_SOZLUGU.get(data["dil"], DIL_SOZLUGU["tr"])
+            msg_parcalari = []
+            if data["bulunamayanlar"]:
+                m_key = "guncelleme_1_karar_1_dosya" if len(data["eklenen_pdfler"]) == 1 and len(data["bulunamayanlar"]) == 1 else ("guncelleme_1_karar_cok_dosya" if len(data["eklenen_pdfler"]) == 1 else ("guncelleme_cok_karar_1_dosya" if len(data["bulunamayanlar"]) == 1 else "guncelleme_cok_karar_cok_dosya"))
+                msg_parcalari.append(dil_pak[m_key].format(dosyalar="\n".join(data["bulunamayanlar"]), yeni_dosyalar="\n".join(sorted(list(data["eklenen_pdfler"])))))
+            if data["termen_degisenler"]: 
+                msg_parcalari.extend(data["termen_degisenler"])
+            if data["stadiu_guncellendi"] and not data["bulunamayanlar"] and not data["termen_degisenler"]: 
+                msg_parcalari.append(dil_pak["stadiu_guncellendi"].format(tarih=dosya_tarih))
             
-        application.job_queue.run_repeating(baslangic_taramasi, interval=120, first=2)
+            if msg_parcalari: 
+                # Güncelleme bildirimlerinin altına Paylaş butonu eklenir
+                guncelleme_share_btn = paylasim_butonu_uret(bot.username, data["dil"])
+                guncelleme_klavye = InlineKeyboardMarkup([[guncelleme_share_btn]])
+                await guvenli_mesaj_gonder(ch_id, "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari), g_klavye=guncelleme_klavye)
+
+        if admin_onay_listesi and ADMIN_CHAT_ID: 
+            await guvenli_mesaj_gonder(ADMIN_CHAT_ID, "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n" + "\n".join([f"✅ {d}" for d in admin_onay_listesi]))
         
-        hedef_zaman_utc = datetime.time(hour=17, minute=0, tzinfo=datetime.timezone.utc)
-        application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_zaman_utc)
+        yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi
+        set_bulut_verisi(kalan_bekleyenler, yeni_durum, diller)
+        print("✅ Hedefli bildirim dağıtımı tamamlandı.", flush=True)
+
+    # ==========================================
+    # 📊 YÖNETİCİ SİSTEM RAPORU
+    # ==========================================
+    async def rapor_metnini_hazirla():
+        bulut = get_bulut_verisi()
+        bekleyenler = bulut.get("bekleyenler", []) if bulut else []
+
+        count_m10, count_m11 = 0, 0
+        onaylanan_listesi = []
+        hafiza_guncellendi = False
+
+        sample_dosya = db_anc.stadiu_dosar.find_one()
+        dosya_no_col = None
+        if sample_dosya:
+            dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
+
+        for kisi in bekleyenler:
+            dosya_tam = str(kisi.get('dosya_no', '')).strip()
+            if not dosya_tam or '/' not in dosya_tam:
+                continue
+
+            ana_no, ana_yil = dosya_tam.split('/')
+            
+            if not kisi.get('madde') and dosya_no_col:
+                arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
+                doc = db_anc.stadiu_dosar.find_one(
+                    {dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}},
+                    {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
+                )
+                if doc:
+                    kaynak_metin = sutun_degeri_al(doc, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                    kisi['madde'] = "Madde 10" if re.search(r'art[- ]?10', kaynak_metin, re.IGNORECASE) else "Madde 11"
+                else:
+                    kisi['madde'] = "Madde 11"
+                hafiza_guncellendi = True
+
+            madde_etiketi = kisi.get('madde', 'Madde 11')
+
+            if kisi.get('onaylandi', False):
+                karar_pdf = kisi.get('karar_belgesi', "")
+                if not karar_pdf:
+                    karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+                    for col_name in ["kararlar_m10", "kararlar_m11"]:
+                        sample_k = db_anc[col_name].find_one()
+                        if sample_k:
+                            k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+                            if k_sutun:
+                                match_k = db_anc[col_name].find_one(
+                                    {k_sutun: {"$regex": karar_icin_regex, "$options": "i"}},
+                                    {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
+                                )
+                                if match_k:
+                                    karar_pdf = sutun_degeri_al(match_k, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                                    kisi['karar_belgesi'] = karar_pdf
+                                    hafiza_guncellendi = True
+                                    break
+
+                ek_metin = f" - 📄 <i>{karar_pdf}</i>" if karar_pdf else ""
+                onaylanan_listesi.append(f"▪️ <code>{dosya_tam}</code> ({madde_etiketi}){ek_metin}")
+            else:
+                if madde_etiketi == "Madde 10":
+                    count_m10 += 1
+                else:
+                    count_m11 += 1
+
+        if hafiza_guncellendi:
+            set_bulut_verisi(bekleyenler, bulut.get("son_durum", {}), bulut.get("kullanici_dilleri", {}))
+
+        aktif_bekleyen_sayisi = count_m10 + count_m11
+        onaylanan_sayisi = len(onaylanan_listesi)
+
+        tsi_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
+        saat_metni = tsi_now.strftime("%H:%M")
+
+        rapor_msg = (
+            f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
+            f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
+            f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{aktif_bekleyen_sayisi}</code>\n\n"
+            f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
+            f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
+            f"✅ <b>Şu ana kadar onayı çıkan dosya sayısı:</b> <code>{onaylanan_sayisi}</code>\n"
+        )
+
+        if onaylanan_sayisi > 0:
+            rapor_msg += f"\n<b>🏆 Onaylanan Dosyalar:</b>\n" + "\n".join(onaylanan_listesi) + "\n\n"
+        else:
+            rapor_msg += "\n"
+
+        rapor_msg += f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
+        return rapor_msg
+
+    async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        chat_id = str(update.message.chat_id)
+        if chat_id != str(ADMIN_CHAT_ID):
+            return
+        rapor_msg = await rapor_metnini_hazirla()
+        await update.message.reply_text(rapor_msg, parse_mode='HTML')
+
+    async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
+        if not ADMIN_CHAT_ID:
+            return
+        try:
+            rapor_msg = await rapor_metnini_hazirla()
+            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')
+            print("✅ Günlük admin özet raporu (TSİ 20:00) başarıyla iletildi.", flush=True)
+        except Exception as e:
+            print(f"Günlük rapor gönderilirken hata: {e}", flush=True)
+            
+    # ==========================================
+    # ⚙️ ANA ÇALIŞTIRMA (POLLING)
+    # ==========================================
+    if __name__ == '__main__':
+        app = Application.builder().token(BOT_TOKEN).build()
         
-    app.post_init = post_init
-    app.add_handler(CommandHandler("start", start_command))    
-    app.add_handler(CommandHandler("setlanguage", dil_komutu))
-    app.add_handler(CommandHandler("rapor", rapor_komutu)) 
-    app.add_handler(CommandHandler("duyuru", duyuru_gonder))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
-    app.add_handler(CallbackQueryHandler(buton_tiklama))
-    app.run_polling(drop_pending_updates=True)
+        async def post_init(application: Application):
+            async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
+                await veritabanini_kontrol_et(context)
+                
+            application.job_queue.run_repeating(baslangic_taramasi, interval=120, first=2)
+            
+            hedef_zaman_utc = datetime.time(hour=17, minute=0, tzinfo=datetime.timezone.utc)
+            application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_zaman_utc)
+            
+        app.post_init = post_init
+        app.add_handler(CommandHandler("start", start_command))    
+        app.add_handler(CommandHandler("setlanguage", dil_komutu))
+        app.add_handler(CommandHandler("rapor", rapor_komutu)) 
+        app.add_handler(CommandHandler("duyuru", duyuru_gonder))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
+        app.add_handler(CallbackQueryHandler(buton_tiklama))
+        app.run_polling(drop_pending_updates=True)
