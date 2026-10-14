@@ -342,25 +342,6 @@ def pano_istatistiklerini_getir(zorla_guncelle=False):
     return d_tarih, m10_son, m11_son
 
 # ==========================================
-# 📢 YARDIMCI: PAYLAŞIM BUTONU ÜRETİCİ
-# ==========================================
-def paylasim_butonu_uret(bot_username, kullanici_dili="tr"):
-    """Dile göre optimize edilmiş 'Botu Arkadaşına Öner' butonunu döndürür."""
-    if kullanici_dili == "ru":
-        buton_metni = "📢 Порекомендуй бота другу"
-        paylasim_metni = "🇹🇩 Рекомендую бота для проверки и отслеживания досье гражданства Румынии!"
-    elif kullanici_dili == "ro":
-        buton_metni = "📢 Recomandă botul unui prieten"
-        paylasim_metni = "🇹🇩 Recomand cu încredere acest bot pentru verificarea dosarului de cetățenie română!"
-    else:
-        buton_metni = "📢 Botu Arkadaşına Öner"
-        paylasim_metni = "🇹🇩 Romanya Vatandaşlık Dosya Sorgulama ve Takip Botunu kesinlikle tavsiye ederim!"
-
-    safe_text = re.sub(r'\s+', '%20', paylasim_metni)
-    share_url = f"https://t.me/share/url?url=https://t.me/{bot_username}&text={safe_text}"
-    return InlineKeyboardButton(buton_metni, url=share_url)
-
-# ==========================================
 # 💬 TELEGRAM ARAMA VE YANIT MANTIĞI
 # ==========================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -384,18 +365,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bekleyenler = bulut.get("bekleyenler", []) if bulut else []
     user_takip_objeleri = [k for k in bekleyenler if str(k.get('chat_id')) == chat_id]
     
-    takip_metni = ""
-    klavye_satirlari = []
-    
+    reply_markup, takip_metni = None, ""
     if user_takip_objeleri:
         dosyalar_alt_alta = "".join([f"🎉 <del>{k.get('dosya_no')}</del>\n" if k.get('onaylandi') else f"⏳ <code>{k.get('dosya_no')}</code>\n" for k in user_takip_objeleri])
         takip_metni = f"\n━━━━━━━━━━━━━━━━━━\n{dil_paketi.get('takip_baslik', '🔔')}\n\n{dosyalar_alt_alta}\n"
-        klavye_satirlari.append([InlineKeyboardButton(dil_paketi["buton_birak"], callback_data="menu_birak")])
-
-    # /start ekranına Paylaş butonu entegrasyonu
-    share_btn = paylasim_butonu_uret(context.bot.username, kullanici_dili)
-    klavye_satirlari.append([share_btn])
-    reply_markup = InlineKeyboardMarkup(klavye_satirlari)
+        reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(dil_paketi["buton_birak"], callback_data="menu_birak")]])
 
     mesaj = dil_paketi["karsilama"].format(tarih=d_tarih, m10_liste=m10_metin, m11_liste=m11_metin, takip=takip_metni)
     await update.message.reply_text(mesaj, parse_mode='HTML', reply_markup=reply_markup)
@@ -409,7 +383,7 @@ async def dil_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
     aranan_kelime = update.message.text.strip().replace(" ", "")
-    chat_id = str(update.message.chat_id)
+    chat_id = str(update.message.chat_id) 
     
     bulut = get_bulut_verisi() or {"bekleyenler": [], "kullanici_dilleri": {}}
     kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id, "tr")
@@ -541,14 +515,9 @@ async def mesaj_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buton_ekle = not zaten_takipte
         yanit += dil_paketi["henuz_yok"] + ("\n━━━━━━━━━━━━━━━━━━\n" + dil_paketi["takipte"] if zaten_takipte else "")
 
-    # Manuel sorgulama sonuç ekranı için buton klavyesi
-    klavye = []
-    if buton_ekle:
-        klavye.append([InlineKeyboardButton(dil_paketi["buton_takip"], callback_data=f"kvkk_{ana_no}_{ana_yil}")])
-    
-    # Her sorgu sonucunun altına Paylaş butonu eklenir
-    share_btn = paylasim_butonu_uret(context.bot.username, kullanici_dili)
-    klavye.append([share_btn])
+    share_button = InlineKeyboardButton("📢 Botu Öner" if kullanici_dili=="tr" else "📢 Recommend", url=f"https://t.me/share/url?url=https://t.me/{context.bot.username}")
+    klavye = [[InlineKeyboardButton(dil_paketi["buton_takip"], callback_data=f"kvkk_{ana_no}_{ana_yil}")]] if buton_ekle else []
+    klavye.append([share_button])
     
     await update.message.reply_text(yanit, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(klavye), disable_web_page_preview=True)
 
@@ -563,21 +532,17 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kullanici_dili = bulut.get("kullanici_dilleri", {}).get(chat_id, "tr")
     dil_paketi = DIL_SOZLUGU.get(kullanici_dili, DIL_SOZLUGU["tr"])
 
-    if query.data == "duyuru_start":
-        await start_command(query, context)
-        return
-
     if query.data.startswith("dil_"):
         if query.data == "dil_iptal":
             await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')
             return
-        secilen_dil = query.data.split("_")[1]
+        secilen_dil = query.data.split("_")[1] 
         bulut['kullanici_dilleri'][chat_id] = secilen_dil
         set_bulut_verisi(bulut['bekleyenler'], bulut['son_durum'], bulut['kullanici_dilleri'])
         try:
             await query.edit_message_text(text=DIL_SOZLUGU[secilen_dil]["secildi"], parse_mode='HTML')
         except Exception:
-            pass
+            pass  # Kullanıcı aynı butona çift tıklarsa hatayı yut ve logları kirletme
         return
 
     if query.data.startswith("kvkk_"):
@@ -644,83 +609,6 @@ async def buton_tiklama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=dil_paketi["iptal"], parse_mode='HTML')
 
 # ==========================================
-# 📢 YÖNETİCİ GENEL DUYURU MOTORU
-# ==========================================
-async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = str(update.effective_chat.id)
-    
-    if chat_id != str(ADMIN_CHAT_ID):
-        await update.message.reply_text("⛔ Bu komutu kullanma yetkiniz bulunmamaktadır.")
-        return
-
-    bulut = get_bulut_verisi()
-    bekleyenler = bulut.get("bekleyenler", []) if bulut else []
-
-    hedef_chat_idleri = list(set([str(k['chat_id']) for k in bekleyenler if 'chat_id' in k]))
-
-    if not hedef_chat_idleri:
-        await update.message.reply_text("❌ Sistemde kayıtlı kullanıcı bulunamadı.")
-        return
-
-    duyuru_metni = (
-        "📢 <b>Bilgilendirme: Botumuz Kesintisiz Çalışmaya Devam Ediyor</b>\n\n"
-        "Değerli Takipçilerimiz,\n\n"
-        "Romanya Vatandaşlık Kurumu (ANC) resmi sayfalarında <b>8 Ekim 2026</b> tarihinden bu yana yeni bir karar (Ordin) yayımlanmamıştır.\n\n"
-        "Sistemimiz 7/24 aktif bir şekilde resmi listeleri izlemeye ve takibe devam etmektedir. Kurum tarafından yeni bir karar listesi yayımlandığı veya dosya durumunuz güncellendiği anda otomatik bildiriminiz iletilecektir.\n\n"
-        "Dosyanızın güncel durumunu dilediğiniz zaman bota dosya numaranızı ve yılını yazarak (Örn: <code>1234/2023</code>) sorgulayabilirsiniz. 🇹🇩"
-    )
-    
-    klavye = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔎 Dosyamın Durumunu Sorgula", callback_data="duyuru_start")]
-    ])
-
-    gorsel_yolu = "duyuru.png"
-    basarili = 0
-    hatali = 0
-    
-    await update.message.reply_text(f"📢 Bilgilendirme duyurusu {len(hedef_chat_idleri)} kayıtlı kullanıcıya iletilmeye başlanıyor. Lütfen bitene kadar bekleyin...")
-
-    for hedef_id in hedef_chat_idleri:
-        try:
-            if os.path.exists(gorsel_yolu):
-                with open(gorsel_yolu, 'rb') as photo:
-                    await context.bot.send_photo(
-                        chat_id=hedef_id,
-                        photo=photo,
-                        caption=duyuru_metni,
-                        parse_mode='HTML',
-                        reply_markup=klavye
-                    )
-            else:
-                await context.bot.send_message(
-                    chat_id=hedef_id,
-                    text=duyuru_metni,
-                    parse_mode='HTML',
-                    reply_markup=klavye,
-                    disable_web_page_preview=True
-                )
-            basarili += 1
-        except RetryAfter as e:
-            await asyncio.sleep(e.retry_after)
-            try:
-                await context.bot.send_message(chat_id=hedef_id, text=duyuru_metni, parse_mode='HTML', reply_markup=klavye)
-                basarili += 1
-            except Exception:
-                hatali += 1
-        except Exception as e:
-            hatali += 1
-            print(f"Duyuru iletilemedi ({hedef_id}): {e}", flush=True)
-
-        await asyncio.sleep(0.05)
-
-    await update.message.reply_text(
-        f"✅ <b>Duyuru Başarıyla Dağıtıldı!</b>\n\n"
-        f"📤 Başarılı İletim: {basarili}\n"
-        f"🚫 Ulaşılamayan / Botu Engelleyen: {hatali}",
-        parse_mode='HTML'
-    )
-
-# ==========================================
 # 🚀 ARKA PLAN KONTROL MERKEZİ (SİNYAL ODAKLI)
 # ==========================================
 async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
@@ -735,6 +623,7 @@ async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
         # 1. PC'den gelen tetikleme bayrağına (sinyale) bak
         sinyal = db_anc["sistem_sinyalleri"].find_one({"_id": "yeni_karar_tetikleyici"})
         
+        # Eğer ilk çalıştırmaysa veya PC'den yeni bir sinyal geldiyse çalıştır
         if not ilk_calistirma:
             if not sinyal:
                 return
@@ -772,7 +661,7 @@ async def veritabanini_kontrol_et(context: ContextTypes.DEFAULT_TYPE):
         }
         set_bulut_verisi(bulut['bekleyenler'], yeni_durum, bulut['kullanici_dilleri'])
 
-        # 4. Bildirimleri Sadece Gerçek Güncellemede Dağıt
+        # 4. Bildirimleri Sadece Gerçek Güncellemede Dağıt (İlk çalıştırmada spam yapma)
         if not ilk_calistirma:
             context.application.create_task(
                 bildirimleri_dagit(
@@ -861,11 +750,7 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
                 g_karar = f"{re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE).group(1)}/P" if re.search(r'(?:ordin|nr)[^\d]*(\d+)', kaynak_belge_adi, re.IGNORECASE) else "-"
             k_tarih = sutun_degeri_al(k_row, ['Tarih', 'Data']) or "-"
             
-            # Müjde mesajının altına Paylaş butonu eklenir
-            mujde_share_btn = paylasim_butonu_uret(bot.username, k_dili)
-            mujde_klavye = InlineKeyboardMarkup([[mujde_share_btn]])
-            
-            await guvenli_mesaj_gonder(chat_id, dil_pak["mujde_onay"].format(dosya=dosya_tam, karar=g_karar, tarih=k_tarih, kaynak=kaynak_belge_adi), g_klavye=mujde_klavye)
+            await guvenli_mesaj_gonder(chat_id, dil_pak["mujde_onay"].format(dosya=dosya_tam, karar=g_karar, tarih=k_tarih, kaynak=kaynak_belge_adi))
             admin_onay_listesi.append(f"<code>{dosya_tam}</code> - 📄 <i>{kaynak_belge_adi}</i>") 
             kisi['onaylandi'] = True
             
@@ -912,161 +797,156 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
                         elif dosya_tarih_degisti and not termen_degisti_mi:
                             toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True
 
-            kalan_bekleyenler.append(kisi)
+        kalan_bekleyenler.append(kisi)
 
-        for ch_id, data in toplu_mesajlar.items():
-            dil_pak = DIL_SOZLUGU.get(data["dil"], DIL_SOZLUGU["tr"])
-            msg_parcalari = []
-            if data["bulunamayanlar"]:
-                m_key = "guncelleme_1_karar_1_dosya" if len(data["eklenen_pdfler"]) == 1 and len(data["bulunamayanlar"]) == 1 else ("guncelleme_1_karar_cok_dosya" if len(data["eklenen_pdfler"]) == 1 else ("guncelleme_cok_karar_1_dosya" if len(data["bulunamayanlar"]) == 1 else "guncelleme_cok_karar_cok_dosya"))
-                msg_parcalari.append(dil_pak[m_key].format(dosyalar="\n".join(data["bulunamayanlar"]), yeni_dosyalar="\n".join(sorted(list(data["eklenen_pdfler"])))))
-            if data["termen_degisenler"]: 
-                msg_parcalari.extend(data["termen_degisenler"])
-            if data["stadiu_guncellendi"] and not data["bulunamayanlar"] and not data["termen_degisenler"]: 
-                msg_parcalari.append(dil_pak["stadiu_guncellendi"].format(tarih=dosya_tarih))
-            
-            if msg_parcalari: 
-                # Güncelleme bildirimlerinin altına Paylaş butonu eklenir
-                guncelleme_share_btn = paylasim_butonu_uret(bot.username, data["dil"])
-                guncelleme_klavye = InlineKeyboardMarkup([[guncelleme_share_btn]])
-                await guvenli_mesaj_gonder(ch_id, "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari), g_klavye=guncelleme_klavye)
-
-        if admin_onay_listesi and ADMIN_CHAT_ID: 
-            await guvenli_mesaj_gonder(ADMIN_CHAT_ID, "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n" + "\n".join([f"✅ {d}" for d in admin_onay_listesi]))
+    for ch_id, data in toplu_mesajlar.items():
+        dil_pak = DIL_SOZLUGU.get(data["dil"], DIL_SOZLUGU["tr"])
+        msg_parcalari = []
+        if data["bulunamayanlar"]:
+            m_key = "guncelleme_1_karar_1_dosya" if len(data["eklenen_pdfler"]) == 1 and len(data["bulunamayanlar"]) == 1 else ("guncelleme_1_karar_cok_dosya" if len(data["eklenen_pdfler"]) == 1 else ("guncelleme_cok_karar_1_dosya" if len(data["bulunamayanlar"]) == 1 else "guncelleme_cok_karar_cok_dosya"))
+            msg_parcalari.append(dil_pak[m_key].format(dosyalar="\n".join(data["bulunamayanlar"]), yeni_dosyalar="\n".join(sorted(list(data["eklenen_pdfler"])))))
+        if data["termen_degisenler"]: 
+            msg_parcalari.extend(data["termen_degisenler"])
+        if data["stadiu_guncellendi"] and not data["bulunamayanlar"] and not data["termen_degisenler"]: 
+            msg_parcalari.append(dil_pak["stadiu_guncellendi"].format(tarih=dosya_tarih))
         
-        yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi
-        set_bulut_verisi(kalan_bekleyenler, yeni_durum, diller)
-        print("✅ Hedefli bildirim dağıtımı tamamlandı.", flush=True)
+        if msg_parcalari: 
+            await guvenli_mesaj_gonder(ch_id, "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari))
 
-    # ==========================================
-    # 📊 YÖNETİCİ SİSTEM RAPORU
-    # ==========================================
-    async def rapor_metnini_hazirla():
-        bulut = get_bulut_verisi()
-        bekleyenler = bulut.get("bekleyenler", []) if bulut else []
+    if admin_onay_listesi and ADMIN_CHAT_ID: 
+        await guvenli_mesaj_gonder(ADMIN_CHAT_ID, "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n" + "\n".join([f"✅ {d}" for d in admin_onay_listesi]))
+    
+    yeni_durum["ozel_bildirimler"] = ozel_bildirim_gecmisi
+    set_bulut_verisi(kalan_bekleyenler, yeni_durum, diller)
+    print("✅ Hedefli bildirim dağıtımı tamamlandı.", flush=True)
 
-        count_m10, count_m11 = 0, 0
-        onaylanan_listesi = []
-        hafiza_guncellendi = False
+# ==========================================
+# 📊 YÖNETİCİ SİSTEM RAPORU
+# ==========================================
+async def rapor_metnini_hazirla():
+    bulut = get_bulut_verisi()
+    bekleyenler = bulut.get("bekleyenler", []) if bulut else []
 
-        sample_dosya = db_anc.stadiu_dosar.find_one()
-        dosya_no_col = None
-        if sample_dosya:
-            dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
+    count_m10, count_m11 = 0, 0
+    onaylanan_listesi = []
+    hafiza_guncellendi = False
 
-        for kisi in bekleyenler:
-            dosya_tam = str(kisi.get('dosya_no', '')).strip()
-            if not dosya_tam or '/' not in dosya_tam:
-                continue
+    sample_dosya = db_anc.stadiu_dosar.find_one()
+    dosya_no_col = None
+    if sample_dosya:
+        dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
 
-            ana_no, ana_yil = dosya_tam.split('/')
-            
-            if not kisi.get('madde') and dosya_no_col:
-                arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
-                doc = db_anc.stadiu_dosar.find_one(
-                    {dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}},
-                    {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
-                )
-                if doc:
-                    kaynak_metin = sutun_degeri_al(doc, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
-                    kisi['madde'] = "Madde 10" if re.search(r'art[- ]?10', kaynak_metin, re.IGNORECASE) else "Madde 11"
-                else:
-                    kisi['madde'] = "Madde 11"
-                hafiza_guncellendi = True
+    for kisi in bekleyenler:
+        dosya_tam = str(kisi.get('dosya_no', '')).strip()
+        if not dosya_tam or '/' not in dosya_tam:
+            continue
 
-            madde_etiketi = kisi.get('madde', 'Madde 11')
-
-            if kisi.get('onaylandi', False):
-                karar_pdf = kisi.get('karar_belgesi', "")
-                if not karar_pdf:
-                    karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
-                    for col_name in ["kararlar_m10", "kararlar_m11"]:
-                        sample_k = db_anc[col_name].find_one()
-                        if sample_k:
-                            k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
-                            if k_sutun:
-                                match_k = db_anc[col_name].find_one(
-                                    {k_sutun: {"$regex": karar_icin_regex, "$options": "i"}},
-                                    {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
-                                )
-                                if match_k:
-                                    karar_pdf = sutun_degeri_al(match_k, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
-                                    kisi['karar_belgesi'] = karar_pdf
-                                    hafiza_guncellendi = True
-                                    break
-
-                ek_metin = f" - 📄 <i>{karar_pdf}</i>" if karar_pdf else ""
-                onaylanan_listesi.append(f"▪️ <code>{dosya_tam}</code> ({madde_etiketi}){ek_metin}")
+        ana_no, ana_yil = dosya_tam.split('/')
+        
+        if not kisi.get('madde') and dosya_no_col:
+            arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
+            doc = db_anc.stadiu_dosar.find_one(
+                {dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}},
+                {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
+            )
+            if doc:
+                kaynak_metin = sutun_degeri_al(doc, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                kisi['madde'] = "Madde 10" if re.search(r'art[- ]?10', kaynak_metin, re.IGNORECASE) else "Madde 11"
             else:
-                if madde_etiketi == "Madde 10":
-                    count_m10 += 1
-                else:
-                    count_m11 += 1
+                kisi['madde'] = "Madde 11"
+            hafiza_guncellendi = True
 
-        if hafiza_guncellendi:
-            set_bulut_verisi(bekleyenler, bulut.get("son_durum", {}), bulut.get("kullanici_dilleri", {}))
+        madde_etiketi = kisi.get('madde', 'Madde 11')
 
-        aktif_bekleyen_sayisi = count_m10 + count_m11
-        onaylanan_sayisi = len(onaylanan_listesi)
+        if kisi.get('onaylandi', False):
+            karar_pdf = kisi.get('karar_belgesi', "")
+            if not karar_pdf:
+                karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+                for col_name in ["kararlar_m10", "kararlar_m11"]:
+                    sample_k = db_anc[col_name].find_one()
+                    if sample_k:
+                        k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+                        if k_sutun:
+                            match_k = db_anc[col_name].find_one(
+                                {k_sutun: {"$regex": karar_icin_regex, "$options": "i"}},
+                                {"Kaynak Belge": 1, "Kaynak": 1, "_id": 0}
+                            )
+                            if match_k:
+                                karar_pdf = sutun_degeri_al(match_k, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                                kisi['karar_belgesi'] = karar_pdf
+                                hafiza_guncellendi = True
+                                break
 
-        tsi_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
-        saat_metni = tsi_now.strftime("%H:%M")
-
-        rapor_msg = (
-            f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
-            f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
-            f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{aktif_bekleyen_sayisi}</code>\n\n"
-            f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
-            f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
-            f"✅ <b>Şu ana kadar onayı çıkan dosya sayısı:</b> <code>{onaylanan_sayisi}</code>\n"
-        )
-
-        if onaylanan_sayisi > 0:
-            rapor_msg += f"\n<b>🏆 Onaylanan Dosyalar:</b>\n" + "\n".join(onaylanan_listesi) + "\n\n"
+            ek_metin = f" - 📄 <i>{karar_pdf}</i>" if karar_pdf else ""
+            onaylanan_listesi.append(f"▪️ <code>{dosya_tam}</code> ({madde_etiketi}){ek_metin}")
         else:
-            rapor_msg += "\n"
+            if madde_etiketi == "Madde 10":
+                count_m10 += 1
+            else:
+                count_m11 += 1
 
-        rapor_msg += f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
-        return rapor_msg
+    if hafiza_guncellendi:
+        set_bulut_verisi(bekleyenler, bulut.get("son_durum", {}), bulut.get("kullanici_dilleri", {}))
 
-    async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        chat_id = str(update.message.chat_id)
-        if chat_id != str(ADMIN_CHAT_ID):
-            return
+    aktif_bekleyen_sayisi = count_m10 + count_m11
+    onaylanan_sayisi = len(onaylanan_listesi)
+
+    tsi_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
+    saat_metni = tsi_now.strftime("%H:%M")
+
+    rapor_msg = (
+        f"📊 <b>GÜNLÜK ÖZET SİSTEM RAPORU</b>\n\n"
+        f"🕒 <b>Saat:</b> {saat_metni} (TSİ)\n\n"
+        f"👥 Bot veritabanında anlık olarak takip edilen ve karar bekleyen <b>toplam dosya sayısı:</b> <code>{aktif_bekleyen_sayisi}</code>\n\n"
+        f"🔸 <b>Madde 10 Dosya Sayısı:</b> <code>{count_m10}</code>\n\n"
+        f"🔸 <b>Madde 11 Dosya Sayısı:</b> <code>{count_m11}</code>\n\n"
+        f"✅ <b>Şu ana kadar onayı çıkan dosya sayısı:</b> <code>{onaylanan_sayisi}</code>\n"
+    )
+
+    if onaylanan_sayisi > 0:
+        rapor_msg += f"\n<b>🏆 Onaylanan Dosyalar:</b>\n" + "\n".join(onaylanan_listesi) + "\n\n"
+    else:
+        rapor_msg += "\n"
+
+    rapor_msg += f"<i>Sistem 7/24 ANC listelerini nöbette beklemeye devam ediyor. 🇹🇩</i>"
+    return rapor_msg
+
+async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.message.chat_id)
+    if chat_id != str(ADMIN_CHAT_ID):
+        return
+    rapor_msg = await rapor_metnini_hazirla()
+    await update.message.reply_text(rapor_msg, parse_mode='HTML')
+
+async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
+    if not ADMIN_CHAT_ID:
+        return
+    try:
         rapor_msg = await rapor_metnini_hazirla()
-        await update.message.reply_text(rapor_msg, parse_mode='HTML')
-
-    async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
-        if not ADMIN_CHAT_ID:
-            return
-        try:
-            rapor_msg = await rapor_metnini_hazirla()
-            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')
-            print("✅ Günlük admin özet raporu (TSİ 20:00) başarıyla iletildi.", flush=True)
-        except Exception as e:
-            print(f"Günlük rapor gönderilirken hata: {e}", flush=True)
-            
-    # ==========================================
-    # ⚙️ ANA ÇALIŞTIRMA (POLLING)
-    # ==========================================
-    if __name__ == '__main__':
-        app = Application.builder().token(BOT_TOKEN).build()
+        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=rapor_msg, parse_mode='HTML')
+        print("✅ Günlük admin özet raporu (TSİ 20:00) başarıyla iletildi.", flush=True)
+    except Exception as e:
+        print(f"Günlük rapor gönderilirken hata: {e}", flush=True)
         
-        async def post_init(application: Application):
-            print("⏳ Telegram sunucularına bağlantı deneniyor...", flush=True) # <-- BUNU EKLEYİN
-            async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
-                await veritabanini_kontrol_et(context)
-                
-            application.job_queue.run_repeating(baslangic_taramasi, interval=120, first=2)
+# ==========================================
+# ⚙️ ANA ÇALIŞTIRMA (POLLING)
+# ==========================================
+if __name__ == '__main__':
+    app = Application.builder().token(BOT_TOKEN).build()
+    
+    async def post_init(application: Application):
+        async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
+            await veritabanini_kontrol_et(context)
             
-            hedef_zaman_utc = datetime.time(hour=17, minute=0, tzinfo=datetime.timezone.utc)
-            application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_zaman_utc)
-            
-        app.post_init = post_init
-        app.add_handler(CommandHandler("start", start_command))    
-        app.add_handler(CommandHandler("setlanguage", dil_komutu))
-        app.add_handler(CommandHandler("rapor", rapor_komutu)) 
-        app.add_handler(CommandHandler("duyuru", duyuru_gonder))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
-        app.add_handler(CallbackQueryHandler(buton_tiklama))
-        app.run_polling(drop_pending_updates=True)
+        application.job_queue.run_repeating(baslangic_taramasi, interval=120, first=2)
+        
+        hedef_zaman_utc = datetime.time(hour=17, minute=0, tzinfo=datetime.timezone.utc)
+        application.job_queue.run_daily(gunluk_otomatik_rapor, time=hedef_zaman_utc)
+        
+    app.post_init = post_init
+    app.add_handler(CommandHandler("start", start_command))    
+    app.add_handler(CommandHandler("setlanguage", dil_komutu))
+    app.add_handler(CommandHandler("rapor", rapor_komutu)) 
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
+    app.add_handler(CallbackQueryHandler(buton_tiklama))
+    app.run_polling(drop_pending_updates=True)
