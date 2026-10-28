@@ -802,13 +802,50 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
             await asyncio.sleep(e.retry_after)
             try:
                 await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
-            except:
-                pass
-        except: 
-            pass
+            except: pass
+        except: pass
 
     ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])
     toplu_mesajlar, kalan_bekleyenler, admin_onay_listesi = {}, [], []
+    
+    # 1. OPTİMİZASYON: Bekleyen tüm kullanıcıların dosya numaralarını tek bir listede topla
+    bekleyen_dosya_nolar = [kisi['dosya_no'] for kisi in bekleyenler if not kisi.get('onaylandi', False)]
+    
+    # Tüm dosyaları Regex (içerir) formatına çevir (Örn: "1234/2023" -> "^1234/.*2023$")
+    regex_listesi = [f"^{d.split('/')[0]}/.*{d.split('/')[-1]}$" for d in bekleyen_dosya_nolar]
+    karar_regex_listesi = [rf"\b{d.split('/')[0]}\b.*?\b{d.split('/')[-1]}\b" for d in bekleyen_dosya_nolar]
+    
+    # 2. OPTİMİZASYON: MongoDB'ye yüzlerce kez sormak yerine TEK bir toplu sorgu (Bulk Query) yapıyoruz.
+    # Bu adım RAM çökmesini (Out of Memory) tamamen bitirir.
+    bulunan_kararlar_m10 = {}
+    bulunan_kararlar_m11 = {}
+    
+    if karar_regex_listesi:
+        # Madde 10 için Toplu Arama
+        sample_k10 = db_anc.kararlar_m10.find_one()
+        if sample_k10:
+            k_sutun_10 = next((col for col in sample_k10.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+            if k_sutun_10:
+                sonuclar_10 = list(db_anc.kararlar_m10.find({k_sutun_10: {"$in": [re.compile(r, re.IGNORECASE) for r in karar_regex_listesi]}}))
+                for row in sonuclar_10:
+                    dosya_val = str(row.get(k_sutun_10, "")).strip()
+                    m = re.search(r'(\d+)\s*/.*?(20\d{2})', dosya_val)
+                    if m: 
+                        clean_no = f"{m.group(1)}/{m.group(2)}"
+                        bulunan_kararlar_m10[clean_no] = row
+
+        # Madde 11 için Toplu Arama (324.000 veri içinden sadece aranan 150 tanesini getirir)
+        sample_k11 = db_anc.kararlar_m11.find_one()
+        if sample_k11:
+            k_sutun_11 = next((col for col in sample_k11.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+            if k_sutun_11:
+                sonuclar_11 = list(db_anc.kararlar_m11.find({k_sutun_11: {"$in": [re.compile(r, re.IGNORECASE) for r in karar_regex_listesi]}}))
+                for row in sonuclar_11:
+                    dosya_val = str(row.get(k_sutun_11, "")).strip()
+                    m = re.search(r'(\d+)\s*/.*?(20\d{2})', dosya_val)
+                    if m: 
+                        clean_no = f"{m.group(1)}/{m.group(2)}"
+                        bulunan_kararlar_m11[clean_no] = row
 
     for kisi in bekleyenler:
         chat_id, dosya_tam = kisi['chat_id'], kisi['dosya_no']
@@ -817,12 +854,13 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
         
         if chat_id not in toplu_mesajlar: 
             toplu_mesajlar[chat_id] = {"bulunamayanlar": [], "termen_degisenler": [], "stadiu_guncellendi": False, "eklenen_pdfler": set(), "dil": k_dili}
+        
         if kisi.get('onaylandi', False): 
             kalan_bekleyenler.append(kisi)
             continue
         
         ana_no, ana_yil = dosya_tam.split('/')
-        arama_kriteri, karar_icin_regex = f"^{ana_no}/.*{ana_yil}$", rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+        arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
 
         # 40 GÜN KONTROLÜ
         sample_ozel = db_anc.ozel_durumlar.find_one()
@@ -843,17 +881,9 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
                     await guvenli_mesaj_gonder(chat_id, dil_pak["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_msg))
                     ozel_bildirim_gecmisi.append(f"{chat_id}_{dosya_tam}_40gun")
 
-        # KARAR KONTROLÜ (MongoDB)
-        karar_bulundu_mu, k_row = False, None
-        for col_name in ["kararlar_m11", "kararlar_m10"]:
-            sample_k = db_anc[col_name].find_one()
-            if sample_k:
-                k_sutun = next((col for col in sample_k.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
-                if k_sutun:
-                    match_k = db_anc[col_name].find_one({k_sutun: {"$regex": karar_icin_regex, "$options": "i"}})
-                    if match_k: 
-                        karar_bulundu_mu, k_row = True, match_k
-                        break
+        # KARAR KONTROLÜ (Toplu sorgu sonuçlarından hızlıca okunuyor)
+        k_row = bulunan_kararlar_m10.get(dosya_tam) or bulunan_kararlar_m11.get(dosya_tam)
+        karar_bulundu_mu = bool(k_row)
 
         if karar_bulundu_mu:
             kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
