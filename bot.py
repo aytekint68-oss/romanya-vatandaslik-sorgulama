@@ -800,57 +800,71 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
             await asyncio.sleep(0.05)
         except RetryAfter as e:
             await asyncio.sleep(e.retry_after)
-            try:
-                await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
+            try: await bot.send_message(chat_id=g_chat_id, text=g_text, parse_mode='HTML', reply_markup=g_klavye, disable_web_page_preview=True)
             except: pass
         except: pass
 
     ozel_bildirim_gecmisi = yeni_durum.get("ozel_bildirimler", [])
     toplu_mesajlar, kalan_bekleyenler, admin_onay_listesi = {}, [], []
     
-    # 1. OPTİMİZASYON: Bekleyen tüm kullanıcıların dosya numaralarını tek bir listede topla
+    # 1. Bekleyen dosya numaralarının tam eşleşme varyasyonlarını oluştur (Yavaş olan Regex İptal Edildi, Çok Hızlı Metin Araması Yapılacak!)
     bekleyen_dosya_nolar = [kisi['dosya_no'] for kisi in bekleyenler if not kisi.get('onaylandi', False)]
-    
-    # Tüm dosyaları Regex (içerir) formatına çevir (Örn: "1234/2023" -> "^1234/.*2023$")
-    regex_listesi = [f"^{d.split('/')[0]}/.*{d.split('/')[-1]}$" for d in bekleyen_dosya_nolar]
-    karar_regex_listesi = [rf"\b{d.split('/')[0]}\b.*?\b{d.split('/')[-1]}\b" for d in bekleyen_dosya_nolar]
-    
-    # 2. OPTİMİZASYON: MongoDB'ye yüzlerce kez sormak yerine TEK bir toplu sorgu (Bulk Query) yapıyoruz.
-    # Bu adım RAM çökmesini (Out of Memory) tamamen bitirir.
-    bulunan_kararlar_m10 = {}
-    bulunan_kararlar_m11 = {}
-    
-    if karar_regex_listesi:
-        # Madde 10 için Toplu Arama
-        sample_k10 = db_anc.kararlar_m10.find_one()
-        if sample_k10:
-            k_sutun_10 = next((col for col in sample_k10.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
-            if k_sutun_10:
-                sonuclar_10 = list(db_anc.kararlar_m10.find({k_sutun_10: {"$in": [re.compile(r, re.IGNORECASE) for r in karar_regex_listesi]}}))
-                for row in sonuclar_10:
-                    dosya_val = str(row.get(k_sutun_10, "")).strip()
-                    m = re.search(r'(\d+)\s*/.*?(20\d{2})', dosya_val)
-                    if m: 
-                        clean_no = f"{m.group(1)}/{m.group(2)}"
-                        bulunan_kararlar_m10[clean_no] = row
+    arama_varyasyonlari = []
+    for d in bekleyen_dosya_nolar:
+        no, yil = d.split('/')
+        arama_varyasyonlari.extend([f"{no}/{yil}", f"{no} /{yil}", f"{no}/ {yil}", f"{no} / {yil}", f"{no}/{yil} "])
 
-        # Madde 11 için Toplu Arama (324.000 veri içinden sadece aranan 150 tanesini getirir)
-        sample_k11 = db_anc.kararlar_m11.find_one()
-        if sample_k11:
-            k_sutun_11 = next((col for col in sample_k11.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
-            if k_sutun_11:
-                sonuclar_11 = list(db_anc.kararlar_m11.find({k_sutun_11: {"$in": [re.compile(r, re.IGNORECASE) for r in karar_regex_listesi]}}))
-                for row in sonuclar_11:
-                    dosya_val = str(row.get(k_sutun_11, "")).strip()
-                    m = re.search(r'(\d+)\s*/.*?(20\d{2})', dosya_val)
-                    if m: 
-                        clean_no = f"{m.group(1)}/{m.group(2)}"
-                        bulunan_kararlar_m11[clean_no] = row
+    # 2. TÜM SORGULARI TEK SEFERDE INDEX KULLANARAK ÇEK (Süper Hızlı Bulk Query)
+    bulunan_m10, bulunan_m11, bulunan_stadiu, bulunan_eski, bulunan_ozel = {}, {}, {}, {}, {}
 
+    if arama_varyasyonlari:
+        # Madde 10 Taraması
+        sm10 = db_anc.kararlar_m10.find_one()
+        if sm10:
+            c10 = next((c for c in sm10.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+            if c10:
+                for r in db_anc.kararlar_m10.find({c10: {"$in": arama_varyasyonlari}}):
+                    bulunan_m10[str(r[c10]).replace(" ", "")] = r
+                    
+        # Madde 11 Taraması
+        sm11 = db_anc.kararlar_m11.find_one()
+        if sm11:
+            c11 = next((c for c in sm11.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+            if c11:
+                for r in db_anc.kararlar_m11.find({c11: {"$in": arama_varyasyonlari}}):
+                    bulunan_m11[str(r[c11]).replace(" ", "")] = r
+
+        # Stadiu Dosar Taraması
+        ssd = db_anc.stadiu_dosar.find_one()
+        if ssd:
+            csd = next((c for c in ssd.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), list(ssd.keys())[0])
+            if csd:
+                for r in db_anc.stadiu_dosar.find({csd: {"$in": arama_varyasyonlari}}):
+                    bulunan_stadiu[str(r[csd]).replace(" ", "")] = r
+
+        # Eski Stadiu Dosar Taraması (Termen değişikliği tespiti için)
+        if db_anc.stadiu_dosar_eski.count_documents({}) > 0:
+            sse = db_anc.stadiu_dosar_eski.find_one()
+            if sse:
+                cse = next((c for c in sse.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), list(sse.keys())[0])
+                if cse:
+                    for r in db_anc.stadiu_dosar_eski.find({cse: {"$in": arama_varyasyonlari}}):
+                        bulunan_eski[str(r[cse]).replace(" ", "")] = r
+
+        # Özel Durum (40 Gün) Taraması
+        soz = db_anc.ozel_durumlar.find_one()
+        if soz:
+            coz = next((c for c in soz.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+            if coz:
+                for r in db_anc.ozel_durumlar.find({coz: {"$in": arama_varyasyonlari}}):
+                    bulunan_ozel[str(r[coz]).replace(" ", "")] = r
+
+    # 3. VERİLERİ KULLANICILARA DAĞIT (Veritabanına bir daha soru sormaz, Python RAM'indeki sözlükten 0.01 sn'de bulur!)
     for kisi in bekleyenler:
         chat_id, dosya_tam = kisi['chat_id'], kisi['dosya_no']
         k_dili = diller.get(chat_id, "tr")
         dil_pak = DIL_SOZLUGU.get(k_dili, DIL_SOZLUGU["tr"])
+        dosya_key = dosya_tam.replace(" ", "")
         
         if chat_id not in toplu_mesajlar: 
             toplu_mesajlar[chat_id] = {"bulunamayanlar": [], "termen_degisenler": [], "stadiu_guncellendi": False, "eklenen_pdfler": set(), "dil": k_dili}
@@ -859,33 +873,25 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
             kalan_bekleyenler.append(kisi)
             continue
         
-        ana_no, ana_yil = dosya_tam.split('/')
-        arama_kriteri = f"^{ana_no}/.*{ana_yil}$"
+        # 40 Gün Özel Durum Kontrolü
+        ozel_doc = bulunan_ozel.get(dosya_key)
+        if ozel_doc and f"{chat_id}_{dosya_tam}_40gun" not in ozel_bildirim_gecmisi:
+            vals = [v for k, v in ozel_doc.items() if k != "_id"]
+            ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"
+            kalan_gun_msg = "Lütfen kurumla iletişime geçin."
+            try:
+                gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days
+                if (40 - gecen_gun) > 0: kalan_gun_msg = dil_pak["gun_kaldi"].format(gun=40 - gecen_gun)
+                elif (40 - gecen_gun) == 0: kalan_gun_msg = dil_pak["bugun_doluyor"]
+                else: kalan_gun_msg = dil_pak["sure_doldu"].format(gun=gecen_gun)
+            except: pass
+            await guvenli_mesaj_gonder(chat_id, dil_pak["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_msg))
+            ozel_bildirim_gecmisi.append(f"{chat_id}_{dosya_tam}_40gun")
 
-        # 40 GÜN KONTROLÜ
-        sample_ozel = db_anc.ozel_durumlar.find_one()
-        if sample_ozel:
-            ozel_col = next((c for c in sample_ozel.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
-            if ozel_col:
-                ozel_doc = db_anc.ozel_durumlar.find_one({ozel_col: {"$regex": arama_kriteri, "$options": "i"}})
-                if ozel_doc and f"{chat_id}_{dosya_tam}_40gun" not in ozel_bildirim_gecmisi:
-                    vals = [v for k, v in ozel_doc.items() if k != "_id"]
-                    ozel_tarih_str, ozel_isim, ozel_ek_bilgi = str(vals[0]) if len(vals)>0 else "-", str(vals[1]) if len(vals)>1 else "-", str(vals[3]) if len(vals)>3 else "-"
-                    kalan_gun_msg = "Lütfen kurumla iletişime geçin."
-                    try:
-                        gecen_gun = (datetime.datetime.now() - datetime.datetime.strptime(ozel_tarih_str, '%d.%m.%Y')).days
-                        if (40 - gecen_gun) > 0: kalan_gun_msg = dil_pak["gun_kaldi"].format(gun=40 - gecen_gun)
-                        elif (40 - gecen_gun) == 0: kalan_gun_msg = dil_pak["bugun_doluyor"]
-                        else: kalan_gun_msg = dil_pak["sure_doldu"].format(gun=gecen_gun)
-                    except: pass
-                    await guvenli_mesaj_gonder(chat_id, dil_pak["uyari_40_gun"].format(tarih=ozel_tarih_str, isim=ozel_isim, not_=ozel_ek_bilgi, kalan_gun_msg=kalan_gun_msg))
-                    ozel_bildirim_gecmisi.append(f"{chat_id}_{dosya_tam}_40gun")
-
-        # KARAR KONTROLÜ (Toplu sorgu sonuçlarından hızlıca okunuyor)
-        k_row = bulunan_kararlar_m10.get(dosya_tam) or bulunan_kararlar_m11.get(dosya_tam)
-        karar_bulundu_mu = bool(k_row)
-
-        if karar_bulundu_mu:
+        # Karar Kontrolü
+        k_row = bulunan_m10.get(dosya_key) or bulunan_m11.get(dosya_key)
+        
+        if k_row:
             kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
             g_karar = next((str(k_row[col]).strip() for col in k_row.keys() if 'ordin' in col.lower() or 'karar' in col.lower()), "")
             if not g_karar: 
@@ -893,54 +899,48 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
             k_tarih = sutun_degeri_al(k_row, ['Tarih', 'Data']) or "-"
             
             mujde_share_btn = paylasim_butonu_uret(bot.username, k_dili)
-            mujde_klavye = InlineKeyboardMarkup([[mujde_share_btn]])
-            
-            await guvenli_mesaj_gonder(chat_id, dil_pak["mujde_onay"].format(dosya=dosya_tam, karar=g_karar, tarih=k_tarih, kaynak=kaynak_belge_adi), g_klavye=mujde_klavye)
+            await guvenli_mesaj_gonder(chat_id, dil_pak["mujde_onay"].format(dosya=dosya_tam, karar=g_karar, tarih=k_tarih, kaynak=kaynak_belge_adi), g_klavye=InlineKeyboardMarkup([[mujde_share_btn]]))
             admin_onay_listesi.append(f"<code>{dosya_tam}</code> - 📄 <i>{kaynak_belge_adi}</i>") 
             kisi['onaylandi'] = True
             
         else:
-            sample_dosya = db_anc.stadiu_dosar.find_one()
-            if sample_dosya:
-                dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr'])), list(sample_dosya.keys())[0])
-                user_row = db_anc.stadiu_dosar.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}})
-                
-                if user_row:
-                    kaynak_dosya_metni = sutun_degeri_al(user_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
-                    is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
-                    is_m11 = not is_m10
-                    ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)
+            user_row = bulunan_stadiu.get(dosya_key)
+            if user_row:
+                kaynak_dosya_metni = sutun_degeri_al(user_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
+                is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
+                is_m11 = not is_m10
+                ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)
 
-                    if ilgili_ordin_eklendi_mi or dosya_tarih_degisti:
-                        termen_degisti_mi, eski_termen_str, yeni_termen_str = False, "", ""
-                        if dosya_tarih_degisti:
-                            y_sol = sutun_degeri_al(user_row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
-                            y_ter = sutun_degeri_al(user_row, ['TERMEN', 'Termen'])
-                            y_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_sol)
-                            if y_sol_m and not re.search(r'\d+\s*/?\s*P', y_sol, re.IGNORECASE): 
-                                y_ter = y_sol_m.group(1)
-                            yeni_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter) else str(y_ter).strip()
+                if ilgili_ordin_eklendi_mi or dosya_tarih_degisti:
+                    termen_degisti_mi, eski_termen_str, yeni_termen_str = False, "", ""
+                    if dosya_tarih_degisti:
+                        y_sol = sutun_degeri_al(user_row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+                        y_ter = sutun_degeri_al(user_row, ['TERMEN', 'Termen'])
+                        y_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_sol)
+                        if y_sol_m and not re.search(r'\d+\s*/?\s*P', y_sol, re.IGNORECASE): 
+                            y_ter = y_sol_m.group(1)
+                        yeni_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter) else str(y_ter).strip()
 
-                            eski_match = db_anc.stadiu_dosar_eski.find_one({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}}) if db_anc.stadiu_dosar_eski.count_documents({}) > 0 else None
-                            if eski_match:
-                                e_sol = sutun_degeri_al(eski_match, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
-                                e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])
-                                e_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_sol)
-                                if e_sol_m and not re.search(r'\d+\s*/?\s*P', e_sol, re.IGNORECASE): 
-                                    e_ter = e_sol_m.group(1)
-                                eski_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter).group(1).replace('/', '.').replace('-', '.') if e_ter else str(e_ter).strip()
+                        eski_match = bulunan_eski.get(dosya_key)
+                        if eski_match:
+                            e_sol = sutun_degeri_al(eski_match, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+                            e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])
+                            e_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_sol)
+                            if e_sol_m and not re.search(r'\d+\s*/?\s*P', e_sol, re.IGNORECASE): 
+                                e_ter = e_sol_m.group(1)
+                            eski_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter).group(1).replace('/', '.').replace('-', '.') if e_ter else str(e_ter).strip()
 
-                            if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str: 
-                                termen_degisti_mi = True
-                        
-                        if termen_degisti_mi: 
-                            toplu_mesajlar[chat_id]["termen_degisenler"].append(dil_pak["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str))
-                        if ilgili_ordin_eklendi_mi:
-                            for pdf in (eklenen_m10 if is_m10 else eklenen_m11): 
-                                toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde {'10' if is_m10 else '11'}: <i>{pdf}</i>")
-                            toplu_mesajlar[chat_id]["bulunamayanlar"].append(f"🔸 <code>{dosya_tam}</code>")
-                        elif dosya_tarih_degisti and not termen_degisti_mi:
-                            toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True
+                        if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str: 
+                            termen_degisti_mi = True
+                    
+                    if termen_degisti_mi: 
+                        toplu_mesajlar[chat_id]["termen_degisenler"].append(dil_pak["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str))
+                    if ilgili_ordin_eklendi_mi:
+                        for pdf in (eklenen_m10 if is_m10 else eklenen_m11): 
+                            toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde {'10' if is_m10 else '11'}: <i>{pdf}</i>")
+                        toplu_mesajlar[chat_id]["bulunamayanlar"].append(f"🔸 <code>{dosya_tam}</code>")
+                    elif dosya_tarih_degisti and not termen_degisti_mi:
+                        toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True
 
         kalan_bekleyenler.append(kisi)
 
@@ -957,8 +957,7 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
         
         if msg_parcalari: 
             guncelleme_share_btn = paylasim_butonu_uret(bot.username, data["dil"])
-            guncelleme_klavye = InlineKeyboardMarkup([[guncelleme_share_btn]])
-            await guvenli_mesaj_gonder(ch_id, "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari), g_klavye=guncelleme_klavye)
+            await guvenli_mesaj_gonder(ch_id, "\n\n━━━━━━━━━━━━━━━━━━\n\n".join(msg_parcalari), g_klavye=InlineKeyboardMarkup([[guncelleme_share_btn]]))
 
     if admin_onay_listesi and ADMIN_CHAT_ID: 
         await guvenli_mesaj_gonder(ADMIN_CHAT_ID, "👑 <b>SİSTEM RAPORU - ONAY ALAN DOSYALAR</b>\n\n" + "\n".join([f"✅ {d}" for d in admin_onay_listesi]))
