@@ -818,23 +818,25 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
     bulunan_m10, bulunan_m11, bulunan_stadiu, bulunan_eski, bulunan_ozel = {}, {}, {}, {}, {}
 
     if arama_varyasyonlari:
-        # Madde 10 Taraması
-        sm10 = db_anc.kararlar_m10.find_one()
-        if sm10:
-            c10 = next((c for c in sm10.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
-            if c10:
-                for r in db_anc.kararlar_m10.find({c10: {"$in": arama_varyasyonlari}}):
-                    bulunan_m10[str(r[c10]).replace(" ", "")] = r
-                    
-        # Madde 11 Taraması
-        sm11 = db_anc.kararlar_m11.find_one()
-        if sm11:
-            c11 = next((c for c in sm11.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
-            if c11:
-                for r in db_anc.kararlar_m11.find({c11: {"$in": arama_varyasyonlari}}):
-                    bulunan_m11[str(r[c11]).replace(" ", "")] = r
+        # SADECE Madde 10 listesine yeni bir karar eklendiyse bu tabloyu tara!
+        if eklenen_m10:
+            sm10 = db_anc.kararlar_m10.find_one()
+            if sm10:
+                c10 = next((c for c in sm10.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+                if c10:
+                    for r in db_anc.kararlar_m10.find({c10: {"$in": arama_varyasyonlari}}):
+                        bulunan_m10[str(r[c10]).replace(" ", "")] = r
+                        
+        # SADECE Madde 11 listesine yeni bir karar eklendiyse bu tabloyu tara!
+        if eklenen_m11:
+            sm11 = db_anc.kararlar_m11.find_one()
+            if sm11:
+                c11 = next((c for c in sm11.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), None)
+                if c11:
+                    for r in db_anc.kararlar_m11.find({c11: {"$in": arama_varyasyonlari}}):
+                        bulunan_m11[str(r[c11]).replace(" ", "")] = r
 
-        # Stadiu Dosar Taraması
+        # Stadiu Dosar Taraması (Buradan aşağısı eski haliyle aynı kalıyor)
         ssd = db_anc.stadiu_dosar.find_one()
         if ssd:
             csd = next((c for c in ssd.keys() if 'dosya' in str(c).lower() or 'nr' in str(c).lower()), list(ssd.keys())[0])
