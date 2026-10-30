@@ -7,6 +7,17 @@ from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.error import RetryAfter
+import logging
+
+# Çakışma hatalarını filtreleyen özel sınıf
+class ConflictFiltresi(logging.Filter):
+    def filter(self, record):
+        # Mesajın içinde bu metin varsa log ekranına basma (False döndür)
+        return "terminated by other getUpdates request" not in record.getMessage()
+
+# Telegram'ın ana loglayıcılarına bu susturucuyu takıyoruz
+logging.getLogger("telegram").addFilter(ConflictFiltresi())
+logging.getLogger("telegram.ext").addFilter(ConflictFiltresi())
 
 # ==========================================
 # 🌐 ÇOKLU DİL SÖZLÜĞÜ (i18n) - KORUNDU
