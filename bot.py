@@ -1093,6 +1093,17 @@ async def gunluk_otomatik_rapor(context: ContextTypes.DEFAULT_TYPE):
 if __name__ == '__main__':
     app = Application.builder().token(BOT_TOKEN).build()
     
+    # --- YENİ EKLENEN HATA YAKALAYICI ---
+    async def sessiz_hata_yakalayici(update: object, context: ContextTypes.DEFAULT_TYPE):
+        import telegram
+        if isinstance(context.error, telegram.error.Conflict):
+            pass  # Çakışma hatalarını tamamen yut ve ekrana basma
+        else:
+            logging.error(f"Kritik Hata: {context.error}")
+    
+    app.add_error_handler(sessiz_hata_yakalayici)
+    # ------------------------------------
+    
     async def post_init(application: Application):
         async def baslangic_taramasi(context: ContextTypes.DEFAULT_TYPE):
             await veritabanini_kontrol_et(context)
