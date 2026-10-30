@@ -1098,4 +1098,5 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("duyuru", duyuru_gonder))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mesaj_isleyici))
     app.add_handler(CallbackQueryHandler(buton_tiklama))
-    app.run_polling(drop_pending_updates=True)
+    print("🚀 SİSTEM AKTİF: Bot başarıyla ayağa kalktı ve güncellemeleri bekliyor! (Render Deploy Başarılı)", flush=True)
+    app.run_polling(drop_pending_updates=True)   
