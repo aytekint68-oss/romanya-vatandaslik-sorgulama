@@ -9,15 +9,23 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 from telegram.error import RetryAfter
 import logging
 
-# Çakışma hatalarını filtreleyen özel sınıf
+# --- KESİN SUSTURUCU FİLTRE ---
 class ConflictFiltresi(logging.Filter):
     def filter(self, record):
-        # Mesajın içinde bu metin varsa log ekranına basma (False döndür)
-        return "terminated by other getUpdates request" not in record.getMessage()
+        mesaj = record.getMessage()
+        # Eğer bir Traceback (çökme detayı) varsa onu da yakala
+        hata_detayi = str(record.exc_info[1]) if record.exc_info else ""
+        
+        # Eğer mesajın veya hatanın içinde bu kelimeler geçiyorsa log ekranına basma!
+        if "terminated by other getUpdates" in mesaj or "Conflict" in hata_detayi or "No error handlers" in mesaj:
+            return False
+        return True
 
-# Telegram'ın ana loglayıcılarına bu susturucuyu takıyoruz
-logging.getLogger("telegram").addFilter(ConflictFiltresi())
-logging.getLogger("telegram.ext").addFilter(ConflictFiltresi())
+# Susturucuyu sadece Telegram'a değil, sistemin en kök (Root) loglayıcısına takıyoruz
+logging.getLogger().addFilter(ConflictFiltresi())
+logging.getLogger("telegram.ext.Updater").addFilter(ConflictFiltresi())
+logging.getLogger("telegram.ext._updater").addFilter(ConflictFiltresi())
+# ------------------------------
 
 # ==========================================
 # 🌐 ÇOKLU DİL SÖZLÜĞÜ (i18n) - KORUNDU
