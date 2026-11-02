@@ -926,42 +926,51 @@ async def bildirimleri_dagit(bot, bekleyenler, eklenen_m10, eklenen_m11, dosya_t
             
         else:
             user_row = bulunan_stadiu.get(dosya_key)
+            
+            # --- YENİ EKLENEN/DÜZELTİLEN MANTIK BAŞLANGICI ---
+            # Stadiu tablosunda dosya format uyumsuzluğundan bulunamasa bile maddeyi tespit et
             if user_row:
                 kaynak_dosya_metni = sutun_degeri_al(user_row, ['Kaynak Belge', 'Kaynak'], haric_kelimeler=['dosya no'])
                 is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
-                is_m11 = not is_m10
-                ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)
+            else:
+                is_m10 = (kisi.get('madde') == "Madde 10")
+                
+            is_m11 = not is_m10
+            ilgili_ordin_eklendi_mi = (is_m10 and eklenen_m10) or (is_m11 and eklenen_m11)
 
-                if ilgili_ordin_eklendi_mi or dosya_tarih_degisti:
-                    termen_degisti_mi, eski_termen_str, yeni_termen_str = False, "", ""
-                    if dosya_tarih_degisti:
-                        y_sol = sutun_degeri_al(user_row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
-                        y_ter = sutun_degeri_al(user_row, ['TERMEN', 'Termen'])
-                        y_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_sol)
-                        if y_sol_m and not re.search(r'\d+\s*/?\s*P', y_sol, re.IGNORECASE): 
-                            y_ter = y_sol_m.group(1)
-                        yeni_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter) else str(y_ter).strip()
+            if ilgili_ordin_eklendi_mi or (dosya_tarih_degisti and user_row):
+                termen_degisti_mi, eski_termen_str, yeni_termen_str = False, "", ""
+                
+                # Termen değişikliği sadece stadiu'da (user_row) varsa kontrol edilebilir
+                if dosya_tarih_degisti and user_row:
+                    y_sol = sutun_degeri_al(user_row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+                    y_ter = sutun_degeri_al(user_row, ['TERMEN', 'Termen'])
+                    y_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_sol)
+                    if y_sol_m and not re.search(r'\d+\s*/?\s*P', y_sol, re.IGNORECASE): 
+                        y_ter = y_sol_m.group(1)
+                    yeni_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter).group(1).replace('/', '.').replace('-', '.') if re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', y_ter) else str(y_ter).strip()
 
-                        eski_match = bulunan_eski.get(dosya_key)
-                        if eski_match:
-                            e_sol = sutun_degeri_al(eski_match, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
-                            e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])
-                            e_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_sol)
-                            if e_sol_m and not re.search(r'\d+\s*/?\s*P', e_sol, re.IGNORECASE): 
-                                e_ter = e_sol_m.group(1)
-                            eski_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter).group(1).replace('/', '.').replace('-', '.') if e_ter else str(e_ter).strip()
+                    eski_match = bulunan_eski.get(dosya_key)
+                    if eski_match:
+                        e_sol = sutun_degeri_al(eski_match, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+                        e_ter = sutun_degeri_al(eski_match, ['TERMEN', 'Termen'])
+                        e_sol_m = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_sol)
+                        if e_sol_m and not re.search(r'\d+\s*/?\s*P', e_sol, re.IGNORECASE): 
+                            e_ter = e_sol_m.group(1)
+                        eski_termen_str = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_ter).group(1).replace('/', '.').replace('-', '.') if e_ter else str(e_ter).strip()
 
-                        if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str: 
-                            termen_degisti_mi = True
-                    
-                    if termen_degisti_mi: 
-                        toplu_mesajlar[chat_id]["termen_degisenler"].append(dil_pak["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str))
-                    if ilgili_ordin_eklendi_mi:
-                        for pdf in (eklenen_m10 if is_m10 else eklenen_m11): 
-                            toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde {'10' if is_m10 else '11'}: <i>{pdf}</i>")
-                        toplu_mesajlar[chat_id]["bulunamayanlar"].append(f"🔸 <code>{dosya_tam}</code>")
-                    elif dosya_tarih_degisti and not termen_degisti_mi:
-                        toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True
+                    if eski_termen_str and yeni_termen_str and eski_termen_str != yeni_termen_str: 
+                        termen_degisti_mi = True
+                
+                if termen_degisti_mi: 
+                    toplu_mesajlar[chat_id]["termen_degisenler"].append(dil_pak["termen_degisti"].format(dosya=dosya_tam, eski=eski_termen_str, yeni=yeni_termen_str))
+                
+                if ilgili_ordin_eklendi_mi:
+                    for pdf in (eklenen_m10 if is_m10 else eklenen_m11): 
+                        toplu_mesajlar[chat_id]["eklenen_pdfler"].add(f"🔹 Madde {'10' if is_m10 else '11'}: <i>{pdf}</i>")
+                    toplu_mesajlar[chat_id]["bulunamayanlar"].append(f"🔸 <code>{dosya_tam}</code>")
+                elif dosya_tarih_degisti and not termen_degisti_mi:
+                    toplu_mesajlar[chat_id]["stadiu_guncellendi"] = True
 
         kalan_bekleyenler.append(kisi)
 
