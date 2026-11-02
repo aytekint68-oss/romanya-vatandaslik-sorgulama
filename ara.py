@@ -47,7 +47,7 @@ def max_ordin_hesapla_vektorel(df_k):
     
     return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
 
-@st.cache_data(ttl=3600, show_spinner="Sistem bilgileri güncelleniyor...")
+@st.cache_data(ttl=30, show_spinner="Sistem bilgileri güncelleniyor...")
 def pano_istatistiklerini_getir():
     """Web sitesinin üst kısmındaki son güncellenme tarihlerini ve kararları hafifçe çeker."""
     d_tarih = "Bilinmiyor"

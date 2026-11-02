@@ -13,11 +13,14 @@ import logging
 class ConflictFiltresi(logging.Filter):
     def filter(self, record):
         mesaj = record.getMessage()
-        # Eğer bir Traceback (çökme detayı) varsa onu da yakala
         hata_detayi = str(record.exc_info[1]) if record.exc_info else ""
         
-        # Eğer mesajın veya hatanın içinde bu kelimeler geçiyorsa log ekranına basma!
-        if "terminated by other getUpdates" in mesaj or "Conflict" in hata_detayi or "No error handlers" in mesaj:
+        # 'Query is too old' hatasını da susturucu listesine ekledik
+        if ("terminated by other getUpdates" in mesaj or 
+            "Conflict" in hata_detayi or 
+            "No error handlers" in mesaj or
+            "Query is too old" in mesaj or
+            "Query is too old" in hata_detayi):
             return False
         return True
 
@@ -1115,8 +1118,12 @@ if __name__ == '__main__':
     # --- YENİ EKLENEN HATA YAKALAYICI ---
     async def sessiz_hata_yakalayici(update: object, context: ContextTypes.DEFAULT_TYPE):
         import telegram
+        hata_mesaji = str(context.error)
+        
         if isinstance(context.error, telegram.error.Conflict):
-            pass  # Çakışma hatalarını tamamen yut ve ekrana basma
+            pass  # Çakışma hatalarını tamamen yut
+        elif "Query is too old" in hata_mesaji or "query id is invalid" in hata_mesaji:
+            pass  # Buton zaman aşımı (eski butona tıklama) hatalarını yut
         else:
             logging.error(f"Kritik Hata: {context.error}")
     
