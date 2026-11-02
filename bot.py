@@ -682,10 +682,12 @@ async def duyuru_gonder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     duyuru_metni = (
-        "📢 <b>Bilgilendirme: Botumuz Kesintisiz Çalışmaya Devam Ediyor</b>\n\n"
+        "📢 <b>Yeni Kararlar (Ordin) Sisteme Eklendi!</b>\n\n"
         "Değerli Takipçilerimiz,\n\n"
-        "Romanya Vatandaşlık Kurumu (ANC) resmi sayfalarında <b>8 Ekim 2026</b> tarihinden bu yana yeni bir karar (Ordin) yayımlanmamıştır.\n\n"
-        "Sistemimiz 7/24 aktif bir şekilde resmi listeleri izlemeye ve takibe devam etmektedir. Kurum tarafından yeni bir karar listesi yayımlandığı veya dosya durumunuz güncellendiği anda otomatik bildiriminiz iletilecektir.\n\n"
+        "Romanya Vatandaşlık Kurumu (ANC) tarafından yayımlanan aşağıdaki yeni kararlar veritabanımıza başarıyla işlenmiştir:\n\n"
+        "🔹 <i>Ordin-3435P-02.11.2026-art-11.pdf</i>\n"
+        "🔹 <i>Ordin-3425P-30.10.2026-art-11.pdf</i>\n"
+        "🔹 <i>Ordin-3394P-29.10.2026-art-11.pdf</i>\n\n"
         "Dosyanızın güncel durumunu dilediğiniz zaman bota dosya numaranızı ve yılını yazarak (Örn: <code>1234/2023</code>) sorgulayabilirsiniz. 🇹🇩"
     )
     
