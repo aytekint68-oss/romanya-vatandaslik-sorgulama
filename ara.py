@@ -266,12 +266,10 @@ with tab1:
                     else:
                         arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
                         
-                        # --- HIZLANDIRILMIŞ ARAMA MOTORU BAŞLANGICI ---
                         @st.cache_data(ttl=3600, show_spinner=False)
                         def hizli_dosya_arama(kriter):
                             sonuclar_dict = {"stadiu": [], "m10": None, "m11": None, "ozel": None, "eski": None}
                             
-                            # 1. Stadiu Dosar Araması
                             s_dosya = db.stadiu_dosar.find_one()
                             if not s_dosya: return sonuclar_dict
                             d_col = next((col for col in s_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), list(s_dosya.keys())[0])
@@ -284,7 +282,6 @@ with tab1:
                             ana_no, ana_yil = d_val.split('/')[0].strip(), d_val.split('/')[-1].strip()
                             karar_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
 
-                            # 2. Karar M10 ve M11 Araması
                             s_m10 = db.kararlar_m10.find_one()
                             if s_m10:
                                 k_col10 = next((col for col in s_m10.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
@@ -295,7 +292,6 @@ with tab1:
                                 k_col11 = next((col for col in s_m11.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
                                 if k_col11: sonuclar_dict["m11"] = db.kararlar_m11.find_one({k_col11: {"$regex": karar_regex, "$options": "i"}}, {"_id": 0})
 
-                            # 3. Özel Durum ve Eski Termen Araması
                             s_ozel = db.ozel_durumlar.find_one()
                             if s_ozel:
                                 or_cond = [{k: {"$regex": kriter, "$options": "i"}} for k in s_ozel.keys() if k != "_id"]
@@ -308,7 +304,6 @@ with tab1:
 
                             return sonuclar_dict
 
-                        # Önbelleklenmiş fonksiyonu çağırıyoruz
                         arama_verileri = hizli_dosya_arama(arama_kriteri)
                         sonuclar = arama_verileri["stadiu"]
                         
@@ -316,8 +311,7 @@ with tab1:
                             st.success(f"✅ Dosyanız bulundu! Durum ve Karar bilgileri aşağıdadır:")
                             
                             row = sonuclar[0]
-                            sample_dosya = row 
-                            dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), list(sample_dosya.keys())[0])
+                            dosya_no_col = next((col for col in row.keys() if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), list(row.keys())[0])
                             
                             ozel_durum_var_mi = False
                             ozel_satir_vals = []
@@ -327,9 +321,8 @@ with tab1:
                             
                             dosya_no_val = str(row.get(dosya_no_col, "")).strip()
                             dosya_no_parcalar = dosya_no_val.split('/')
-                            user_ordin_no = 0
-                            user_ordin_yil = 0
-                            p_numarasi = None
+                            ana_no = dosya_no_parcalar[0].strip()
+                            ana_yil = dosya_no_parcalar[-1].strip()
                             
                             karar_bulundu_mu = False
                             k_row = None
@@ -340,203 +333,145 @@ with tab1:
                             elif arama_verileri["m11"]:
                                 karar_bulundu_mu = True
                                 k_row = arama_verileri["m11"]
-                            
-                            # --- HIZLANDIRILMIŞ ARAMA MOTORU BİTİŞİ ---
-                            # (Buradan itibaren eski kodunuzdaki "basvuru_tarihi = sutun_degeri_al..." kısmı başlıyor)
-                            
+
                             basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'DATA INREGISTRARII', 'Tarih'])
-                        
-                        if sonuclar:
-                            st.success(f"✅ Dosyanız bulundu! Durum ve Karar bilgileri aşağıdadır:")
+                            termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])
+                            solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
+
+                            solutie_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', solutie_metni)
+                            if solutie_tarih_match and not re.search(r'\d+\s*/?\s*P', solutie_metni, re.IGNORECASE):
+                                if not termen_metni or termen_metni.lower() in ['nan', 'none', '-', 'belirtilmemiş']:
+                                    termen_metni = solutie_tarih_match.group(1)
+                                solutie_metni = "" 
+
+                            if termen_metni:
+                                termen_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni)
+                                if termen_tarih_match: termen_metni = termen_tarih_match.group(1).replace('/', '.').replace('-', '.')
+                                else: termen_metni = "" if termen_metni.lower() in ['nan', 'none', '-'] else termen_metni
+
+                            if basvuru_tarihi:
+                                basvuru_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', basvuru_tarihi)
+                                if basvuru_match: basvuru_tarihi = basvuru_match.group(1).replace('/', '.').replace('-', '.')
+
+                            eski_termen_metni = ""
+                            if arama_verileri["eski"]:
+                                e_val = sutun_degeri_al(arama_verileri["eski"], ['TERMEN', 'Termen', 'Sonraki Aşama'])
+                                e_match_date = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_val)
+                                eski_termen_metni = e_match_date.group(1).replace('/', '.').replace('-', '.') if e_match_date else e_val
+
+                            termen_ekran_yazisi = termen_metni if termen_metni else "Belirtilmemiş"
+                            if eski_termen_metni and termen_metni and eski_termen_metni.lower() not in ['nan', 'none', '', 'belirtilmemiş'] and eski_termen_metni != termen_metni:
+                                termen_ekran_yazisi = f"{termen_metni} <br><span style='font-size:0.85em; color:#777;'>(Önceki: {eski_termen_metni}) 🔄</span>"
+
+                            p_numarasi = None
+                            user_ordin_no = 0
+                            user_ordin_yil = 0
                             
-                            # MongoDB Arama - Özel Durum Kontrolü
-                            ozel_durum_var_mi = False
-                            ozel_satir_vals = []
-                            sample_ozel = db.ozel_durumlar.find_one()
-                            if sample_ozel:
-                                or_cond = [{k: {"$regex": arama_kriteri, "$options": "i"}} for k in sample_ozel.keys() if k != "_id"]
-                                ozel_doc = db.ozel_durumlar.find_one({"$or": or_cond})
-                                if ozel_doc:
-                                    ozel_durum_var_mi = True
-                                    ozel_satir_vals = [v for k, v in ozel_doc.items() if k != "_id"]
-                            
-                            for row in sonuclar:
-                                dosya_no_val = str(row.get(dosya_no_col, "")).strip()
-                                dosya_no_parcalar = dosya_no_val.split('/')
-                                ana_no = dosya_no_parcalar[0].strip()
-                                ana_yil = dosya_no_parcalar[-1].strip()
-                                
-                                karar_bulundu_mu = False
-                                k_row = None
-                                karar_icin_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
-                                
-                                # MongoDB Arama - Karar M10
-                                sample_m10 = db.kararlar_m10.find_one()
-                                if sample_m10:
-                                    k_sutun_m10 = next((col for col in sample_m10.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
-                                    if k_sutun_m10:
-                                        match_m10 = db.kararlar_m10.find_one({k_sutun_m10: {"$regex": karar_icin_regex, "$options": "i"}})
-                                        if match_m10:
-                                            karar_bulundu_mu = True
-                                            k_row = match_m10
-                                
-                                # MongoDB Arama - Karar M11
-                                if not karar_bulundu_mu:
-                                    sample_m11 = db.kararlar_m11.find_one()
-                                    if sample_m11:
-                                        k_sutun_m11 = next((col for col in sample_m11.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
-                                        if k_sutun_m11:
-                                            match_m11 = db.kararlar_m11.find_one({k_sutun_m11: {"$regex": karar_icin_regex, "$options": "i"}})
-                                            if match_m11:
-                                                karar_bulundu_mu = True
-                                                k_row = match_m11
-
-                                basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'DATA INREGISTRARII', 'Tarih'])
-                                termen_metni = sutun_degeri_al(row, ['TERMEN', 'Termen', 'Sonraki Aşama'])
-                                solutie_metni = sutun_degeri_al(row, ['SOLUTIE', 'Solutie', 'Kurum Notu'])
-
-                                solutie_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', solutie_metni)
-                                if solutie_tarih_match and not re.search(r'\d+\s*/?\s*P', solutie_metni, re.IGNORECASE):
-                                    if not termen_metni or termen_metni.lower() in ['nan', 'none', '-', 'belirtilmemiş']:
-                                        termen_metni = solutie_tarih_match.group(1)
-                                    solutie_metni = "" 
-
-                                if termen_metni:
-                                    termen_tarih_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', termen_metni)
-                                    if termen_tarih_match: termen_metni = termen_tarih_match.group(1).replace('/', '.').replace('-', '.')
-                                    else: termen_metni = "" if termen_metni.lower() in ['nan', 'none', '-'] else termen_metni
-
-                                if basvuru_tarihi:
-                                    basvuru_match = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', basvuru_tarihi)
-                                    if basvuru_match: basvuru_tarihi = basvuru_match.group(1).replace('/', '.').replace('-', '.')
-
-                                # MongoDB Arama - Eski Termen
-                                eski_termen_metni = ""
-                                sample_eski = db.stadiu_dosar_eski.find_one()
-                                if sample_eski:
-                                    eski_dosya_col = next((col for col in sample_eski.keys() if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), None)
-                                    if eski_dosya_col:
-                                        eski_match = db.stadiu_dosar_eski.find_one({eski_dosya_col: {"$regex": arama_kriteri, "$options": "i"}})
-                                        if eski_match:
-                                            e_val = sutun_degeri_al(eski_match, ['TERMEN', 'Termen', 'Sonraki Aşama'])
-                                            e_match_date = re.search(r'(\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4})', e_val)
-                                            eski_termen_metni = e_match_date.group(1).replace('/', '.').replace('-', '.') if e_match_date else e_val
-
-                                termen_ekran_yazisi = termen_metni if termen_metni else "Belirtilmemiş"
-                                if eski_termen_metni and termen_metni and eski_termen_metni.lower() not in ['nan', 'none', '', 'belirtilmemiş'] and eski_termen_metni != termen_metni:
-                                    termen_ekran_yazisi = f"{termen_metni} <br><span style='font-size:0.85em; color:#777;'>(Önceki: {eski_termen_metni}) 🔄</span>"
-
-                                p_numarasi = None
-                                user_ordin_no = 0
-                                user_ordin_yil = 0
-                                
-                                if solutie_metni:
-                                    p_match = re.search(r'(\d{1,6})\s*[/]?\s*P(?:\s*[/]?\s*(\d{4}))?', solutie_metni, re.IGNORECASE)
-                                    if p_match:
-                                        user_ordin_no = int(p_match.group(1))
-                                        if p_match.group(2):
-                                            user_ordin_yil = int(p_match.group(2))
-                                            p_numarasi = f"{user_ordin_no}/P/{user_ordin_yil}"
-                                        else:
-                                            p_numarasi = f"{user_ordin_no}/P"
-
-                                # --- ÖZEL DURUM (40 GÜN) UYARISI ---
-                                if ozel_durum_var_mi and ozel_satir_vals:
-                                    ozel_tarih_str = str(ozel_satir_vals[0]) if len(ozel_satir_vals) > 0 else "-"
-                                    ozel_isim = str(ozel_satir_vals[1]) if len(ozel_satir_vals) > 1 else "-"
-                                    ozel_dosya = str(ozel_satir_vals[2]) if len(ozel_satir_vals) > 2 else "-"
-                                    ozel_ek_bilgi = str(ozel_satir_vals[3]) if len(ozel_satir_vals) > 3 else "-"
-                                    
-                                    try:
-                                        parsed_date = pd.to_datetime(ozel_tarih_str, dayfirst=True)
-                                        gecen_gun = (datetime.datetime.now() - parsed_date).days
-                                        kalan_gun = 40 - gecen_gun
-                                        if kalan_gun > 0:
-                                            kalan_gun_mesaji = f"⏳ **DİKKAT! Yasal sürenin dolmasına SON {kalan_gun} GÜN!** Lütfen vakit kaybetmeden kurum ile iletişime geçiniz."
-                                            icon_tipi = "⚠️"
-                                        elif kalan_gun == 0:
-                                            kalan_gun_mesaji = f"🚨 **DİKKAT! Yasal süreniz BUGÜN DOLUYOR!** Lütfen acilen kurum ile iletişime geçiniz."
-                                            icon_tipi = "🚨"
-                                        else:
-                                            kalan_gun_mesaji = f"❌ **SÜRE DOLDU!** (Duyurunun üzerinden {gecen_gun} gün geçmiş). Acilen kurum ile iletişime geçiniz."
-                                            icon_tipi = "❌"
-                                    except:
-                                        kalan_gun_mesaji = "Lütfen duyurunun yayınlanma tarihinden itibaren 40 gün içinde kurum ile iletişime geçiniz."
-                                        icon_tipi = "⚠️"
-                                    
-                                    st.error(f"🚨 **ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)**\n\nDosyanız özel listede tespit edilmiştir.\n* **Yayınlanma Tarihi:** {ozel_tarih_str}\n* **İsim:** {ozel_isim}\n* **Bilgi Notu:** {ozel_ek_bilgi}\n\n**{kalan_gun_mesaji}**", icon=icon_tipi)
-
-                                with st.container(border=True):
-                                    st.markdown(f"<h3 style='text-align: center; color: #4F8BF9; margin-bottom: 0;'>📂 DOSYA BİLGİLERİ</h3>", unsafe_allow_html=True)
-                                    st.markdown(f"<h4 style='text-align: center; margin-top: 0;'>No: {dosya_no_val}</h4>", unsafe_allow_html=True)
-                                    st.divider()
-                                    
-                                    col1, col2 = st.columns(2)
-                                    with col1: st.markdown(f"**📅 Başvuru Tarihi:**<br>{basvuru_tarihi if basvuru_tarihi else 'Belirtilmemiş'}", unsafe_allow_html=True)
-                                    with col2: st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>{termen_ekran_yazisi}", unsafe_allow_html=True)
-                                            
-                                    st.markdown("<br>", unsafe_allow_html=True)
-                                    
-                                    if solutie_metni: st.info(f"**📝 Kurum Notu (Solutie):** {solutie_metni}", icon="ℹ️")
-                                    elif karar_bulundu_mu: st.info("**📝 Kurum Notu (Solutie):** Sistemde not düşülmemiş ancak resmi Karar (Ordin) tespit edildi!", icon="ℹ️")
-                                    else: st.warning("**📝 Kurum Notu (Solutie):** Henüz bir not girilmemiş (İnceleme Bekliyor).", icon="⏳")
-                                            
-                                    kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak', 'Dosya Adi'])
-                                    st.markdown(f"📂 **Kaynak Belge (Stadiu Dosar):** {kaynak_dosya_metni}")
-                                    st.divider()
-                                    
-                                    st.markdown("<h4 style='text-align: center;'>⚖️ KARAR (ORDIN) DURUMU</h4>", unsafe_allow_html=True)
-                                    
-                                    if karar_bulundu_mu:
-                                        st.success("🎉 **TEBRİKLER! Kararınız yayımlandı.**", icon="✅")
-                                        with st.container(border=True):
-                                            kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak', 'Dosya Adi'])
-                                            gosterilecek_karar = ""
-                                            k_ordin_cols = [col for col in k_row.keys() if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-                                            if k_ordin_cols:
-                                                val = str(k_row[k_ordin_cols[0]]).strip()
-                                                if val and val.lower() not in ['nan', 'none', '']: gosterilecek_karar = val
-
-                                            if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '', 'belirtilmemiş']:
-                                                pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)
-                                                if pdf_match: gosterilecek_karar = f"{pdf_match.group(1)}{'/P' if pdf_match.group(2) else ''}"
-
-                                            if not gosterilecek_karar and p_numarasi: gosterilecek_karar = p_numarasi
-
-                                            if gosterilecek_karar:
-                                                p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)
-                                                gosterilecek_karar = f"{p_format_match.group(1)}/P" if p_format_match else (f"{re.search(r'(\d+)', str(gosterilecek_karar)).group(1)}/P" if re.search(r'(\d+)', str(gosterilecek_karar)) else str(gosterilecek_karar))
-                                            else:
-                                                gosterilecek_karar = "Belirtilmemiş"
-
-                                            st.markdown(f"📜 **Karar Numarası:** {gosterilecek_karar}")
-                                            karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data', 'Karar Tarihi'])
-                                            if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none", ""]: 
-                                                date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
-                                                karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.') if date_match else "Belirtilmemiş"
-                                                
-                                            st.markdown(f"📅 **Karar Tarihi:** {karar_tarihi}")
-                                            st.markdown(f"📂 **Kaynak Belge (Ordin):** {kaynak_belge_adi}")
+                            if solutie_metni:
+                                p_match = re.search(r'(\d{1,6})\s*[/]?\s*P(?:\s*[/]?\s*(\d{4}))?', solutie_metni, re.IGNORECASE)
+                                if p_match:
+                                    user_ordin_no = int(p_match.group(1))
+                                    if p_match.group(2):
+                                        user_ordin_yil = int(p_match.group(2))
+                                        p_numarasi = f"{user_ordin_no}/P/{user_ordin_yil}"
                                     else:
-                                        is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
-                                        madde_adi = "Madde 10" if is_m10 else "Madde 11"
-                                        
-                                        if p_numarasi and user_ordin_yil > 0:
-                                            max_pub_ordin = max_ordin_m10.get(user_ordin_yil, 0) if is_m10 else max_ordin_m11.get(user_ordin_yil, 0)
-                                            if max_pub_ordin > 0 and user_ordin_no == max_pub_ordin: st.warning(f"**{p_numarasi}**\n\nDosya numaranız yayımlanan en güncel karar olan **{max_pub_ordin}/{user_ordin_yil}** ile eşleşiyor. Onay verilmemiş olabilir.", icon="⚠️")
-                                            elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin: st.error(f"**{p_numarasi}**\n\nSistemde yayımlanan son karar **{max_pub_ordin}/{user_ordin_yil}**. Numaranız ({user_ordin_no}) geride kaldığı için dosyanız REDDEDİLMİŞ olabilir.", icon="🚨")
-                                            elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin: st.info(f"**{p_numarasi}**\n\nSistemde yayımlanan son karar **{max_pub_ordin}/{user_ordin_yil}**. Sizin numaranız ({user_ordin_no}) henüz yayımlanmadı. Büyük ihtimalle OLUMLU sonuçlandı ve listede bekliyor! 🎉", icon="ℹ️")
-                                            else: st.warning(f"**{p_numarasi}**\n\nDosyanız olumlu ancak **{user_ordin_yil}** listeleri henüz yayımlanmadı.", icon="⚠️")
-                                        else:
-                                            st.error("🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır.", icon="❌")
-                                        
-                                        st.markdown("<br>", unsafe_allow_html=True)
-                                        st.markdown("""<a href="https://telegram.me/vatandaslik_sorgulama_bot" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #2AABEE; color: white; padding: 15px; border-radius: 8px; font-weight: 900; font-size: 18px; text-decoration: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔔 Telegram Botu İle Beni Haberdar Et</a>""", unsafe_allow_html=True)
+                                        p_numarasi = f"{user_ordin_no}/P"
 
+                            if ozel_durum_var_mi and ozel_satir_vals:
+                                ozel_tarih_str = str(ozel_satir_vals[0]) if len(ozel_satir_vals) > 0 else "-"
+                                ozel_isim = str(ozel_satir_vals[1]) if len(ozel_satir_vals) > 1 else "-"
+                                ozel_dosya = str(ozel_satir_vals[2]) if len(ozel_satir_vals) > 2 else "-"
+                                ozel_ek_bilgi = str(ozel_satir_vals[3]) if len(ozel_satir_vals) > 3 else "-"
+                                
+                                try:
+                                    parsed_date = pd.to_datetime(ozel_tarih_str, dayfirst=True)
+                                    gecen_gun = (datetime.datetime.now() - parsed_date).days
+                                    kalan_gun = 40 - gecen_gun
+                                    if kalan_gun > 0:
+                                        kalan_gun_mesaji = f"⏳ **DİKKAT! Yasal sürenin dolmasına SON {kalan_gun} GÜN!** Lütfen vakit kaybetmeden kurum ile iletişime geçiniz."
+                                        icon_tipi = "⚠️"
+                                    elif kalan_gun == 0:
+                                        kalan_gun_mesaji = f"🚨 **DİKKAT! Yasal süreniz BUGÜN DOLUYOR!** Lütfen acilen kurum ile iletişime geçiniz."
+                                        icon_tipi = "🚨"
+                                    else:
+                                        kalan_gun_mesaji = f"❌ **SÜRE DOLDU!** (Duyurunun üzerinden {gecen_gun} gün geçmiş). Acilen kurum ile iletişime geçiniz."
+                                        icon_tipi = "❌"
+                                except:
+                                    kalan_gun_mesaji = "Lütfen duyurunun yayınlanma tarihinden itibaren 40 gün içinde kurum ile iletişime geçiniz."
+                                    icon_tipi = "⚠️"
+                                
+                                st.error(f"🚨 **ÖNEMLİ BİLDİRİM (Eksik Evrak / İletişim)**\n\nDosyanız özel listede tespit edilmiştir.\n* **Yayınlanma Tarihi:** {ozel_tarih_str}\n* **İsim:** {ozel_isim}\n* **Bilgi Notu:** {ozel_ek_bilgi}\n\n**{kalan_gun_mesaji}**", icon=icon_tipi)
+
+                            with st.container(border=True):
+                                st.markdown(f"<h3 style='text-align: center; color: #4F8BF9; margin-bottom: 0;'>📂 DOSYA BİLGİLERİ</h3>", unsafe_allow_html=True)
+                                st.markdown(f"<h4 style='text-align: center; margin-top: 0;'>No: {dosya_no_val}</h4>", unsafe_allow_html=True)
+                                st.divider()
+                                
+                                col1, col2 = st.columns(2)
+                                with col1: st.markdown(f"**📅 Başvuru Tarihi:**<br>{basvuru_tarihi if basvuru_tarihi else 'Belirtilmemiş'}", unsafe_allow_html=True)
+                                with col2: st.markdown(f"**⏳ Sonraki Aşama (Termen):**<br>{termen_ekran_yazisi}", unsafe_allow_html=True)
+                                        
                                 st.markdown("<br>", unsafe_allow_html=True)
+                                
+                                if solutie_metni: st.info(f"**📝 Kurum Notu (Solutie):** {solutie_metni}", icon="ℹ️")
+                                elif karar_bulundu_mu: st.info("**📝 Kurum Notu (Solutie):** Sistemde not düşülmemiş ancak resmi Karar (Ordin) tespit edildi!", icon="ℹ️")
+                                else: st.warning("**📝 Kurum Notu (Solutie):** Henüz bir not girilmemiş (İnceleme Bekliyor).", icon="⏳")
+                                        
+                                kaynak_dosya_metni = sutun_degeri_al(row, ['Kaynak Belge', 'Kaynak', 'Dosya Adi'])
+                                st.markdown(f"📂 **Kaynak Belge (Stadiu Dosar):** {kaynak_dosya_metni}")
+                                st.divider()
+                                
+                                st.markdown("<h4 style='text-align: center;'>⚖️ KARAR (ORDIN) DURUMU</h4>", unsafe_allow_html=True)
+                                
+                                if karar_bulundu_mu:
+                                    st.success("🎉 **TEBRİKLER! Kararınız yayımlandı.**", icon="✅")
+                                    with st.container(border=True):
+                                        kaynak_belge_adi = sutun_degeri_al(k_row, ['Kaynak Belge', 'Kaynak', 'Dosya Adi'])
+                                        gosterilecek_karar = ""
+                                        k_ordin_cols = [col for col in k_row.keys() if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
+                                        if k_ordin_cols:
+                                            val = str(k_row[k_ordin_cols[0]]).strip()
+                                            if val and val.lower() not in ['nan', 'none', '']: gosterilecek_karar = val
+
+                                        if not gosterilecek_karar or gosterilecek_karar.lower() in ['nan', 'none', '', 'belirtilmemiş']:
+                                            pdf_match = re.search(r'(?:ordin|nr)[^\d]*(\d+)\s*[/]?\s*([pP])?', kaynak_belge_adi, re.IGNORECASE)
+                                            if pdf_match: gosterilecek_karar = f"{pdf_match.group(1)}{'/P' if pdf_match.group(2) else ''}"
+
+                                        if not gosterilecek_karar and p_numarasi: gosterilecek_karar = p_numarasi
+
+                                        if gosterilecek_karar:
+                                            p_format_match = re.search(r'(\d+)\s*[/]?\s*P', str(gosterilecek_karar), re.IGNORECASE)
+                                            gosterilecek_karar = f"{p_format_match.group(1)}/P" if p_format_match else (f"{re.search(r'(\d+)', str(gosterilecek_karar)).group(1)}/P" if re.search(r'(\d+)', str(gosterilecek_karar)) else str(gosterilecek_karar))
+                                        else:
+                                            gosterilecek_karar = "Belirtilmemiş"
+
+                                        st.markdown(f"📜 **Karar Numarası:** {gosterilecek_karar}")
+                                        karar_tarihi = sutun_degeri_al(k_row, ['Tarih', 'Data', 'Karar Tarihi'])
+                                        if not karar_tarihi or str(karar_tarihi).strip().lower() in ["nan", "none", ""]: 
+                                            date_match = re.search(r'(\d{2}[._\s]\d{2}[._\s]\d{4})', kaynak_belge_adi)
+                                            karar_tarihi = date_match.group(1).replace('_', '.').replace('-', '.') if date_match else "Belirtilmemiş"
+                                            
+                                        st.markdown(f"📅 **Karar Tarihi:** {karar_tarihi}")
+                                        st.markdown(f"📂 **Kaynak Belge (Ordin):** {kaynak_belge_adi}")
+                                else:
+                                    is_m10 = bool(re.search(r'art[- ]?10', kaynak_dosya_metni, re.IGNORECASE))
+                                    madde_adi = "Madde 10" if is_m10 else "Madde 11"
+                                    
+                                    if p_numarasi and user_ordin_yil > 0:
+                                        max_pub_ordin = max_ordin_m10.get(user_ordin_yil, 0) if is_m10 else max_ordin_m11.get(user_ordin_yil, 0)
+                                        if max_pub_ordin > 0 and user_ordin_no == max_pub_ordin: st.warning(f"**{p_numarasi}**\n\nDosya numaranız yayımlanan en güncel karar olan **{max_pub_ordin}/{user_ordin_yil}** ile eşleşiyor. Onay verilmemiş olabilir.", icon="⚠️")
+                                        elif max_pub_ordin > 0 and user_ordin_no < max_pub_ordin: st.error(f"**{p_numarasi}**\n\nSistemde yayımlanan son karar **{max_pub_ordin}/{user_ordin_yil}**. Numaranız ({user_ordin_no}) geride kaldığı için dosyanız REDDEDİLMİŞ olabilir.", icon="🚨")
+                                        elif max_pub_ordin > 0 and user_ordin_no > max_pub_ordin: st.info(f"**{p_numarasi}**\n\nSistemde yayımlanan son karar **{max_pub_ordin}/{user_ordin_yil}**. Sizin numaranız ({user_ordin_no}) henüz yayımlanmadı. Büyük ihtimalle OLUMLU sonuçlandı ve listede bekliyor! 🎉", icon="ℹ️")
+                                        else: st.warning(f"**{p_numarasi}**\n\nDosyanız olumlu ancak **{user_ordin_yil}** listeleri henüz yayımlanmadı.", icon="⚠️")
+                                    else:
+                                        st.error("🔴 Dosyanız henüz resmi Karar (Ordin) listelerinde yayımlanmamıştır.", icon="❌")
+                                    
+                                    st.markdown("<br>", unsafe_allow_html=True)
+                                    st.markdown("""<a href="https://telegram.me/vatandaslik_sorgulama_bot" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #2AABEE; color: white; padding: 15px; border-radius: 8px; font-weight: 900; font-size: 18px; text-decoration: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔔 Telegram Botu İle Beni Haberdar Et</a>""", unsafe_allow_html=True)
+
+                            st.markdown("<br>", unsafe_allow_html=True)
                         else:
                             st.error("❌ Girdiğiniz kriterlere uygun bir dosya bulunamadı. Lütfen dosya numaranızı ve yılını kontrol edip tekrar deneyin.")
-
 # =========================================================
 # 2. SEKME: HTML SORGULAMA ARACI
 # =========================================================
