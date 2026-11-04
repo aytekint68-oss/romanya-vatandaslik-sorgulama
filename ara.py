@@ -274,13 +274,85 @@ with tab1:
                     else:
                         arama_kriteri = f"^{ilk_numara}/.*{son_yil}$"
                         
-                        # MongoDB Arama - Stadiu Dosar
-                        sample_dosya = db.stadiu_dosar.find_one()
-                        if sample_dosya:
+                        # --- HIZLANDIRILMIŞ ARAMA MOTORU BAŞLANGICI ---
+                        @st.cache_data(ttl=3600, show_spinner=False)
+                        def hizli_dosya_arama(kriter):
+                            sonuclar_dict = {"stadiu": [], "m10": None, "m11": None, "ozel": None, "eski": None}
+                            
+                            # 1. Stadiu Dosar Araması
+                            s_dosya = db.stadiu_dosar.find_one()
+                            if not s_dosya: return sonuclar_dict
+                            d_col = next((col for col in s_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), list(s_dosya.keys())[0])
+                            sonuclar_dict["stadiu"] = list(db.stadiu_dosar.find({d_col: {"$regex": kriter, "$options": "i"}}, {"_id": 0}))
+                            
+                            if not sonuclar_dict["stadiu"]: return sonuclar_dict
+                            
+                            row = sonuclar_dict["stadiu"][0]
+                            d_val = str(row.get(d_col, "")).strip()
+                            ana_no, ana_yil = d_val.split('/')[0].strip(), d_val.split('/')[-1].strip()
+                            karar_regex = rf"\b{ana_no}\b.*?\b{ana_yil}\b"
+
+                            # 2. Karar M10 ve M11 Araması
+                            s_m10 = db.kararlar_m10.find_one()
+                            if s_m10:
+                                k_col10 = next((col for col in s_m10.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+                                if k_col10: sonuclar_dict["m10"] = db.kararlar_m10.find_one({k_col10: {"$regex": karar_regex, "$options": "i"}}, {"_id": 0})
+                            
+                            s_m11 = db.kararlar_m11.find_one()
+                            if s_m11:
+                                k_col11 = next((col for col in s_m11.keys() if 'dosya' in str(col).lower() or 'nr' in str(col).lower()), None)
+                                if k_col11: sonuclar_dict["m11"] = db.kararlar_m11.find_one({k_col11: {"$regex": karar_regex, "$options": "i"}}, {"_id": 0})
+
+                            # 3. Özel Durum ve Eski Termen Araması
+                            s_ozel = db.ozel_durumlar.find_one()
+                            if s_ozel:
+                                or_cond = [{k: {"$regex": kriter, "$options": "i"}} for k in s_ozel.keys() if k != "_id"]
+                                sonuclar_dict["ozel"] = db.ozel_durumlar.find_one({"$or": or_cond}, {"_id": 0})
+                                
+                            s_eski = db.stadiu_dosar_eski.find_one()
+                            if s_eski:
+                                e_col = next((col for col in s_eski.keys() if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), None)
+                                if e_col: sonuclar_dict["eski"] = db.stadiu_dosar_eski.find_one({e_col: {"$regex": kriter, "$options": "i"}}, {"_id": 0})
+
+                            return sonuclar_dict
+
+                        # Önbelleklenmiş fonksiyonu çağırıyoruz
+                        arama_verileri = hizli_dosya_arama(arama_kriteri)
+                        sonuclar = arama_verileri["stadiu"]
+                        
+                        if sonuclar:
+                            st.success(f"✅ Dosyanız bulundu! Durum ve Karar bilgileri aşağıdadır:")
+                            
+                            row = sonuclar[0]
+                            sample_dosya = row 
                             dosya_no_col = next((col for col in sample_dosya.keys() if any(x in str(col).lower() for x in ['dosya', 'nr. dosar', 'nr dosar'])), list(sample_dosya.keys())[0])
-                            sonuclar = list(db.stadiu_dosar.find({dosya_no_col: {"$regex": arama_kriteri, "$options": "i"}}))
-                        else:
-                            sonuclar = []
+                            
+                            ozel_durum_var_mi = False
+                            ozel_satir_vals = []
+                            if arama_verileri["ozel"]:
+                                ozel_durum_var_mi = True
+                                ozel_satir_vals = list(arama_verileri["ozel"].values())
+                            
+                            dosya_no_val = str(row.get(dosya_no_col, "")).strip()
+                            dosya_no_parcalar = dosya_no_val.split('/')
+                            user_ordin_no = 0
+                            user_ordin_yil = 0
+                            p_numarasi = None
+                            
+                            karar_bulundu_mu = False
+                            k_row = None
+                            
+                            if arama_verileri["m10"]:
+                                karar_bulundu_mu = True
+                                k_row = arama_verileri["m10"]
+                            elif arama_verileri["m11"]:
+                                karar_bulundu_mu = True
+                                k_row = arama_verileri["m11"]
+                            
+                            # --- HIZLANDIRILMIŞ ARAMA MOTORU BİTİŞİ ---
+                            # (Buradan itibaren eski kodunuzdaki "basvuru_tarihi = sutun_degeri_al..." kısmı başlıyor)
+                            
+                            basvuru_tarihi = sutun_degeri_al(row, ['Başvuru Tarihi', 'DATA ÎNREGISTRĂRII', 'DATA INREGISTRARII', 'Tarih'])
                         
                         if sonuclar:
                             st.success(f"✅ Dosyanız bulundu! Durum ve Karar bilgileri aşağıdadır:")
