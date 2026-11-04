@@ -27,29 +27,10 @@ def get_database():
 
 db = get_database()
 
-def max_ordin_hesapla_vektorel(df_k):
-    if df_k.empty: return {}
-    ordin_sutunlari = [col for col in df_k.columns if 'ordin' in str(col).lower() or 'karar' in str(col).lower()]
-    if not ordin_sutunlari: return {}
-    
-    ordin_col = ordin_sutunlari[0]
-    temp_df = pd.DataFrame()
-    
-    if 'Kaynak Belge' in df_k.columns:
-        temp_df['Yil'] = df_k['Kaynak Belge'].astype(str).str.extract(r'\d{2}[\.\-\_]\d{2}[\.\-\_](\d{4})')[0]
-        temp_df['Yil'] = temp_df['Yil'].fillna(df_k['Kaynak Belge'].astype(str).str.extract(r'\b(202\d)\b')[0])
-    else:
-        temp_df['Yil'] = df_k[ordin_col].astype(str).str.extract(r'\b(202\d)\b')[0]
-        
-    temp_df['No'] = df_k[ordin_col].astype(str).str.extract(r'(\d{1,6})')[0]
-    temp_df['Yil'] = pd.to_numeric(temp_df['Yil'], errors='coerce')
-    temp_df['No'] = pd.to_numeric(temp_df['No'], errors='coerce')
-    
-    return temp_df.dropna().groupby('Yil')['No'].max().to_dict()
-
-@st.cache_data(ttl=30, show_spinner="Sistem bilgileri güncelleniyor...")
+# --- ESKİ YAVAŞ FONKSİYONLAR SİLİNDİ, YERİNE HIZLI MOTOR EKLENDİ ---
+@st.cache_data(ttl=30, show_spinner=False)
 def pano_istatistiklerini_getir():
-    """Web sitesinin üst kısmındaki son güncellenme tarihlerini ve kararları hafifçe çeker."""
+    """Tüm veritabanını indirmeden sadece 'distinct' ile milisaniyeler içinde istatistik çeker."""
     d_tarih = "Bilinmiyor"
     
     # 1. Dosya Durumu Son Güncelleme Tarihi
@@ -65,29 +46,40 @@ def pano_istatistiklerini_getir():
     if valid_dates:
         d_tarih = max(valid_dates).strftime('%d.%m.%Y')
 
-    # 2. Son Belgeler ve Max Ordin Hesaplaması (Sadece gerekli 2 sütun çekilerek RAM korunur)
+    # 2. Son Belgeler ve Max Ordin (324 bin satırı RAM'e almak yerine sadece PDF isimlerini tarar)
     def son_belgeler_ve_max(koleksiyon_adi):
-        sample = db[koleksiyon_adi].find_one()
-        if not sample: return ["Veri Yok"], {}
+        belge_isimleri = db[koleksiyon_adi].distinct("Kaynak Belge")
+        belge_isimleri = [str(x).strip() for x in belge_isimleri if x and str(x).strip().lower() not in ['nan', 'none', '']]
         
-        ordin_col = next((col for col in sample.keys() if 'ordin' in str(col).lower() or 'karar' in str(col).lower()), None)
-        proj = {"Kaynak Belge": 1, "_id": 0}
-        if ordin_col: proj[ordin_col] = 1
-            
-        df = pd.DataFrame(list(db[koleksiyon_adi].find({}, proj)))
-        belgeler = ["Veri Yok"]
+        if not belge_isimleri: return ["Veri Yok"], {}
+        
         max_dict = {}
-        if not df.empty and 'Kaynak Belge' in df.columns:
-            unique_list = df['Kaynak Belge'].astype(str).str.strip().drop_duplicates().tolist()
-            unique_list = [x for x in unique_list if x.lower() not in ['nan', 'none', '']]
-            if unique_list: belgeler = unique_list[:5]
-            max_dict = max_ordin_hesapla_vektorel(df)
-        return belgeler, max_dict
+        for isim in belge_isimleri:
+            yil_match = re.search(r'\b(202\d)\b', isim)
+            no_match = re.search(r'(?:ordin|op|nr)[^\d]*(\d{1,6})', isim, re.IGNORECASE)
+            if not no_match: no_match = re.search(r'(\d{1,6})', isim) # Alternatif yakalama
+
+            if yil_match and no_match:
+                try:
+                    yil = int(yil_match.group(1))
+                    no = int(no_match.group(1))
+                    if yil not in max_dict or no > max_dict[yil]:
+                        max_dict[yil] = no
+                except: pass
+
+        def sirala_key(isim):
+            tm = re.search(r'(\d{2})[\.\-_](\d{2})[\.\-_](202\d)', str(isim))
+            if tm: return f"{tm.group(3)}{tm.group(2)}{tm.group(1)}" # Tarihe göre YYYYMMDD sıralaması
+            return "00000000"
+            
+        sirali_belgeler = sorted(belge_isimleri, key=sirala_key, reverse=True)
+        return sirali_belgeler[:5], max_dict
 
     m10_list, max_m10 = son_belgeler_ve_max("kararlar_m10")
     m11_list, max_m11 = son_belgeler_ve_max("kararlar_m11")
 
     return d_tarih, m10_list, m11_list, max_m10, max_m11
+# ---------------------------------------------------------------------
 
 def sutun_degeri_al(row_dict, olasi_isimler):
     for col in row_dict.keys():
